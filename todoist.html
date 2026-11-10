@@ -48,6 +48,10 @@
 <!-- chrono-node (natural language dates) -->
 <script src="https://cdn.jsdelivr.net/npm/chrono-node@2.5.0/dist/bundle.js"></script>
 
+<!-- Flatpickr (inline calendar in the due-date dialog) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+
 <!-- rrule (recurring tasks) -->
 <script src="https://cdn.jsdelivr.net/npm/rrule@2.8.1/dist/es5/rrule.min.js"></script>
 
@@ -242,48 +246,6 @@
             <i data-lucide="calendar" class="w-3.5 h-3.5 text-td-muted"></i>
             <span id="meta-due-text">Due date</span>
           </button>
-          <div id="due-popover" class="hidden absolute left-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-20 w-72 p-3 text-sm">
-            <div class="mb-2">
-              <input id="due-date" type="date" class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
-            </div>
-            <div class="flex items-center gap-2 mb-2">
-              <label class="flex items-center gap-1 text-xs text-td-muted">
-                <input id="due-allday" type="checkbox" checked /> All day
-              </label>
-              <input id="due-time" type="time" class="flex-1 text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
-            </div>
-            <div class="flex gap-1 mb-3">
-              <button type="button" data-due-preset="today" class="due-preset">Today</button>
-              <button type="button" data-due-preset="tomorrow" class="due-preset">Tomorrow</button>
-              <button type="button" data-due-preset="next-week" class="due-preset">Next week</button>
-            </div>
-            <label for="due-repeat" class="block text-xs text-td-muted mb-1">Repeat</label>
-            <input id="due-repeat" list="repeat-options" placeholder="e.g. every Monday" autocomplete="off"
-              class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
-            <datalist id="repeat-options">
-              <option value="every day"></option>
-              <option value="every weekday"></option>
-              <option value="every week"></option>
-              <option value="every Monday"></option>
-              <option value="every month on the 1st"></option>
-              <option value="every year"></option>
-            </datalist>
-            <div id="due-repeat-status" class="text-[11px] mt-0.5 min-h-[14px] text-td-muted"></div>
-            <label for="due-reminder" class="block text-xs text-td-muted mb-1 mt-2">Reminder</label>
-            <select id="due-reminder" class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30">
-              <option value="">No reminder</option>
-              <option value="0">At time of due date</option>
-              <option value="10">10 minutes before</option>
-              <option value="30">30 minutes before</option>
-              <option value="60">1 hour before</option>
-              <option value="120">2 hours before</option>
-              <option value="1440">1 day before</option>
-            </select>
-            <div class="flex items-center justify-between mt-3">
-              <button type="button" id="due-clear" class="text-xs text-td-muted hover:text-red-600 px-1 py-1">Clear</button>
-              <button type="button" id="due-done" class="bg-td-red hover:bg-td-redhover text-white text-xs font-semibold px-3 py-1.5 rounded">Done</button>
-            </div>
-          </div>
         </div>
         <label class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50 cursor-text" title="Estimated duration">
           <i data-lucide="clock" class="w-3.5 h-3.5 text-td-muted"></i>
@@ -326,6 +288,80 @@
       </div>
     </div>
   </form>
+</dialog>
+
+<!-- DUE DATE DIALOG (calendar + natural language + repeat + reminder) -->
+<dialog id="due-modal" class="p-0 rounded-lg shadow-2xl w-[min(44rem,calc(100vw-2rem))] max-h-[calc(100vh-2rem)] overflow-y-auto border border-td-border">
+  <div class="p-4 text-sm">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold">Due date</h3>
+      <button type="button" id="due-close" class="text-td-muted hover:text-td-text p-1" title="Close" aria-label="Close">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <label for="due-nl" class="sr-only">Type a date</label>
+    <div class="relative mb-1">
+      <i data-lucide="calendar-days" class="w-4 h-4 text-td-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+      <input id="due-nl" type="text" autocomplete="off" spellcheck="false"
+        placeholder="Try “tomorrow”, “next Friday”, “in 3 days”, “Jan 5 at 4pm”"
+        class="w-full text-sm border border-td-border rounded px-2 py-2 pl-9 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+    </div>
+    <div id="due-nl-status" class="text-[11px] mb-3 min-h-[16px] text-td-muted"></div>
+
+    <div class="due-modal-grid">
+      <div id="due-calendar-cell" class="due-calendar-cell"><div id="due-calendar"></div></div>
+
+      <div class="min-w-0">
+        <div class="text-xs text-td-muted mb-1">Time</div>
+        <div class="flex items-center gap-2 mb-3">
+          <label class="flex items-center gap-1 text-xs text-td-muted whitespace-nowrap">
+            <input id="due-allday" type="checkbox" checked /> All day
+          </label>
+          <input id="due-time" type="time" aria-label="Due time"
+            class="flex-1 min-w-0 text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </div>
+
+        <div class="flex gap-1 mb-3">
+          <button type="button" data-due-preset="today" class="due-preset">Today</button>
+          <button type="button" data-due-preset="tomorrow" class="due-preset">Tomorrow</button>
+          <button type="button" data-due-preset="next-week" class="due-preset">Next week</button>
+        </div>
+
+        <label for="due-repeat" class="block text-xs text-td-muted mb-1">Repeat</label>
+        <input id="due-repeat" list="repeat-options" placeholder="e.g. every Monday" autocomplete="off"
+          class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        <datalist id="repeat-options">
+          <option value="every day"></option>
+          <option value="every weekday"></option>
+          <option value="every week"></option>
+          <option value="every Monday"></option>
+          <option value="every month on the 1st"></option>
+          <option value="every year"></option>
+        </datalist>
+        <div id="due-repeat-status" class="text-[11px] mt-0.5 min-h-[14px] text-td-muted"></div>
+
+        <label for="due-reminder" class="block text-xs text-td-muted mb-1 mt-2">Reminder</label>
+        <select id="due-reminder" class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30">
+          <option value="">No reminder</option>
+          <option value="0">At time of due date</option>
+          <option value="10">10 minutes before</option>
+          <option value="30">30 minutes before</option>
+          <option value="60">1 hour before</option>
+          <option value="120">2 hours before</option>
+          <option value="1440">1 day before</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between mt-4 pt-3 border-t border-td-border">
+      <button type="button" id="due-clear" class="text-xs text-td-muted hover:text-red-600 px-1 py-1">Clear</button>
+      <div class="flex items-center gap-2">
+        <button type="button" id="due-cancel" class="text-xs text-td-muted hover:text-td-text px-2 py-1">Cancel</button>
+        <button type="button" id="due-done" class="bg-td-red hover:bg-td-redhover text-white text-xs font-semibold px-3 py-1.5 rounded">Done</button>
+      </div>
+    </div>
+  </div>
 </dialog>
 
 <!-- Project / label add + edit -->

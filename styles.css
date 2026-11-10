@@ -20,22 +20,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
 dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 
-/* Native dialogs clip overflowing content, which cut off the due-date
-   popover. Keep the dialog's own rounded corners but let the popover
-   escape its bounds. */
-#task-modal { overflow: visible; }
-
-/* Positioned against the viewport by `positionDuePopover()` so it can
-   flip above the chip and scroll when the viewport is short. */
-#due-popover {
-  position: fixed;
-  margin-top: 0;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 16px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
 .modal-panel { animation: fadeIn 0.12s ease-out; }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
@@ -173,7 +157,7 @@ h1, h2, h3 {
   letter-spacing: -0.01em;
 }
 
-/* ---------- Due date / repeat / reminder popover ---------- */
+/* ---------- Due date dialog ---------- */
 .due-preset {
   flex: 1 1 0;
   padding: 4px 6px;
@@ -186,6 +170,45 @@ h1, h2, h3 {
 }
 
 .due-preset:hover { background: #ededed; color: #202020; }
+
+/* Inline Flatpickr fills the left column instead of its default 307px. */
+.due-modal-grid {
+  display: grid;
+  grid-template-columns: 20.5rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.due-calendar-cell { min-width: 0; }
+
+/* Flatpickr clones an inline input next to the mount node, so hide it and
+   stretch the generated calendar to the cell. */
+.due-calendar-cell .flatpickr-input { display: none; }
+
+.due-calendar-cell .flatpickr-calendar.inline {
+  width: 100%;
+  max-width: 100%;
+  top: 0;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.due-calendar-cell .flatpickr-day.selected,
+.due-calendar-cell .flatpickr-day.selected:hover,
+.due-calendar-cell .flatpickr-day.selected:focus {
+  background: #db4c3f;
+  border-color: #db4c3f;
+  color: #fff;
+}
+
+.due-calendar-cell .flatpickr-day.today { border-color: #db4c3f; }
+.due-calendar-cell .flatpickr-day.today:hover { background: #fdecea; color: #202020; }
+.due-calendar-cell .flatpickr-day:hover { background: #f1f1f1; }
+
+@media (max-width: 640px) {
+  .due-modal-grid { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Reserve room for the repeat feedback so showing it never shifts the
    controls under the pointer mid-click. */

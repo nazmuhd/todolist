@@ -1402,78 +1402,57 @@ function renderLabelMenu() {
   lucide.createIcons();
 }
 
-// ---------- Due date / time / repeat / reminder popover ----------
-const duePopover = $('#due-popover');
-const dueDateInput = $('#due-date');
+// ---------- Due date dialog (Flatpickr + natural language) ----------
+const dueModal = $('#due-modal');
+const dueNlInput = $('#due-nl');
+const dueNlStatus = $('#due-nl-status');
 const dueTimeInput = $('#due-time');
 const dueAllDayInput = $('#due-allday');
 const dueRepeatInput = $('#due-repeat');
 const dueRepeatStatus = $('#due-repeat-status');
 const dueReminderSelect = $('#due-reminder');
 
-function syncDuePopover() {
+let dueCalendar = null;
+let dueCalendarSyncing = false;
+let dueEditorSnapshot = null;
+let dueEditorCommitted = false;
+
+function setDueNlStatus(text, tone) {
+  dueNlStatus.textContent = text || '';
+  dueNlStatus.className = `text-[11px] mb-3 min-h-[16px] ${
+    tone === 'error' ? 'text-red-600' : tone === 'ok' ? 'text-green-700' : 'text-td-muted'
+  }`;
+}
+
+/** Keeps the calendar and the natural-language field in step with the draft. */
+function syncDueDateControls() {
   const t = modalDraft || {};
-  dueDateInput.value = t.due || '';
+  if (dueCalendar) {
+    dueCalendarSyncing = true;
+    if (t.due) {
+      dueCalendar.setDate(t.due, false);
+      dueCalendar.jumpToDate(parseDate(t.due), false);
+    } else {
+      dueCalendar.clear();
+    }
+    dueCalendarSyncing = false;
+  }
+  dueNlInput.value = t.due ? formatDue(t.due, t.dueTime) : '';
+  dueReminderSelect.disabled = !t.due;
+  setDueNlStatus(t.due ? `Selected: ${formatDue(t.due, t.dueTime)}` : 'No due date selected');
+}
+
+function syncDueEditor() {
+  const t = modalDraft || {};
   dueTimeInput.value = t.dueTime || '';
   dueAllDayInput.checked = !t.dueTime;
   dueTimeInput.disabled = !t.dueTime;
   dueRepeatInput.value = t.recurrence ? recurrenceToText(t.recurrence) : '';
   dueReminderSelect.value = (t.reminderMinutes === null || t.reminderMinutes === undefined)
     ? '' : String(t.reminderMinutes);
-  dueReminderSelect.disabled = !t.due;
   dueRepeatStatus.textContent = '';
   dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-td-muted';
-}
-
-/**
- * Keeps the due popover inside the viewport. It opens below the chip
- * when there is room, flips above when there is not, and scrolls if the
- * viewport is too short for either.
- */
-function positionDuePopover() {
-  if (duePopover.classList.contains('hidden')) return;
-  const trigger = $('#meta-due');
-  if (!trigger) return;
-
-  const margin = 8;
-  const gap = 4;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  // Measure unclamped first.
-  duePopover.style.maxHeight = 'none';
-  duePopover.style.left = '0px';
-  duePopover.style.top = '0px';
-  const popRect = duePopover.getBoundingClientRect();
-  const triggerRect = trigger.getBoundingClientRect();
-
-  const width = Math.min(popRect.width, vw - margin * 2);
-  let left = triggerRect.left;
-  if (left + width > vw - margin) left = vw - width - margin;
-  left = Math.max(margin, left);
-
-  const spaceBelow = vh - margin - (triggerRect.bottom + gap);
-  const spaceAbove = triggerRect.top - gap - margin;
-
-  let top;
-  let maxHeight;
-  if (popRect.height <= spaceBelow) {
-    top = triggerRect.bottom + gap;
-    maxHeight = spaceBelow;
-  } else if (popRect.height <= spaceAbove) {
-    top = triggerRect.top - gap - popRect.height;
-    maxHeight = spaceAbove;
-  } else if (spaceBelow >= spaceAbove) {
-    top = triggerRect.bottom + gap;
-    maxHeight = spaceBelow;
-  } else {
-    top = margin;
-    maxHeight = spaceAbove;
-  }
-
-  duePopover.style.left = `${Math.round(left)}px`;
-  duePopover.style.top = `${Math.round(top)}px`;
-  duePopover.style.maxHeight = `${Math.max(1, Math.floor(maxHeight))}px`;
+  syncDueDateControls();
 }
 
 function setDueDate(iso) {
@@ -1483,8 +1462,85 @@ function setDueDate(iso) {
     modalDraft.recurrence = null;
     modalDraft.reminderMinutes = null;
   }
-  syncDuePopover();
+  syncDueEditor();
   updateModalChips();
+}
+
+/** Parses “tomorrow”, “next Friday”, “Jan 5 at 4pm” … */
+function applyNaturalDue(raw) {
+  const text = (raw || '').trim();
+  if (!text) {
+    setDueNlStatus('');
+    return false;
+  }
+  if (!window.chrono) {
+    setDueNlStatus('Natural language dates are unavailable.', 'error');
+    return false;
+  }
+
+  const results = window.chrono.parse(text, new Date(), { forwardDate: true });
+  if (!results.length) {
+    setDueNlStatus('Could not find a date in that phrase.', 'error');
+    return false;
+  }
+
+  const start = results[0].start;
+  const date = start.date();
+  const hasTime = start.isCertain('hour') || start.isCertain('minute');
+
+  modalDraft.due = toISODate(date);
+  if (hasTime) {
+    modalDraft.dueTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  syncDueEditor();
+  setDueNlStatus(`Due ${formatDue(modalDraft.due, modalDraft.dueTime)}`, 'ok');
+  updateModalChips();
+  return true;
+}
+
+function initDueCalendar() {
+  if (dueCalendar || typeof window.flatpickr === 'undefined') return;
+  dueCalendar = window.flatpickr('#due-calendar', {
+    inline: true,
+    dateFormat: 'Y-m-d',
+    defaultDate: null,
+    onChange: (dates, dateStr) => {
+      if (dueCalendarSyncing || !modalDraft) return;
+      modalDraft.due = dateStr || null;
+      if (!dateStr) {
+        modalDraft.dueTime = null;
+        modalDraft.recurrence = null;
+        modalDraft.reminderMinutes = null;
+        dueTimeInput.value = '';
+        dueAllDayInput.checked = true;
+        dueTimeInput.disabled = true;
+        dueRepeatInput.value = '';
+        dueReminderSelect.value = '';
+      }
+      dueReminderSelect.disabled = !dateStr;
+      dueNlInput.value = dateStr ? formatDue(dateStr, modalDraft.dueTime) : '';
+      setDueNlStatus(dateStr ? `Selected: ${formatDue(dateStr, modalDraft.dueTime)}` : 'No due date selected');
+      updateModalChips();
+    },
+  });
+}
+
+function openDueEditor() {
+  if (!modalDraft || dueModal.open) return;
+  dueEditorSnapshot = {
+    due: modalDraft.due,
+    dueTime: modalDraft.dueTime,
+    recurrence: modalDraft.recurrence,
+    reminderMinutes: modalDraft.reminderMinutes,
+  };
+  dueEditorCommitted = false;
+  dueModal.showModal();
+  initDueCalendar();
+  syncDueEditor();
+  dueNlInput.focus();
+  const end = dueNlInput.value.length;
+  dueNlInput.setSelectionRange(end, end);
 }
 
 function parseDueRepeatField() {
@@ -1509,25 +1565,11 @@ function parseDueRepeatField() {
 
 function commitDueEdits() {
   if (!modalDraft) return false;
-  if (!parseDueRepeatField()) return false;
-
-  if (dueDateInput.value) {
-    modalDraft.due = dueDateInput.value;
-  } else {
-    modalDraft.due = null;
+  if (dueModal.open && !parseDueRepeatField()) return false;
+  if (!modalDraft.due) {
     modalDraft.dueTime = null;
     modalDraft.recurrence = null;
-  }
-  if (modalDraft.due && !dueAllDayInput.checked && dueTimeInput.value) {
-    modalDraft.dueTime = dueTimeInput.value;
-  } else if (dueAllDayInput.checked) {
-    modalDraft.dueTime = null;
-  }
-  if (!modalDraft.due) {
     modalDraft.reminderMinutes = null;
-  } else {
-    const val = dueReminderSelect.value;
-    modalDraft.reminderMinutes = val === '' ? null : Number(val);
   }
   updateModalChips();
   return true;
@@ -1538,21 +1580,16 @@ $('#meta-due').onclick = (e) => {
   priorityMenu.classList.add('hidden');
   projectMenu.classList.add('hidden');
   labelMenu.classList.add('hidden');
-  const opening = duePopover.classList.contains('hidden');
-  duePopover.classList.toggle('hidden');
-  if (opening) {
-    syncDuePopover();
-    positionDuePopover();
-  }
+  openDueEditor();
 };
 
-window.addEventListener('resize', positionDuePopover);
-
-dueDateInput.addEventListener('change', () => {
-  modalDraft.due = dueDateInput.value || null;
-  dueReminderSelect.disabled = !modalDraft.due;
-  if (!modalDraft.due) modalDraft.reminderMinutes = null;
-  updateModalChips();
+dueNlInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  applyNaturalDue(dueNlInput.value);
+});
+dueNlInput.addEventListener('change', () => {
+  if (dueNlInput.value.trim()) applyNaturalDue(dueNlInput.value);
 });
 dueAllDayInput.addEventListener('change', () => {
   if (dueAllDayInput.checked) {
@@ -1564,6 +1601,7 @@ dueAllDayInput.addEventListener('change', () => {
     if (!dueTimeInput.value) dueTimeInput.value = '09:00';
     modalDraft.dueTime = dueTimeInput.value;
   }
+  dueNlInput.value = modalDraft.due ? formatDue(modalDraft.due, modalDraft.dueTime) : '';
   updateModalChips();
 });
 dueTimeInput.addEventListener('change', () => {
@@ -1573,6 +1611,7 @@ dueTimeInput.addEventListener('change', () => {
   } else {
     modalDraft.dueTime = dueTimeInput.value;
   }
+  dueNlInput.value = modalDraft.due ? formatDue(modalDraft.due, modalDraft.dueTime) : '';
   updateModalChips();
 });
 dueRepeatInput.addEventListener('input', () => {
@@ -1600,47 +1639,134 @@ $$('[data-due-preset]').forEach(btn => {
 $('#due-clear').onclick = (e) => {
   e.stopPropagation();
   setDueDate(null);
-  dueRepeatStatus.textContent = '';
-  dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-td-muted';
 };
 
 $('#due-done').onclick = (e) => {
   e.stopPropagation();
-  if (commitDueEdits()) duePopover.classList.add('hidden');
+  if (!parseDueRepeatField()) {
+    dueRepeatInput.focus();
+    return;
+  }
+  dueEditorCommitted = true;
+  dueModal.close();
 };
 
-// priority toggle
+$('#due-cancel').onclick = () => dueModal.close();
+$('#due-close').onclick = () => dueModal.close();
+
+dueModal.addEventListener('close', () => {
+  if (!dueEditorCommitted && dueEditorSnapshot && modalDraft) {
+    modalDraft.due = dueEditorSnapshot.due;
+    modalDraft.dueTime = dueEditorSnapshot.dueTime;
+    modalDraft.recurrence = dueEditorSnapshot.recurrence;
+    modalDraft.reminderMinutes = dueEditorSnapshot.reminderMinutes;
+    updateModalChips();
+  }
+  dueEditorCommitted = false;
+  dueEditorSnapshot = null;
+});
+
+// priority / project / label menus are viewport-positioned so the task
+// dialog never clips them and they stay clear of the screen edges.
+const META_MENU_GAP = 4;
+const META_MENU_MARGIN = 8;
+
+function positionMetaMenu(menu, trigger) {
+  if (!menu || !trigger || menu.classList.contains('hidden')) return;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const anchor = trigger.getBoundingClientRect();
+
+  // Measure at the origin first so clamping uses the real size.
+  menu.style.position = 'fixed';
+  menu.style.marginTop = '0';
+  menu.style.maxHeight = 'none';
+  menu.style.left = '0px';
+  menu.style.top = '0px';
+  const rect = menu.getBoundingClientRect();
+
+  const width = Math.min(rect.width, vw - META_MENU_MARGIN * 2);
+  let left = anchor.left;
+  if (left + width > vw - META_MENU_MARGIN) left = vw - META_MENU_MARGIN - width;
+  left = Math.max(META_MENU_MARGIN, left);
+
+  const spaceBelow = vh - META_MENU_MARGIN - (anchor.bottom + META_MENU_GAP);
+  const spaceAbove = anchor.top - META_MENU_GAP - META_MENU_MARGIN;
+
+  let top;
+  let maxHeight;
+  if (rect.height <= spaceBelow) {
+    top = anchor.bottom + META_MENU_GAP;
+    maxHeight = spaceBelow;
+  } else if (rect.height <= spaceAbove) {
+    top = anchor.top - META_MENU_GAP - rect.height;
+    maxHeight = spaceAbove;
+  } else if (spaceBelow >= spaceAbove) {
+    top = anchor.bottom + META_MENU_GAP;
+    maxHeight = spaceBelow;
+  } else {
+    top = META_MENU_MARGIN;
+    maxHeight = spaceAbove;
+  }
+
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+  menu.style.maxHeight = `${Math.max(1, Math.floor(maxHeight))}px`;
+  menu.style.overflowY = 'auto';
+  menu.style.overscrollBehavior = 'contain';
+}
+
+function closeMetaMenus() {
+  [priorityMenu, projectMenu, labelMenu].forEach(menu => menu.classList.add('hidden'));
+}
+
+function toggleMetaMenu(menu, trigger) {
+  const opening = menu.classList.contains('hidden');
+  closeMetaMenus();
+  if (!opening) return;
+  menu.classList.remove('hidden');
+  positionMetaMenu(menu, trigger);
+}
+
+window.addEventListener('resize', () => {
+  if (!priorityMenu.classList.contains('hidden')) positionMetaMenu(priorityMenu, $('#meta-priority'));
+  if (!projectMenu.classList.contains('hidden')) positionMetaMenu(projectMenu, $('#meta-project'));
+  if (!labelMenu.classList.contains('hidden')) positionMetaMenu(labelMenu, $('#meta-label'));
+});
+window.addEventListener('scroll', () => {
+  if (!priorityMenu.classList.contains('hidden')) positionMetaMenu(priorityMenu, $('#meta-priority'));
+  if (!projectMenu.classList.contains('hidden')) positionMetaMenu(projectMenu, $('#meta-project'));
+  if (!labelMenu.classList.contains('hidden')) positionMetaMenu(labelMenu, $('#meta-label'));
+}, true);
+
 $('#meta-priority').onclick = (e) => {
   e.stopPropagation();
-  priorityMenu.classList.toggle('hidden');
-  projectMenu.classList.add('hidden');
-  labelMenu.classList.add('hidden');
+  toggleMetaMenu(priorityMenu, e.currentTarget);
 };
 $('#meta-project').onclick = (e) => {
   e.stopPropagation();
-  projectMenu.classList.toggle('hidden');
-  priorityMenu.classList.add('hidden');
-  labelMenu.classList.add('hidden');
+  toggleMetaMenu(projectMenu, e.currentTarget);
 };
 $('#meta-label').onclick = (e) => {
   e.stopPropagation();
-  labelMenu.classList.toggle('hidden');
-  priorityMenu.classList.add('hidden');
-  projectMenu.classList.add('hidden');
+  toggleMetaMenu(labelMenu, e.currentTarget);
 };
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('#meta-due') && !e.target.closest('#due-popover')) {
-    duePopover.classList.add('hidden');
-  }
   if (!e.target.closest('.meta-chip') && !e.target.closest('#priority-menu') && !e.target.closest('#project-menu') && !e.target.closest('#label-menu')) {
-    priorityMenu.classList.add('hidden');
-    projectMenu.classList.add('hidden');
-    labelMenu.classList.add('hidden');
+    closeMetaMenus();
   }
 });
 
 $$('.close-modal').forEach(b => b.onclick = () => modal.close());
-modal.addEventListener('close', () => { editingTaskId = null; modalDraft = null; duePopover.classList.add('hidden'); });
+modal.addEventListener('close', () => {
+  editingTaskId = null;
+  modalDraft = null;
+  if (dueModal.open) {
+    dueEditorCommitted = true;
+    dueModal.close();
+  }
+});
 
 $('#modal-save').onclick = () => {
   if (!editingTaskId || !modalDraft) return;
@@ -2400,12 +2526,12 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  const dialogOpen = modal.open || projectModal.open || labelModal.open;
+  const dialogOpen = modal.open || projectModal.open || labelModal.open || dueModal.open;
   if (e.key === 'Escape') {
     // Handle every case ourselves; otherwise the browser would also
     // close the dialog while we only meant to dismiss the popover.
     e.preventDefault();
-    if (!duePopover.classList.contains('hidden')) duePopover.classList.add('hidden');
+    if (dueModal.open) dueModal.close();
     else if (!rowMenu.classList.contains('hidden')) closeRowMenu();
     else if (modal.open) modal.close();
     else if (projectModal.open) projectModal.close();
