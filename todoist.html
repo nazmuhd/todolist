@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Todoist Clone</title>
+
+<!-- Inter (product UI font) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          td: {
+            red: '#db4c3f',
+            redhover: '#c53727',
+            bg: '#fafafa',
+            sidebar: '#fafafa',
+            border: '#e5e5e5',
+            text: '#202020',
+            muted: '#808080',
+            p1: '#db4c3f',
+            p2: '#eb8909',
+            p3: '#246fe0',
+            p4: '#999999',
+          }
+        },
+        fontFamily: {
+          sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif']
+        }
+      }
+    }
+  }
+</script>
+
+<!-- SortableJS (drag reorder) -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+<!-- Lucide icons -->
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.408.0/dist/umd/lucide.min.js"></script>
+
+<!-- chrono-node (natural language dates) -->
+<script src="https://cdn.jsdelivr.net/npm/chrono-node@2.5.0/dist/bundle.js"></script>
+
+<!-- rrule (recurring tasks) -->
+<script src="https://cdn.jsdelivr.net/npm/rrule@2.8.1/dist/es5/rrule.min.js"></script>
+
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body class="bg-td-bg text-td-text h-screen overflow-hidden">
+
+<div id="app" class="flex h-full">
+  <!-- SIDEBAR -->
+  <aside class="w-72 bg-td-sidebar border-r border-td-border flex flex-col flex-shrink-0">
+    <!-- User -->
+    <div class="sidebar-user px-3 py-3 flex items-center gap-2 border-b border-td-border">
+      <div class="sidebar-hide w-7 h-7 rounded-full bg-td-red text-white text-sm flex items-center justify-center font-semibold">U</div>
+      <span class="sidebar-hide text-sm font-medium">You</span>
+      <button id="sidebar-toggle" class="ml-auto text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
+        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <nav class="px-2 pt-2 overflow-y-auto scrollbar-thin flex-1 pb-4">
+      <!-- Smart lists -->
+      <div class="space-y-0.5">
+        <a href="#" data-view="inbox" title="Inbox" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+          <i data-lucide="inbox" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+          <span class="sidebar-hide">Inbox</span>
+          <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+        </a>
+        <a href="#" data-view="today" title="Today" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+          <i data-lucide="calendar-days" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+          <span class="sidebar-hide">Today</span>
+          <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+        </a>
+        <a href="#" data-view="upcoming" title="Upcoming" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+          <i data-lucide="calendar" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+          <span class="sidebar-hide">Upcoming</span>
+        </a>
+        <a href="#" data-view="completed" title="Completed" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+          <i data-lucide="circle-check-big" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+          <span class="sidebar-hide">Completed</span>
+          <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+        </a>
+      </div>
+
+      <!-- Quick filters -->
+      <div class="mt-4">
+        <div class="sidebar-section-header px-2 mb-1">
+          <span class="text-xs font-semibold text-td-muted uppercase tracking-wide">Filters</span>
+        </div>
+        <div class="space-y-0.5">
+          <a href="#" data-view="no-date" title="Tasks without a due date" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+            <i data-lucide="calendar-x" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+            <span class="sidebar-hide">No date</span>
+            <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+          </a>
+          <a href="#" data-view="no-priority" title="Tasks without a priority" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+            <i data-lucide="flag-off" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+            <span class="sidebar-hide">No priority</span>
+            <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Projects -->
+      <div class="mt-4">
+        <div class="sidebar-section-header flex items-center justify-between px-2 mb-1">
+          <button type="button" id="toggle-projects" class="flex items-center gap-1 text-xs font-semibold text-td-muted uppercase tracking-wide hover:text-td-text" aria-expanded="true" title="Collapse projects">
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i><span>Projects</span>
+          </button>
+          <button id="add-project-btn" class="text-td-muted hover:text-td-text p-0.5" title="Add project">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+        <div id="projects-list" class="space-y-0.5"></div>
+      </div>
+
+      <!-- Labels -->
+      <div class="mt-4">
+        <div class="sidebar-section-header flex items-center justify-between px-2 mb-1">
+          <button type="button" id="toggle-labels" class="flex items-center gap-1 text-xs font-semibold text-td-muted uppercase tracking-wide hover:text-td-text" aria-expanded="true" title="Collapse labels">
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i><span>Labels</span>
+          </button>
+          <button id="add-label-btn" class="text-td-muted hover:text-td-text p-0.5" title="Add label">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+        <div id="labels-list" class="space-y-0.5"></div>
+      </div>
+    </nav>
+
+    <!-- Data backup -->
+    <div class="sidebar-footer border-t border-td-border px-2 py-2 flex items-center gap-1 text-xs flex-shrink-0">
+      <button id="export-data-btn" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Download a JSON backup of all tasks">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i><span>Export</span>
+      </button>
+      <button id="import-data-btn" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Restore from a JSON backup">
+        <i data-lucide="upload" class="w-3.5 h-3.5"></i><span>Import</span>
+      </button>
+      <span id="schema-badge" class="ml-1 pr-1 text-[10px] text-td-muted" title="Data schema version"></span>
+    </div>
+    <input id="import-file" type="file" accept="application/json,.json" class="hidden" />
+  </aside>
+
+  <!-- MAIN -->
+  <main class="flex-1 flex flex-col min-w-0 bg-white">
+    <!-- Header -->
+    <header class="app-topbar border-b border-td-border px-6 py-3 flex items-center gap-3 flex-shrink-0">
+      <button id="mobile-menu" class="md:hidden text-td-muted p-1"><i data-lucide="menu" class="w-5 h-5"></i></button>
+      <h1 id="view-title" class="text-xl font-bold flex items-center gap-2">
+        <i id="view-icon" data-lucide="inbox" class="w-5 h-5 text-td-muted"></i>
+        <span id="view-title-text">Inbox</span>
+      </h1>
+      <div class="ml-auto flex items-center gap-2">
+        <div id="view-layout" class="hidden items-center rounded border border-td-border overflow-hidden" role="group" aria-label="View layout">
+          <button type="button" data-layout="list" class="layout-btn" title="List view" aria-label="List view" aria-pressed="true">
+            <i data-lucide="list" class="w-4 h-4"></i>
+          </button>
+          <button type="button" data-layout="board" class="layout-btn" title="Board view" aria-label="Board view" aria-pressed="false">
+            <i data-lucide="columns-3" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-td-muted"></i>
+          <input id="search-input" type="text" placeholder="Search" class="pl-8 pr-2 py-1.5 text-sm border border-td-border rounded bg-white w-56 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto scrollbar-thin">
+      <div class="max-w-3xl mx-auto px-6 py-6" id="content-container">
+        <div id="view-subtitle" class="text-xs text-td-muted mb-3"></div>
+        <ul id="task-list" class="space-y-0"></ul>
+        <div id="board-view" class="hidden"></div>
+        <div id="empty-state" class="hidden text-center py-16 text-td-muted">
+          <div class="empty-illustration mx-auto mb-4" aria-hidden="true">
+            <span class="empty-dot empty-dot-1"></span>
+            <span class="empty-dot empty-dot-2"></span>
+            <span class="empty-dot empty-dot-3"></span>
+            <div class="empty-illustration-card"><i data-lucide="clipboard-check" class="w-7 h-7"></i></div>
+          </div>
+          <h2 id="empty-title" class="text-base font-semibold text-td-text mb-1">All clear</h2>
+          <p class="text-sm mb-4" id="empty-text">No tasks here yet</p>
+          <button id="empty-cta" type="button" class="inline-flex items-center gap-1.5 bg-td-red hover:bg-td-redhover text-white text-xs font-semibold px-3 py-1.5 rounded">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>Add a task
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Add -->
+    <div class="border-t border-td-border px-6 py-3 flex-shrink-0">
+      <div id="quick-add-wrapper" class="max-w-3xl mx-auto">
+        <div class="flex items-start gap-2 text-sm text-td-muted cursor-text" id="quick-add-placeholder">
+          <i data-lucide="plus-circle" class="w-5 h-5 text-td-red mt-0.5"></i>
+          <span class="pt-0.5">Add task</span>
+        </div>
+        <div id="quick-add-editor" class="hidden">
+          <div class="flex items-start gap-2">
+            <i data-lucide="circle-plus" class="w-5 h-5 text-td-red mt-1"></i>
+            <textarea id="quick-add-input" rows="1" placeholder="e.g. Pay rent tomorrow 9am p1 #Home @finance"
+              class="flex-1 resize-none border border-td-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30"></textarea>
+          </div>
+          <div id="quick-add-preview" class="ml-7 mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-td-muted min-h-[20px]"></div>
+          <div class="ml-7 mt-2 flex items-center gap-2">
+            <button id="quick-add-submit" class="bg-td-red hover:bg-td-redhover text-white text-xs font-semibold px-3 py-1.5 rounded">Add task</button>
+            <button id="quick-add-cancel" class="text-xs text-td-muted hover:text-td-text px-2 py-1.5">Cancel</button>
+            <span class="text-xs text-td-muted ml-auto hidden sm:inline">Enter to add • Esc to close</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- TASK EDIT MODAL -->
+<dialog id="task-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-xl border border-td-border">
+  <form id="task-form" class="p-0" onsubmit="return false;">
+    <div class="p-4">
+      <!-- Title + description -->
+      <div class="flex items-start gap-2 mb-2">
+        <input id="modal-title" type="text" placeholder="Task name" class="flex-1 text-base font-semibold border-0 focus:outline-none px-1" />
+        <button type="button" class="close-modal text-td-muted hover:text-td-text p-1" title="Close">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <textarea id="modal-desc" rows="2" placeholder="Description" class="w-full text-sm border-0 resize-none focus:outline-none px-1 mb-2"></textarea>
+
+      <!-- Meta chips -->
+      <div class="flex flex-wrap items-center gap-1.5 text-xs">
+        <div class="relative">
+          <button type="button" id="meta-due" class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50">
+            <i data-lucide="calendar" class="w-3.5 h-3.5 text-td-muted"></i>
+            <span id="meta-due-text">Due date</span>
+          </button>
+          <div id="due-popover" class="hidden absolute left-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-20 w-72 p-3 text-sm">
+            <div class="mb-2">
+              <input id="due-date" type="date" class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+            </div>
+            <div class="flex items-center gap-2 mb-2">
+              <label class="flex items-center gap-1 text-xs text-td-muted">
+                <input id="due-allday" type="checkbox" checked /> All day
+              </label>
+              <input id="due-time" type="time" class="flex-1 text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+            </div>
+            <div class="flex gap-1 mb-3">
+              <button type="button" data-due-preset="today" class="due-preset">Today</button>
+              <button type="button" data-due-preset="tomorrow" class="due-preset">Tomorrow</button>
+              <button type="button" data-due-preset="next-week" class="due-preset">Next week</button>
+            </div>
+            <label for="due-repeat" class="block text-xs text-td-muted mb-1">Repeat</label>
+            <input id="due-repeat" list="repeat-options" placeholder="e.g. every Monday" autocomplete="off"
+              class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+            <datalist id="repeat-options">
+              <option value="every day"></option>
+              <option value="every weekday"></option>
+              <option value="every week"></option>
+              <option value="every Monday"></option>
+              <option value="every month on the 1st"></option>
+              <option value="every year"></option>
+            </datalist>
+            <div id="due-repeat-status" class="text-[11px] mt-0.5 min-h-[14px] text-td-muted"></div>
+            <label for="due-reminder" class="block text-xs text-td-muted mb-1 mt-2">Reminder</label>
+            <select id="due-reminder" class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30">
+              <option value="">No reminder</option>
+              <option value="0">At time of due date</option>
+              <option value="10">10 minutes before</option>
+              <option value="30">30 minutes before</option>
+              <option value="60">1 hour before</option>
+              <option value="120">2 hours before</option>
+              <option value="1440">1 day before</option>
+            </select>
+            <div class="flex items-center justify-between mt-3">
+              <button type="button" id="due-clear" class="text-xs text-td-muted hover:text-red-600 px-1 py-1">Clear</button>
+              <button type="button" id="due-done" class="bg-td-red hover:bg-td-redhover text-white text-xs font-semibold px-3 py-1.5 rounded">Done</button>
+            </div>
+          </div>
+        </div>
+        <label class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50 cursor-text" title="Estimated duration">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-td-muted"></i>
+          <input id="modal-duration" type="number" min="0" max="10080" step="5" placeholder="Duration"
+            class="w-16 bg-transparent text-xs focus:outline-none" aria-label="Estimated duration in minutes" />
+          <span class="text-[10px] text-td-muted">min</span>
+        </label>
+        <div class="relative">
+          <button type="button" id="meta-priority" class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50">
+            <i data-lucide="flag" class="w-3.5 h-3.5" id="meta-priority-icon" style="color:#999"></i>
+            <span id="meta-priority-text">Priority</span>
+          </button>
+          <div id="priority-menu" class="hidden absolute left-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-10 w-40 text-sm"></div>
+        </div>
+        <div class="relative">
+          <button type="button" id="meta-project" class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50">
+            <i data-lucide="hash" class="w-3.5 h-3.5 text-td-muted"></i>
+            <span id="meta-project-text">Project</span>
+          </button>
+          <div id="project-menu" class="hidden absolute left-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-10 w-44 text-sm max-h-60 overflow-y-auto"></div>
+        </div>
+        <div class="relative">
+          <button type="button" id="meta-label" class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50">
+            <i data-lucide="tag" class="w-3.5 h-3.5 text-td-muted"></i>
+            <span id="meta-label-text">Labels</span>
+          </button>
+          <div id="label-menu" class="hidden absolute left-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-10 w-44 text-sm max-h-60 overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer actions -->
+    <div class="border-t border-td-border px-4 py-3 flex items-center justify-between bg-gray-50 rounded-b-lg">
+      <button type="button" id="modal-delete" class="text-xs text-td-muted hover:text-red-600 flex items-center gap-1">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
+      </button>
+      <div class="flex items-center gap-2">
+        <button type="button" class="close-modal text-xs text-td-muted hover:text-td-text px-2 py-1">Cancel</button>
+        <button type="button" id="modal-save" class="bg-td-red hover:bg-td-redhover text-white text-xs font-semibold px-3 py-1.5 rounded">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Project / label add + edit -->
+<dialog id="project-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-sm border border-td-border">
+  <div class="p-4">
+    <h3 id="project-modal-title" class="font-semibold mb-3">Add project</h3>
+    <input id="project-name" type="text" placeholder="Project name" class="w-full text-sm border border-td-border rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-td-red/30 mb-3" />
+    <div id="project-colors" class="flex flex-wrap gap-2 mb-4"></div>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="close-project-modal text-xs text-td-muted px-2 py-1">Cancel</button>
+      <button type="button" id="save-project" class="bg-td-red text-white text-xs font-semibold px-3 py-1.5 rounded">Add</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="label-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-sm border border-td-border">
+  <div class="p-4">
+    <h3 id="label-modal-title" class="font-semibold mb-3">Add label</h3>
+    <input id="label-name" type="text" placeholder="Label name" class="w-full text-sm border border-td-border rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-td-red/30 mb-3" />
+    <div id="label-colors" class="flex flex-wrap gap-2 mb-4"></div>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="close-label-modal text-xs text-td-muted px-2 py-1">Cancel</button>
+      <button type="button" id="save-label" class="bg-td-red text-white text-xs font-semibold px-3 py-1.5 rounded">Add</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Shared "…" menu for projects / labels -->
+<div id="row-menu" class="hidden fixed z-50 bg-white border border-td-border rounded shadow-lg py-1 text-sm w-40"></div>
+
+<div id="toast-container" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

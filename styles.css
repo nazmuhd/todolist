@@ -1,0 +1,375 @@
+/* ============================================================
+   Todoist Clone — custom styles
+   (Tailwind handles the bulk of the styling; this file holds
+   the extras Tailwind utilities don't cover.)
+============================================================ */
+
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+.scrollbar-thin::-webkit-scrollbar { width: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d1d1; border-radius: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+.task-row:hover .task-actions { opacity: 1; }
+.task-actions { opacity: 0; transition: opacity 0.15s; }
+
+.flatpickr-calendar { font-family: inherit; }
+
+.dragging { opacity: 0.4; }
+.subtask-list { margin-left: 2.5rem; }
+
+dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+
+.modal-panel { animation: fadeIn 0.12s ease-out; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------- Collapsed sidebar (icon rail) ---------- */
+/* The sidebar's top row and the main header share one height, so the
+   collapse button lines up with the view title and the nav starts on
+   the same horizontal line as the main content. */
+.app-topbar,
+.sidebar-user {
+  min-height: 3.75rem;
+}
+
+aside.sidebar-collapsed {
+  width: 4rem;
+  overflow: hidden;
+}
+
+aside.sidebar-collapsed .sidebar-hide { display: none; }
+
+aside.sidebar-collapsed .sidebar-user {
+  min-height: 3.75rem;
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+aside.sidebar-collapsed #sidebar-toggle { margin-left: 0; }
+
+aside.sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+aside.sidebar-collapsed .nav-item svg,
+aside.sidebar-collapsed .nav-item i { flex-shrink: 0; }
+
+aside.sidebar-collapsed .sidebar-section-header,
+aside.sidebar-collapsed .sidebar-footer { display: none; }
+
+aside.sidebar-collapsed nav {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+/* ---------- Toasts ---------- */
+#toast-container {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.toast {
+  max-width: 90vw;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #202020;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toast-message { flex: 1 1 auto; }
+
+.toast-action {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.toast-action:hover { opacity: 0.8; }
+.toast-action:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 2px; }
+
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast-error { background: #dc2626; }
+.toast-success { background: #058527; }
+
+/* ---------- Colour picker swatches (project / label modals) ---------- */
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.color-swatch[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 0 0 2px #fff, 0 0 0 4px #202020;
+}
+
+.color-swatch:focus-visible {
+  outline: 2px solid #246fe0;
+  outline-offset: 3px;
+}
+
+/* ---------- Typography ---------- */
+/* Inter is loaded in todoist.html and set as Tailwind's `font-sans`. */
+h1, h2, h3 {
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Due date / repeat / reminder popover ---------- */
+.due-preset {
+  flex: 1 1 0;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: #555;
+  background: #f6f6f6;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.due-preset:hover { background: #ededed; color: #202020; }
+
+#due-repeat-status:empty { display: none; }
+
+#due-time:disabled {
+  opacity: 0.45;
+  background: #fafafa;
+}
+
+/* ---------- Upcoming day groups ---------- */
+.day-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  list-style: none;
+  margin: 18px 0 4px;
+  padding: 0 2px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #202020;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.day-group-header:first-child { margin-top: 0; }
+
+.day-group-header[data-day-group="overdue"] {
+  color: #db4c3f;
+  border-bottom-color: #f3c4bf;
+}
+
+/* ---------- List / board switch ---------- */
+#view-layout { display: flex; }
+#view-layout.hidden { display: none; }
+
+.layout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: #fff;
+  color: #808080;
+  cursor: pointer;
+}
+
+.layout-btn + .layout-btn { border-left: 1px solid #e5e5e5; }
+.layout-btn:hover { background: #f6f6f6; color: #202020; }
+.layout-btn:focus-visible { outline: 2px solid #246fe0; outline-offset: -2px; }
+
+.layout-btn-active,
+.layout-btn-active:hover {
+  background: #f1f1f1;
+  color: #202020;
+}
+
+/* ---------- Board (priority columns) ---------- */
+#content-container.board-mode {
+  max-width: none;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#board-view { flex: 1 1 auto; min-height: 0; }
+.board-scroll { overflow-x: auto; padding-bottom: 8px; }
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 12px;
+  min-width: 920px;
+  align-items: start;
+}
+
+.board-column {
+  background: #fafafa;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  padding: 8px;
+  min-height: 140px;
+}
+
+.board-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 8px;
+}
+
+.board-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 64px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.board-cards:empty::after {
+  content: 'Drop tasks here';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  font-size: 11px;
+  color: #adadad;
+  border: 1px dashed #dedede;
+  border-radius: 6px;
+}
+
+.board-card {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: grab;
+}
+
+.board-card:active { cursor: grabbing; }
+.board-card:hover { border-color: #d6d6d6; }
+.board-card:hover .task-actions { opacity: 1; }
+.board-card-ghost { opacity: 0.4; }
+
+/* ---------- Motion ---------- */
+.view-enter { animation: viewIn 0.18s ease-out both; }
+
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.task-check {
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.task-check:active { transform: scale(0.88); }
+
+.task-check-pop { animation: checkPop 0.24s ease-out; }
+
+@keyframes checkPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Empty state illustration ---------- */
+#empty-cta.hidden { display: none; }
+.empty-illustration {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-illustration::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(219, 76, 63, 0.16), transparent 55%),
+    radial-gradient(circle at 75% 80%, rgba(36, 111, 224, 0.14), transparent 55%),
+    #f7f7f7;
+}
+
+.empty-illustration-card {
+  position: relative;
+  z-index: 1;
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  color: #db4c3f;
+  background: #fff;
+  border: 1px solid #ececec;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+  transform: rotate(-5deg);
+}
+
+.empty-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #db4c3f;
+  opacity: 0.45;
+}
+
+.empty-dot-1 { top: 10px; right: 17px; }
+.empty-dot-2 { bottom: 15px; left: 12px; width: 5px; height: 5px; background: #246fe0; }
+.empty-dot-3 { top: 27px; left: 6px; width: 4px; height: 4px; background: #eb8909; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
+  .board-cards { transition: none; }
+  .task-check { transition: none; }
+  .view-enter { animation: none; }
+  .task-check-pop { animation: none; }
+}
