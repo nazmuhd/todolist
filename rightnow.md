@@ -35,14 +35,15 @@ no sync service.
 
 - [ ] **Bulk select / batch actions** — no multi-select, shift-click, select all,
       or batch complete / delete / move.
-- [ ] **Right-click context menu and reschedule shortcuts** — no
-      "Tomorrow / Next week / Move to…" right-click menu.
+- [x] **Right-click context menu and reschedule shortcuts** — right-clicking a task
+      (list row or board card) opens a menu with Complete/Reopen, Today/Tomorrow/
+      Next week/No date, Priority 1–4, Move to project, Edit and Delete.
 - [ ] **Drag a task onto a project or label in the sidebar** — SortableJS groups
       exist only inside the task list and the board.
 - [ ] **Clickable chips in quick add** — the preview chips (`Fri`, `P1`, `#Work`,
       `@label`) are read-only; they should open the date / project / label pickers.
-- [ ] **"Move to project / label" action** — currently only reachable through the
-      edit modal.
+- [~] **"Move to project / label" action** — "Move to project" is available from the
+      task context menu; "Move to section" still needs sections to exist.
 - [ ] **Sidebar drag-reorder** of projects and labels.
 - [ ] **Undo for edits, plus redo** — undo currently covers destructive actions only.
 

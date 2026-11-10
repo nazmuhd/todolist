@@ -316,6 +316,37 @@ h1, h2, h3 {
   border-radius: 2px;
 }
 
+/* ---------- Task context menu ---------- */
+.context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 12px;
+  text-align: left;
+  color: #202020;
+  cursor: pointer;
+}
+
+.context-item:hover { background: #f5f5f5; }
+.context-item.danger { color: #db4c3f; }
+.context-item.danger:hover { background: #fdecea; }
+
+.context-sep {
+  height: 1px;
+  margin: 3px 0;
+  background: #ececec;
+}
+
+.context-label {
+  padding: 5px 12px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #808080;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* ---------- Keyboard shortcuts dialog ---------- */
 .shortcut-list {
   list-style: none;

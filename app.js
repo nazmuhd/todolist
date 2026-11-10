@@ -1131,6 +1131,176 @@ function highlightHtml(text, term) {
 }
 
 /* ============================================================
+   TASK CONTEXT MENU (right click)
+============================================================ */
+const contextMenu = $('#context-menu');
+let contextTaskId = null;
+
+function closeContextMenu() {
+  contextTaskId = null;
+  contextMenu.classList.add('hidden');
+  contextMenu.innerHTML = '';
+}
+
+/** Keeps the menu inside the viewport, opening upward when needed. */
+function positionContextMenu(x, y) {
+  const margin = 8;
+  const rect = contextMenu.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let left = x;
+  if (left + rect.width > vw - margin) left = vw - rect.width - margin;
+  left = Math.max(margin, left);
+
+  const spaceBelow = vh - margin - y;
+  const spaceAbove = y - margin;
+  let top;
+  if (rect.height <= spaceBelow) top = y;
+  else if (rect.height <= spaceAbove) top = y - rect.height;
+  else top = Math.max(margin, Math.min(y, vh - rect.height - margin));
+
+  contextMenu.style.left = `${Math.round(left)}px`;
+  contextMenu.style.top = `${Math.round(Math.max(margin, top))}px`;
+}
+
+function openContextMenu(taskId, x, y) {
+  const t = state.tasks.find(task => task.id === taskId);
+  if (!t) return;
+  contextTaskId = taskId;
+
+  const items = [];
+  const sep = () => items.push({ sep: true });
+  const header = (label) => items.push({ header: label });
+  const item = (action, label, icon, extra = {}) => items.push({ action, label, icon, ...extra });
+
+  item('complete', t.completed ? 'Reopen task' : 'Complete task', t.completed ? 'rotate-ccw' : 'circle-check');
+  sep();
+
+  header('Reschedule');
+  item('due-today', 'Today', 'calendar');
+  item('due-tomorrow', 'Tomorrow', 'calendar');
+  item('due-next-week', 'Next week', 'calendar');
+  item('due-none', 'No date', 'calendar-x');
+  sep();
+
+  header('Priority');
+  [1, 2, 3, 4].forEach(p => {
+    item(`priority-${p}`, `Priority ${p}`, 'flag', { checked: t.priority === p, color: priorityColor(p) });
+  });
+  sep();
+
+  const projects = state.projects.slice(0, 8);
+  if (projects.length) {
+    header('Move to project');
+    item('project-none', 'No project', 'hash', { checked: !t.projectId });
+    projects.forEach(p => {
+      item(`project-${p.id}`, p.name, 'hash', { checked: t.projectId === p.id, color: p.color });
+    });
+    sep();
+  }
+
+  item('edit', 'Edit task', 'pencil');
+  item('delete', 'Delete task', 'trash-2', { danger: true });
+
+  contextMenu.innerHTML = items.map(it => {
+    if (it.sep) return '<div class="context-sep"></div>';
+    if (it.header) return `<div class="context-label">${escapeHtml(it.label)}</div>`;
+    const iconStyle = it.color ? ` style="color:${escapeHtml(it.color)}"` : '';
+    return `<button type="button" class="context-item${it.danger ? ' danger' : ''}" data-context-action="${escapeHtml(it.action)}">
+      <i data-lucide="${it.icon}" class="w-3.5 h-3.5 flex-shrink-0"${it.color ? iconStyle : ' style="color:#808080"'}></i>
+      <span class="flex-1 truncate text-left">${escapeHtml(it.label)}</span>
+      ${it.checked ? '<i data-lucide="check" class="w-3.5 h-3.5 flex-shrink-0"></i>' : ''}
+    </button>`;
+  }).join('');
+
+  contextMenu.classList.remove('hidden');
+  lucide.createIcons();
+  positionContextMenu(x, y);
+}
+
+/** Applies a context-menu action to a task. */
+function runContextAction(action, id) {
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+
+  if (action === 'complete') { toggleComplete(id); return; }
+  if (action === 'edit') { openTaskModal(id); return; }
+  if (action === 'delete') { deleteTask(id); return; }
+
+  if (action.startsWith('priority-')) {
+    const p = Number(action.slice('priority-'.length));
+    if (!Number.isInteger(p) || p < 1 || p > 4) return;
+    t.priority = p;
+    saveState();
+    render();
+    showToast(`Priority ${p}`, 'info');
+    return;
+  }
+
+  if (action.startsWith('project-')) {
+    const projectId = action.slice('project-'.length);
+    const next = projectId === 'none' ? null : projectId;
+    if (next && !state.projects.some(p => p.id === next)) return;
+    if (t.projectId === next) return;
+    const snapshot = snapshotData();
+    t.projectId = next;
+    saveState();
+    render();
+    offerUndo(next ? `Moved to ${projectName(next)}` : 'Removed from project', snapshot);
+    return;
+  }
+
+  if (action.startsWith('due-')) {
+    const snapshot = snapshotData();
+    const d = new Date();
+    if (action === 'due-today') t.due = todayISO();
+    else if (action === 'due-tomorrow') { d.setDate(d.getDate() + 1); t.due = toISODate(d); }
+    else if (action === 'due-next-week') { d.setDate(d.getDate() + 7); t.due = toISODate(d); }
+    else if (action === 'due-none') {
+      t.due = null;
+      t.dueTime = null;
+      t.recurrence = null;
+      t.reminderFiredKey = null;
+    } else {
+      return;
+    }
+    t.reminderFiredKey = null;
+    saveState();
+    render();
+    offerUndo(t.due ? `Moved to ${formatDue(t.due, t.dueTime)}` : 'Date removed', snapshot);
+  }
+}
+
+contextMenu.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-context-action]');
+  if (!btn) return;
+  e.stopPropagation();
+  const id = contextTaskId;
+  const action = btn.dataset.contextAction;
+  closeContextMenu();
+  if (id) runContextAction(action, id);
+});
+
+document.addEventListener('contextmenu', (e) => {
+  const row = e.target.closest('[data-task-id]');
+  if (!row) return;
+  e.preventDefault();
+  closeRowMenu();
+  const x = e.clientX;
+  const y = e.clientY;
+  // Deferred so the click that may follow a right-click cannot close it.
+  setTimeout(() => openContextMenu(row.dataset.taskId, x, y), 0);
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#context-menu')) closeContextMenu();
+});
+
+window.addEventListener('scroll', closeContextMenu, true);
+window.addEventListener('resize', closeContextMenu);
+
+/* ============================================================
    TASK ROW EVENTS
 ============================================================ */
 /** Adds a subtask with an inline input (no browser prompt). */
@@ -2654,6 +2824,7 @@ document.addEventListener('keydown', (e) => {
     if (dueModal.open) dueModal.close();
     else if (shortcutsModal.open) shortcutsModal.close();
     else if (!rowMenu.classList.contains('hidden')) closeRowMenu();
+    else if (!contextMenu.classList.contains('hidden')) closeContextMenu();
     else if ($('#sidebar').classList.contains('mobile-open')) closeMobileSidebar();
     else if (modal.open) modal.close();
     else if (projectModal.open) projectModal.close();
