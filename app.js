@@ -672,6 +672,7 @@ function renderSidebar() {
       e.preventDefault();
       e.stopPropagation();
       navigateTo(`project:${btn.dataset.projectId}`);
+      closeMobileSidebar();
       openQuickAdd();
     };
   });
@@ -1319,7 +1320,8 @@ function openTaskModal(id) {
   renderProjectMenu();
   renderLabelMenu();
   modal.showModal();
-  setTimeout(() => $('#modal-title').focus(), 50);
+  // Don't open the on-screen keyboard on phones: it would cover the dialog.
+  if (!isMobileSidebar()) setTimeout(() => $('#modal-title').focus(), 50);
 }
 
 function updateModalChips() {
@@ -1538,9 +1540,11 @@ function openDueEditor() {
   dueModal.showModal();
   initDueCalendar();
   syncDueEditor();
-  dueNlInput.focus();
-  const end = dueNlInput.value.length;
-  dueNlInput.setSelectionRange(end, end);
+  if (!isMobileSidebar()) {
+    dueNlInput.focus();
+    const end = dueNlInput.value.length;
+    dueNlInput.setSelectionRange(end, end);
+  }
 }
 
 function parseDueRepeatField() {
@@ -2011,6 +2015,7 @@ document.addEventListener('click', (e) => {
   if (nav && nav.dataset.view) {
     e.preventDefault();
     navigateTo(nav.dataset.view);
+    closeMobileSidebar();
   }
 });
 
@@ -2090,7 +2095,7 @@ function openProjectModal(id = null) {
   projectDraftColor = proj ? proj.color : PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
   renderColorSwatches($('#project-colors'), projectDraftColor, pickProjectColor);
   projectModal.showModal();
-  setTimeout(() => $('#project-name').focus(), 50);
+  if (!isMobileSidebar()) setTimeout(() => $('#project-name').focus(), 50);
 }
 
 function openLabelModal(id = null) {
@@ -2104,7 +2109,7 @@ function openLabelModal(id = null) {
   labelDraftColor = lbl ? lbl.color : LABEL_COLORS[state.labels.length % LABEL_COLORS.length];
   renderColorSwatches($('#label-colors'), labelDraftColor, pickLabelColor);
   labelModal.showModal();
-  setTimeout(() => $('#label-name').focus(), 50);
+  if (!isMobileSidebar()) setTimeout(() => $('#label-name').focus(), 50);
 }
 
 $('#add-project-btn').onclick = () => openProjectModal(null);
@@ -2533,6 +2538,7 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (dueModal.open) dueModal.close();
     else if (!rowMenu.classList.contains('hidden')) closeRowMenu();
+    else if ($('#sidebar').classList.contains('mobile-open')) closeMobileSidebar();
     else if (modal.open) modal.close();
     else if (projectModal.open) projectModal.close();
     else if (labelModal.open) labelModal.close();
@@ -2605,36 +2611,88 @@ Object.keys(SECTION_COLLAPSE_KEYS).forEach(name => {
 });
 
 /* ============================================================
-   SIDEBAR (collapse to an icon rail)
+   SIDEBAR (desktop collapse rail, mobile drawer)
 ============================================================ */
 const SIDEBAR_COLLAPSED_KEY = 'todoist-clone-sidebar-collapsed';
+const mobileSidebarQuery = window.matchMedia('(max-width: 767px)');
+let sidebarCollapsedPref = false;
 
-function setSidebarCollapsed(collapsed) {
-  const aside = $('aside');
+function isMobileSidebar() {
+  return mobileSidebarQuery.matches;
+}
+
+function applySidebarState() {
+  const aside = $('#sidebar');
   const btn = $('#sidebar-toggle');
+  const collapsed = sidebarCollapsedPref && !isMobileSidebar();
 
   aside.classList.toggle('sidebar-collapsed', collapsed);
   aside.classList.toggle('w-16', collapsed);
   aside.classList.toggle('w-72', !collapsed);
 
-  // Swap the toggle icon so the way back is obvious.
-  const icon = btn.querySelector('[data-lucide]');
-  if (icon) icon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
-  btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
-  btn.setAttribute('aria-label', btn.title);
-  btn.setAttribute('aria-expanded', String(!collapsed));
+  if (isMobileSidebar()) {
+    const icon = btn.querySelector('[data-lucide]');
+    if (icon) icon.setAttribute('data-lucide', 'x');
+    btn.title = 'Close menu';
+    btn.setAttribute('aria-label', 'Close menu');
+    btn.setAttribute('aria-expanded', String(aside.classList.contains('mobile-open')));
+  } else {
+    // Swap the toggle icon so the way back is obvious.
+    const icon = btn.querySelector('[data-lucide]');
+    if (icon) icon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+    btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    btn.setAttribute('aria-label', btn.title);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+  }
 
-  try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch {}
   lucide.createIcons();
 }
 
+function setSidebarCollapsed(collapsed) {
+  sidebarCollapsedPref = collapsed;
+  applySidebarState();
+  try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch {}
+}
+
+function openMobileSidebar() {
+  if (!isMobileSidebar()) return;
+  $('#sidebar').classList.add('mobile-open');
+  $('#sidebar-backdrop').classList.remove('hidden');
+  $('#mobile-menu').setAttribute('aria-expanded', 'true');
+  applySidebarState();
+}
+
+function closeMobileSidebar() {
+  const aside = $('#sidebar');
+  const wasOpen = aside.classList.contains('mobile-open');
+  aside.classList.remove('mobile-open');
+  $('#sidebar-backdrop').classList.add('hidden');
+  $('#mobile-menu').setAttribute('aria-expanded', 'false');
+  if (wasOpen) applySidebarState();
+}
+
+function handleSidebarBreakpoint() {
+  if (!isMobileSidebar()) closeMobileSidebar();
+  applySidebarState();
+}
+
+if (mobileSidebarQuery.addEventListener) {
+  mobileSidebarQuery.addEventListener('change', handleSidebarBreakpoint);
+} else if (mobileSidebarQuery.addListener) {
+  mobileSidebarQuery.addListener(handleSidebarBreakpoint); // older Safari
+}
+
 $('#sidebar-toggle').onclick = () => {
-  setSidebarCollapsed(!$('aside').classList.contains('sidebar-collapsed'));
+  if (isMobileSidebar()) closeMobileSidebar();
+  else setSidebarCollapsed(!sidebarCollapsedPref);
 };
 
 $('#mobile-menu').onclick = () => {
-  $('aside').classList.toggle('hidden');
+  if ($('#sidebar').classList.contains('mobile-open')) closeMobileSidebar();
+  else openMobileSidebar();
 };
+
+$('#sidebar-backdrop').onclick = closeMobileSidebar;
 
 /* ============================================================
    REMINDER SCHEDULER
@@ -2656,9 +2714,8 @@ document.addEventListener('visibilitychange', () => {
 ============================================================ */
 function init() {
   render();
-  let collapsed = false;
-  try { collapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch {}
-  setSidebarCollapsed(collapsed);
+  try { sidebarCollapsedPref = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch {}
+  applySidebarState();
   startReminders();
 }
 init();

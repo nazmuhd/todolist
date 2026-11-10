@@ -61,7 +61,7 @@
 
 <div id="app" class="flex h-full">
   <!-- SIDEBAR -->
-  <aside class="w-72 bg-td-sidebar border-r border-td-border flex flex-col flex-shrink-0">
+  <aside id="sidebar" class="w-72 bg-td-sidebar border-r border-td-border flex flex-col flex-shrink-0">
     <!-- User -->
     <div class="sidebar-user px-3 py-3 flex items-center gap-2 border-b border-td-border">
       <div class="sidebar-hide w-7 h-7 rounded-full bg-td-red text-white text-sm flex items-center justify-center font-semibold">U</div>
@@ -157,13 +157,13 @@
   <!-- MAIN -->
   <main class="flex-1 flex flex-col min-w-0 bg-white">
     <!-- Header -->
-    <header class="app-topbar border-b border-td-border px-6 py-3 flex items-center gap-3 flex-shrink-0">
-      <button id="mobile-menu" class="md:hidden text-td-muted p-1"><i data-lucide="menu" class="w-5 h-5"></i></button>
-      <h1 id="view-title" class="text-xl font-bold flex items-center gap-2">
-        <i id="view-icon" data-lucide="inbox" class="w-5 h-5 text-td-muted"></i>
-        <span id="view-title-text">Inbox</span>
+    <header class="app-topbar border-b border-td-border px-3 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 flex-shrink-0">
+      <button id="mobile-menu" class="md:hidden text-td-muted p-1 -ml-1" title="Open menu" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><i data-lucide="menu" class="w-5 h-5"></i></button>
+      <h1 id="view-title" class="text-lg sm:text-xl font-bold flex items-center gap-2 min-w-0">
+        <i id="view-icon" data-lucide="inbox" class="w-5 h-5 text-td-muted flex-shrink-0"></i>
+        <span id="view-title-text" class="truncate">Inbox</span>
       </h1>
-      <div class="ml-auto flex items-center gap-2">
+      <div class="ml-auto flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         <div id="view-layout" class="hidden items-center rounded border border-td-border overflow-hidden" role="group" aria-label="View layout">
           <button type="button" data-layout="list" class="layout-btn" title="List view" aria-label="List view" aria-pressed="true">
             <i data-lucide="list" class="w-4 h-4"></i>
@@ -174,14 +174,14 @@
         </div>
         <div class="relative">
           <i data-lucide="search" class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-td-muted"></i>
-          <input id="search-input" type="text" placeholder="Search" class="pl-8 pr-2 py-1.5 text-sm border border-td-border rounded bg-white w-56 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          <input id="search-input" type="text" placeholder="Search" class="pl-8 pr-2 py-1.5 text-sm border border-td-border rounded bg-white w-28 sm:w-44 md:w-56 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
         </div>
       </div>
     </header>
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto scrollbar-thin">
-      <div class="max-w-3xl mx-auto px-6 py-6" id="content-container">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6 py-5 sm:py-6" id="content-container">
         <div id="view-subtitle" class="text-xs text-td-muted mb-3"></div>
         <ul id="task-list" class="space-y-0"></ul>
         <div id="board-view" class="hidden"></div>
@@ -202,7 +202,7 @@
     </div>
 
     <!-- Quick Add -->
-    <div class="border-t border-td-border px-6 py-3 flex-shrink-0">
+    <div id="quick-add-bar" class="border-t border-td-border px-3 sm:px-6 py-3 flex-shrink-0">
       <div id="quick-add-wrapper" class="max-w-3xl mx-auto">
         <div class="flex items-start gap-2 text-sm text-td-muted cursor-text" id="quick-add-placeholder">
           <i data-lucide="plus-circle" class="w-5 h-5 text-td-red mt-0.5"></i>
@@ -225,6 +225,9 @@
     </div>
   </main>
 </div>
+
+<!-- Mobile sidebar backdrop -->
+<div id="sidebar-backdrop" class="hidden md:hidden" aria-hidden="true"></div>
 
 <!-- TASK EDIT MODAL -->
 <dialog id="task-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-xl border border-td-border">
@@ -291,25 +294,28 @@
 </dialog>
 
 <!-- DUE DATE DIALOG (calendar + natural language + repeat + reminder) -->
-<dialog id="due-modal" class="p-0 rounded-lg shadow-2xl w-[min(44rem,calc(100vw-2rem))] max-h-[calc(100vh-2rem)] overflow-y-auto border border-td-border">
-  <div class="p-4 text-sm">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="font-semibold">Due date</h3>
-      <button type="button" id="due-close" class="text-td-muted hover:text-td-text p-1" title="Close" aria-label="Close">
-        <i data-lucide="x" class="w-4 h-4"></i>
-      </button>
+<dialog id="due-modal" class="p-0 rounded-lg shadow-2xl w-[min(44rem,calc(100vw-2rem))] border border-td-border">
+  <div class="due-modal-shell text-sm">
+    <div class="px-4 pt-4 flex-shrink-0">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold">Due date</h3>
+        <button type="button" id="due-close" class="text-td-muted hover:text-td-text p-1" title="Close" aria-label="Close">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <label for="due-nl" class="sr-only">Type a date</label>
+      <div class="relative mb-1">
+        <i data-lucide="calendar-days" class="w-4 h-4 text-td-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+        <input id="due-nl" type="text" autocomplete="off" spellcheck="false"
+          placeholder="Try “tomorrow”, “next Friday”, “in 3 days”, “Jan 5 at 4pm”"
+          class="w-full text-sm border border-td-border rounded px-2 py-2 pl-9 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+      </div>
+      <div id="due-nl-status" class="text-[11px] mb-3 min-h-[16px] text-td-muted"></div>
     </div>
 
-    <label for="due-nl" class="sr-only">Type a date</label>
-    <div class="relative mb-1">
-      <i data-lucide="calendar-days" class="w-4 h-4 text-td-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-      <input id="due-nl" type="text" autocomplete="off" spellcheck="false"
-        placeholder="Try “tomorrow”, “next Friday”, “in 3 days”, “Jan 5 at 4pm”"
-        class="w-full text-sm border border-td-border rounded px-2 py-2 pl-9 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
-    </div>
-    <div id="due-nl-status" class="text-[11px] mb-3 min-h-[16px] text-td-muted"></div>
-
-    <div class="due-modal-grid">
+    <div class="due-modal-body px-4">
+      <div class="due-modal-grid">
       <div id="due-calendar-cell" class="due-calendar-cell"><div id="due-calendar"></div></div>
 
       <div class="min-w-0">
@@ -351,10 +357,11 @@
           <option value="120">2 hours before</option>
           <option value="1440">1 day before</option>
         </select>
+        </div>
       </div>
     </div>
 
-    <div class="flex items-center justify-between mt-4 pt-3 border-t border-td-border">
+    <div class="flex items-center justify-between px-4 py-3 border-t border-td-border flex-shrink-0 bg-gray-50 rounded-b-lg">
       <button type="button" id="due-clear" class="text-xs text-td-muted hover:text-red-600 px-1 py-1">Clear</button>
       <div class="flex items-center gap-2">
         <button type="button" id="due-cancel" class="text-xs text-td-muted hover:text-td-text px-2 py-1">Cancel</button>
