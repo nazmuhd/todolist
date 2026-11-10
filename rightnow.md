@@ -67,12 +67,11 @@ no sync service.
 
 ## 5. Small polish
 
-- [ ] Search results do not highlight the matching text.
-- [ ] No `?` shortcut-help overlay (the shortcuts `q`, `/`, `t`, `i`, `u`, `c`,
-      `b` exist but are undocumented in-app).
-- [ ] Mobile task rows have no swipe gestures; the board needs a visible
-      "scroll →" affordance on narrow screens.
-- [ ] The Today view counts overdue tasks; real Todoist lists them separately.
+- [x] Search results highlight the matching text.
+- [x] `?` opens a keyboard-shortcut overlay (replaces the old toast).
+- [x] Mobile task rows keep their actions visible; the board shows a
+      "Scroll for more" hint while columns are off-screen.
+- [x] The Today view lists overdue work in its own group.
 - [ ] No "this occurrence" vs "entire series" editing for repeating tasks.
 - [ ] Priority colours are not colour-blind safe; overdue / due-soon states rely
       partly on colour alone.

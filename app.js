@@ -714,6 +714,12 @@ function renderMain() {
     renderCompleted(list);
     return;
   }
+  // Today keeps overdue tasks separate from today's own list, so it is
+  // grouped (and not drag-ordered) like Upcoming.
+  if (state.ui.view === 'today' && !searchActive && state.ui.layout !== 'board') {
+    renderToday(list);
+    return;
+  }
   if (!searchActive && state.ui.layout === 'board' && supportsBoard()) {
     renderBoard(info);
     return;
@@ -806,6 +812,46 @@ function renderUpcoming(list) {
   bindTaskEvents(false);
 }
 
+/**
+ * Today: overdue work first (its own group), then the tasks due today.
+ * A task due earlier today counts as overdue once its time has passed.
+ */
+function todayGroups() {
+  const today = todayISO();
+  const tasks = activeTasks()
+    .filter(t => t.due && !t.completed)
+    .filter(t => t.due === today || isTaskOverdue(t))
+    .sort((a, b) => dueSortValue(a) - dueSortValue(b) || a.order - b.order);
+
+  const groups = [];
+  const overdue = tasks.filter(t => isTaskOverdue(t));
+  if (overdue.length) groups.push({ key: 'overdue', label: 'Overdue', tasks: overdue });
+
+  const dueToday = tasks.filter(t => !isTaskOverdue(t));
+  if (dueToday.length) groups.push({ key: 'today', label: '', tasks: dueToday });
+  return groups;
+}
+
+function renderToday(list) {
+  const groups = todayGroups();
+  if (!groups.length) {
+    list.innerHTML = '';
+    showEmptyState('Nothing due today', 'You are all caught up for today.');
+    return;
+  }
+  $('#empty-state').classList.add('hidden');
+  list.innerHTML = groups.map(g => `
+    ${g.label ? `
+    <li class="day-group-header" data-day-group="${g.key}">
+      <span>${escapeHtml(g.label)}</span>
+      <span class="text-td-muted font-normal">${g.tasks.length}</span>
+    </li>` : ''}
+    ${g.tasks.map(t => renderTaskRow(t, false)).join('')}
+  `).join('');
+  // Grouped order is date order, so drag reordering is disabled here.
+  bindTaskEvents(false);
+}
+
 /** "Earlier" covers completed tasks from older data with no timestamp. */
 function completionDayKey(ts) {
   return ts ? toISODate(new Date(ts)) : 'earlier';
@@ -886,11 +932,12 @@ function renderBoard(info) {
           ${tasks.map(t => renderBoardCard(t)).join('')}
         </ul>
       </section>`;
-  }).join('') + `</div></div>`;
+  }).join('') + `</div></div>` + `<div class="board-scroll-hint" aria-hidden="true"><i data-lucide="move-right" class="w-3.5 h-3.5"></i>Scroll for more</div>`;
   $('#empty-state').classList.add('hidden');
 
   bindTaskEvents(false);
   bindBoardSortables();
+  updateBoardOverflowHint();
 }
 
 function renderBoardCard(t) {
@@ -916,8 +963,8 @@ function renderBoardCard(t) {
           style="border-color:${priorityColor(t.priority)}" title="Complete task">
         </button>
         <div class="flex-1 min-w-0">
-          <div class="task-title cursor-pointer text-sm font-medium">${escapeHtml(t.title)}</div>
-          ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${escapeHtml(t.description)}</div>` : ''}
+          <div class="task-title cursor-pointer text-sm font-medium">${highlightHtml(t.title, searchTerm())}</div>
+          ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
           </div>
@@ -973,6 +1020,23 @@ function bindBoardSortables() {
   });
 }
 
+/** Shows a "scroll for more" hint while board columns are off-screen. */
+function updateBoardOverflowHint() {
+  const view = $('#board-view');
+  if (!view) return;
+  const scroller = view.querySelector('.board-scroll');
+  if (!scroller) {
+    view.classList.remove('board-overflow');
+    return;
+  }
+  const overflowing = scroller.scrollWidth > scroller.clientWidth + 1;
+  const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 2;
+  view.classList.toggle('board-overflow', overflowing && !atEnd);
+}
+
+$('#board-view').addEventListener('scroll', updateBoardOverflowHint, true);
+window.addEventListener('resize', updateBoardOverflowHint);
+
 function updateBoardCounts() {
   $$('.board-column').forEach(col => {
     const count = col.querySelectorAll('.board-card').length;
@@ -1017,8 +1081,8 @@ function renderTaskRow(t, isSub, opts = {}) {
           ${t.completed ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : ''}
         </button>
         <div class="task-content flex-1 min-w-0">
-          <div class="task-title cursor-pointer text-sm ${completedClass}">${escapeHtml(t.title)}</div>
-          ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${escapeHtml(t.description)}</div>` : ''}
+          <div class="task-title cursor-pointer text-sm ${completedClass}">${highlightHtml(t.title, searchTerm())}</div>
+          ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${parentBadge}${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
           </div>
@@ -1043,6 +1107,27 @@ function renderTaskRow(t, isSub, opts = {}) {
 
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/** The term the user is currently searching for (empty when not searching). */
+function searchTerm() {
+  return (state.ui.search || '').trim();
+}
+
+/**
+ * Escapes text and wraps every occurrence of the current search term in
+ * <mark>, so matches stand out in the result list.
+ */
+function highlightHtml(text, term) {
+  const safe = escapeHtml(text);
+  const needle = escapeHtml((term || '').trim());
+  if (!needle) return safe;
+  try {
+    const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    return safe.replace(re, (m) => `<mark class="search-hit">${m}</mark>`);
+  } catch {
+    return safe;
+  }
 }
 
 /* ============================================================
@@ -2517,6 +2602,36 @@ window.addEventListener('storage', (e) => {
 /* ============================================================
    KEYBOARD SHORTCUTS
 ============================================================ */
+const SHORTCUTS = [
+  { keys: ['q'], label: 'Add a task' },
+  { keys: ['/'], label: 'Search' },
+  { keys: ['i'], label: 'Go to Inbox' },
+  { keys: ['t'], label: 'Go to Today' },
+  { keys: ['u'], label: 'Go to Upcoming' },
+  { keys: ['c'], label: 'Go to Completed' },
+  { keys: ['b'], label: 'Toggle board / list' },
+  { keys: ['?'], label: 'Show this help' },
+  { keys: ['Esc'], label: 'Close dialogs and menus' },
+  { keys: ['Ctrl', 'Z'], label: 'Undo the last action' },
+];
+
+const shortcutsModal = $('#shortcuts-modal');
+
+function renderShortcuts() {
+  $('#shortcuts-list').innerHTML = SHORTCUTS.map(s => `
+    <li class="shortcut-row">
+      <span class="shortcut-keys">${s.keys.map(k => `<kbd class="kbd">${escapeHtml(k)}</kbd>`).join('')}</span>
+      <span class="shortcut-label">${escapeHtml(s.label)}</span>
+    </li>`).join('');
+}
+
+function openShortcuts() {
+  renderShortcuts();
+  if (!shortcutsModal.open) shortcutsModal.showModal();
+}
+
+$('#shortcuts-close').onclick = () => shortcutsModal.close();
+
 document.addEventListener('keydown', (e) => {
   // Don't trigger inside inputs/textarea
   const tag = (e.target.tagName || '').toLowerCase();
@@ -2531,12 +2646,13 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  const dialogOpen = modal.open || projectModal.open || labelModal.open || dueModal.open;
+  const dialogOpen = modal.open || projectModal.open || labelModal.open || dueModal.open || shortcutsModal.open;
   if (e.key === 'Escape') {
     // Handle every case ourselves; otherwise the browser would also
     // close the dialog while we only meant to dismiss the popover.
     e.preventDefault();
     if (dueModal.open) dueModal.close();
+    else if (shortcutsModal.open) shortcutsModal.close();
     else if (!rowMenu.classList.contains('hidden')) closeRowMenu();
     else if ($('#sidebar').classList.contains('mobile-open')) closeMobileSidebar();
     else if (modal.open) modal.close();
@@ -2573,7 +2689,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === '?') {
     e.preventDefault();
-    showToast('q add · / search · t today · u upcoming · c completed · b board', 'info', { duration: 6000 });
+    openShortcuts();
   }
 });
 

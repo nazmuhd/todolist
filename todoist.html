@@ -399,6 +399,20 @@
 <!-- Shared "…" menu for projects / labels -->
 <div id="row-menu" class="hidden fixed z-50 bg-white border border-td-border rounded shadow-lg py-1 text-sm w-40"></div>
 
+<!-- Keyboard shortcuts -->
+<dialog id="shortcuts-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-sm border border-td-border">
+  <div class="p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold">Keyboard shortcuts</h3>
+      <button type="button" id="shortcuts-close" class="text-td-muted hover:text-td-text p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-td-red/40" title="Close" aria-label="Close">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <ul id="shortcuts-list" class="shortcut-list"></ul>
+    <p class="text-[11px] text-td-muted mt-3">Shortcuts are ignored while you are typing in a field.</p>
+  </div>
+</dialog>
+
 <div id="toast-container" aria-live="polite"></div>
 
 <script src="app.js"></script>
