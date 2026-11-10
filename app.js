@@ -1425,6 +1425,57 @@ function syncDuePopover() {
   dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-td-muted';
 }
 
+/**
+ * Keeps the due popover inside the viewport. It opens below the chip
+ * when there is room, flips above when there is not, and scrolls if the
+ * viewport is too short for either.
+ */
+function positionDuePopover() {
+  if (duePopover.classList.contains('hidden')) return;
+  const trigger = $('#meta-due');
+  if (!trigger) return;
+
+  const margin = 8;
+  const gap = 4;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // Measure unclamped first.
+  duePopover.style.maxHeight = 'none';
+  duePopover.style.left = '0px';
+  duePopover.style.top = '0px';
+  const popRect = duePopover.getBoundingClientRect();
+  const triggerRect = trigger.getBoundingClientRect();
+
+  const width = Math.min(popRect.width, vw - margin * 2);
+  let left = triggerRect.left;
+  if (left + width > vw - margin) left = vw - width - margin;
+  left = Math.max(margin, left);
+
+  const spaceBelow = vh - margin - (triggerRect.bottom + gap);
+  const spaceAbove = triggerRect.top - gap - margin;
+
+  let top;
+  let maxHeight;
+  if (popRect.height <= spaceBelow) {
+    top = triggerRect.bottom + gap;
+    maxHeight = spaceBelow;
+  } else if (popRect.height <= spaceAbove) {
+    top = triggerRect.top - gap - popRect.height;
+    maxHeight = spaceAbove;
+  } else if (spaceBelow >= spaceAbove) {
+    top = triggerRect.bottom + gap;
+    maxHeight = spaceBelow;
+  } else {
+    top = margin;
+    maxHeight = spaceAbove;
+  }
+
+  duePopover.style.left = `${Math.round(left)}px`;
+  duePopover.style.top = `${Math.round(top)}px`;
+  duePopover.style.maxHeight = `${Math.max(1, Math.floor(maxHeight))}px`;
+}
+
 function setDueDate(iso) {
   modalDraft.due = iso || null;
   if (!iso) {
@@ -1489,8 +1540,13 @@ $('#meta-due').onclick = (e) => {
   labelMenu.classList.add('hidden');
   const opening = duePopover.classList.contains('hidden');
   duePopover.classList.toggle('hidden');
-  if (opening) syncDuePopover();
+  if (opening) {
+    syncDuePopover();
+    positionDuePopover();
+  }
 };
+
+window.addEventListener('resize', positionDuePopover);
 
 dueDateInput.addEventListener('change', () => {
   modalDraft.due = dueDateInput.value || null;
@@ -2346,6 +2402,9 @@ document.addEventListener('keydown', (e) => {
 
   const dialogOpen = modal.open || projectModal.open || labelModal.open;
   if (e.key === 'Escape') {
+    // Handle every case ourselves; otherwise the browser would also
+    // close the dialog while we only meant to dismiss the popover.
+    e.preventDefault();
     if (!duePopover.classList.contains('hidden')) duePopover.classList.add('hidden');
     else if (!rowMenu.classList.contains('hidden')) closeRowMenu();
     else if (modal.open) modal.close();

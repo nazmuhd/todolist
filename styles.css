@@ -20,6 +20,22 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
 dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 
+/* Native dialogs clip overflowing content, which cut off the due-date
+   popover. Keep the dialog's own rounded corners but let the popover
+   escape its bounds. */
+#task-modal { overflow: visible; }
+
+/* Positioned against the viewport by `positionDuePopover()` so it can
+   flip above the chip and scroll when the viewport is short. */
+#due-popover {
+  position: fixed;
+  margin-top: 0;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .modal-panel { animation: fadeIn 0.12s ease-out; }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
@@ -171,7 +187,12 @@ h1, h2, h3 {
 
 .due-preset:hover { background: #ededed; color: #202020; }
 
-#due-repeat-status:empty { display: none; }
+/* Reserve room for the repeat feedback so showing it never shifts the
+   controls under the pointer mid-click. */
+#due-repeat-status {
+  min-height: 16px;
+  line-height: 1.35;
+}
 
 #due-time:disabled {
   opacity: 0.45;
