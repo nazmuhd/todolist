@@ -1,0 +1,260 @@
+# Architecture & reorganization plan
+
+How the repo will be organised before the Supabase work starts. This document
+is the plan — nothing below has been executed yet.
+
+---
+
+## 1. Goals
+
+1. `app.js` (≈5,100 lines) stops being one file and becomes a set of modules
+   with clear ownership.
+2. The `.md` notes move into `docs/` so the app root only contains things the
+   browser loads.
+3. The **storage layer stays the single seam** between the app and any backend.
+   Supabase then lands in one place (`storage.js` + a new `sync.js`), not
+   scattered through features.
+4. No behaviour change. Every step below is shippable on its own and is
+   verified with the existing headless test harness before the next step.
+
+---
+
+## 2. Principles carried over from the current code
+
+- **No build step, no framework.** Native ES modules, served as-is.
+- **A feature is a section, not a file.** A concern becomes a file only when it
+  has a stable interface other code talks to (that is why `storage.js` exists).
+- **Layering, no circular imports** (see §4).
+- `escapeHtml()` on every interpolated value; every write goes through the
+  store adapter; every schema change bumps `SCHEMA_VERSION` *and* adds a
+  numbered migration.
+- One commit per step, docs updated in the same commit.
+
+---
+
+## 3. Target tree
+
+```
+todoist/
+├── index.html                ← the app shell (renamed from todoist.html)
+├── app.js                    ← thin entry point: imports the modules, boots
+├── styles.css                ← app styles (unchanged, maybe split later)
+├── sw.js                     ← service worker (cache list updated)
+├── manifest.webmanifest      ← PWA manifest
+├── icon.svg
+├── vendor/                   ← self-hosted libraries (Tailwind, Lucide, …)
+│
+├── src/                      ← the app, as modules
+│   ├── main.js               ← entry: wires modules, boots the app
+│   ├── core/
+│   │   ├── app.js            ← shared singletons: state, DOM refs, boot flags
+│   │   ├── state.js          ← defaultState, normalizeState, MIGRATIONS
+│   │   ├── store.js          ← re-export of storage.js (see §6)
+│   │   ├── dates.js          ← date/time helpers, formatDue, parseDate, …
+│   │   ├── tasks.js          ← task CRUD: addTask, toggleComplete, removeTask
+│   │   ├── undo.js           ← snapshots, undo/redo
+│   │   └── toasts.js         ← showToast + the screen-reader live region
+│   ├── features/
+│   │   ├── quickadd.js       ← NL parser, chips, inline pickers
+│   │   ├── due-editor.js     ← the Flatpickr/chrono due-date dialog
+│   │   ├── task-modal.js     ← task dialog: comments, sections, attachments
+│   │   ├── context-menu.js   ← right-click menu + batch bar
+│   │   ├── calendar.js       ← month grid view
+│   │   ├── karma.js          ← productivity stats view
+│   │   ├── filters.js        ← query language + saved filters
+│   │   └── settings.js       ← settings panel
+│   ├── views/
+│   │   ├── list.js           ← renderMain + task rows
+│   │   ├── board.js          ← board view + its drag groups
+│   │   └── sidebar.js        ← sidebar rendering, reordering, drawer
+│   └── ui/
+│       ├── chrome.js         ← header, layout/sort menus, shortcuts overlay
+│       ├── empty-states.js   ← per-view empty states
+│       └── menus.js          ← shared viewport-positioned popover helper
+│
+├── supabase/                 ← (next phase) migrations, functions, README
+│   ├── migrations/
+│   └── functions/
+│
+├── docs/                     ← notes, not shipped
+│   ├── architecture.md       ← this file
+│   ├── features.md
+│   ├── later.md
+│   ├── rightnow.md
+│   └── font.md
+│
+├── .env.example
+└── .gitignore
+```
+
+---
+
+## 4. Module boundaries (the rule that prevents circular imports)
+
+```
+core/      imports nothing from features/ or ui/
+features/  imports core/ only
+views/     imports core/ and features/
+ui/        imports core/ and features/
+main.js    imports everything and wires the events
+```
+
+**Shared mutable state lives in `core/app.js`**, not in a feature module. It
+exports the singletons the old file had as globals:
+
+```js
+export const state = { ... };        // the live state object
+export const els = { ... };          // cached DOM references
+export let editingTaskId = null;
+export const selection = new Set();
+```
+
+Features import what they need (`import { state, els } from '../core/app.js'`).
+This is the one structural change that matters: today every section reaches
+every other section through globals, so the split is mechanical *only* if the
+shared things are named and exported once.
+
+---
+
+## 5. What maps to what
+
+| New module | Comes from |
+|---|---|
+| `core/app.js` | the module-level `let state`, `const modal`, `const dueModal`, `const projectMenu`, `selection`, `editingTaskId` |
+| `core/state.js` | `defaultState`, `normalizeState`, `migrateState`, `MIGRATIONS`, `SCHEMA_VERSION` |
+| `core/dates.js` | `parseDate`, `toISODate`, `todayISO`, `daysFromToday`, `formatDue`, `formatTime`, `formatDateShort`, `formatDuration`, `isTaskOverdue`, `dueSortValue`, `taskDueDate` |
+| `core/tasks.js` | `addTask`, `toggleComplete`, `removeTask`, `deleteTask`, `subtasksOf`, `nextOrder`, `cleanRecurrence`, `parseRecurrenceText`, `recurrenceToText`, `nextRecurrenceISO`, `firstRecurrenceISO`, `skipOccurrence`, `snoozeTask` |
+| `core/undo.js` | `snapshotData`, `offerUndo`, `undoPending`, `redoPending`, `pendingUndo` |
+| `core/toasts.js` | `showToast`, `announce`, the `#sr-status` live region |
+| `features/due-editor.js` | the whole due-date dialog: `openDueEditor`, `syncDueEditor`, `applyNaturalDue`, `initDueCalendar`, repeat-end controls, reminders, start date |
+| `features/task-modal.js` | `openTaskModal`, comments, sections, attachments, inline title edit |
+| `features/context-menu.js` | `openContextMenu`, `runContextAction`, the batch bar and its menus |
+| `features/quickadd.js` | `parseQuickAdd`, `updatePreview`, chip pickers, `submitQuickAdd` |
+| `features/filters.js` | `parseQuery`, `queryMatcher`, saved filters, the filter list in the sidebar |
+| `features/settings.js` | the settings dialog, `loadSettings`, `persistSettings`, theme application |
+| `features/calendar.js` | `renderCalendar`, month navigation, the day panel |
+| `features/karma.js` | `karmaSummary`, `renderKarma` |
+| `views/list.js` | `render`, `renderMain`, `renderTaskRow`, `renderUpcoming`, `renderCompleted`, `renderToday`, `renderProjectSectionsView` |
+| `views/board.js` | `renderBoard`, `renderBoardCard`, board drag groups |
+| `views/sidebar.js` | `renderSidebar`, project/label rows, drag-reorder, drop targets, the mobile drawer |
+| `ui/chrome.js` | the header, layout + sort menus, shortcut overlay, mobile-menu button |
+| `ui/empty-states.js` | `EMPTY_STATES`, `currentEmptyState`, `showEmptyState` |
+| `ui/menus.js` | `positionMetaMenu`, `positionContextMenu`, the shared popover helpers |
+
+`app.js` (the current monolith) is **deleted** once its contents are distributed;
+the new `app.js` is a ~20-line entry point.
+
+---
+
+## 6. The storage layer
+
+`storage.js` stays exactly where it is, at the repo root, because it is loaded
+as a **classic script** today and exposes `window.TodoStore`.
+
+Two options for the module world:
+
+- **(a) Keep it classic** — `storage.js` continues to set `window.TodoStore`, and
+  `core/store.js` re-exports it:
+  ```js
+  export const { LocalStore, ApiStore } = window.TodoStore;
+  ```
+  Zero risk, no change to the file, and the service worker keeps caching it
+  the same way.
+
+- **(b) Convert it to a module** — cleaner, but it changes the load order and
+  the service-worker cache list.
+
+**Recommendation: (a).** `storage.js` is the one file a backend team will want
+to read first, and keeping it classic means `ApiStore` can be added later
+without touching the module graph.
+
+---
+
+## 7. The one behavioural change to be aware of
+
+ES modules are fetched with CORS rules, so **`file://` will stop working** —
+you would need a local server:
+
+```
+python -m http.server 8000      # then open http://localhost:8000
+```
+
+This is a smaller loss than it sounds:
+- The **service worker already requires http(s)**, so `file://` today already
+  loses the PWA, offline support and the install prompt.
+- A one-line `serve.md` note (or a `start.bat` / `npm start` script) covers it.
+
+If staying double-clickable matters more than the module split, the
+alternative is a tiny concatenating build (`node build.js` → `app.bundle.js`)
+that keeps `file://` working. **I recommend the local server**, and I will add
+a `start.bat` + a note in the README so it is one double-click.
+
+---
+
+## 8. Step-by-step sequence
+
+Each step is a commit, each keeps the app working, and each is verified with
+the headless test harness (`__seed.js` + `__expr.js` + `__cdp.js`, temporary).
+
+| # | Step | Verified by |
+|---|---|---|
+| 1 | Move the `.md` files into `docs/`; add `.gitignore`, `.env.example`, `docs/architecture.md` | app still boots, docs reachable |
+| 2 | Add `src/` skeleton + `core/app.js` holding the shared singletons; `app.js` still contains everything but imports the singletons from `core/app.js` | app boots, no globals duplicated |
+| 3 | Extract `core/dates.js`, `core/state.js`, `core/tasks.js`, `core/undo.js`, `core/toasts.js` | existing suites re-run unchanged |
+| 4 | Extract `features/quickadd.js`, `features/due-editor.js`, `features/task-modal.js` | due-editor + quick-add suites |
+| 5 | Extract `features/context-menu.js`, `features/filters.js`, `features/settings.js` | context-menu + query-language suites |
+| 6 | Extract `views/list.js`, `views/board.js`, `views/sidebar.js`, `features/calendar.js`, `features/karma.js` | calendar + karma + board suites |
+| 7 | Extract `ui/*`; delete the old monolith; `app.js` becomes the entry point | full suite + a manual pass over every view |
+| 8 | Update `sw.js` (cache list), `manifest.webmanifest` (`start_url`), add `start.bat` / README notes | offline check: reload with the network off |
+
+Notes on the order: **core first** (everything depends on it), then the
+features with the most tests, then views, then the chrome. The trickiest
+module (`due-editor.js`, ~400 lines with the calendar, chrono, reminders and
+repeat-end controls) is extracted early, while the rest of the file is still
+untouched and easy to compare against.
+
+---
+
+## 9. Risks and how they are contained
+
+| Risk | Containment |
+|---|---|
+| Circular imports | Strict layering (§4); `core/app.js` owns the shared singletons |
+| The old file uses globals everywhere | Step 2 introduces the shared module *first*, so the rest is mechanical |
+| `file://` breaks | §7 — a local server is required (the service worker already needed one); `start.bat` provided |
+| The service worker serves a stale bundle | Step 8 bumps the cache name (`todoist-clone-v2` → `v3`) and the cache list is updated with every new file |
+| A behaviour slips through the split | The existing headless suites are re-run after every step; nothing is deleted until its replacement passes |
+| Half-finished state on disk | Every step is a separate commit, so any step can be reverted on its own |
+
+---
+
+## 10. How this helps the Supabase work
+
+After the split, the backend lands in exactly three places:
+
+1. `supabase/migrations/*.sql` — the schema, numbered like the client's
+   `MIGRATIONS`.
+2. `storage.js` — a new `SupabaseStore` implementing the **existing**
+   interface (`loadState`/`saveState`/`getDoc`/`setDoc`/`putBlob`/`getBlob`/
+   `deleteBlob`/`onChange`). No feature code changes.
+3. `src/core/sync.js` — the sync loop (push/pull, per-record revisions,
+   conflicts), a new core concern with its own interface.
+
+Everything else — tasks, views, modals — stays untouched. That is the whole
+point of doing this first.
+
+---
+
+## 11. Open questions for you
+
+1. **`file://` vs a local server** — accept the server requirement (§7), or
+   keep double-click support with a tiny build step?
+2. **Rename `todoist.html` → `index.html`?** Cleaner URLs, but it touches the
+   manifest, the service worker and your deep links.
+3. **`storage.js` classic or module?** I recommend keeping it classic (§6).
+4. **Naming**: keep `app.js` as the entry point, or call it `main.js` and put
+   the entry in `src/`?
+
+---
+
+*Plan only — no files have been moved or split yet.*
