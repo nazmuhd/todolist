@@ -142,6 +142,7 @@ try {
   // Settings.
   await evalJs(`document.getElementById('settings-btn').click()`);
   await waitFor(`document.getElementById('settings-modal').open`, 'settings modal');
+  check('push settings render', await evalJs(`!!document.querySelector('#settings-body [data-push-toggle]')`));
   await evalJs(`document.querySelector('#settings-body [data-setting="theme"][data-value="dark"]').click()`);
   check('settings apply theme', await evalJs(`document.documentElement.dataset.theme === 'dark'`));
   await evalJs(`document.getElementById('settings-close').click()`);

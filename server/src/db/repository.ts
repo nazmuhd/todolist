@@ -336,3 +336,89 @@ export function backupEntities(tag: string): boolean {
     .run(tag, JSON.stringify(snapshot));
   return true;
 }
+
+/* ---------- push subscriptions ---------- */
+
+export interface PushSubscriptionRow {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+export function savePushSubscription(sub: PushSubscriptionRow): void {
+  getDb().prepare(`
+    insert into push_subscriptions (endpoint, p256dh, auth)
+    values (?, ?, ?)
+    on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth
+  `).run(sub.endpoint, sub.p256dh, sub.auth);
+}
+
+export function deletePushSubscription(endpoint: string): boolean {
+  return Number(getDb().prepare('delete from push_subscriptions where endpoint = ?').run(endpoint).changes) > 0;
+}
+
+export function listPushSubscriptions(): PushSubscriptionRow[] {
+  return getDb().prepare('select endpoint, p256dh, auth from push_subscriptions order by created_at')
+    .all() as unknown as PushSubscriptionRow[];
+}
+
+/* ---------- reminder bookkeeping ---------- */
+
+export function reminderAlreadyFired(taskId: string, reminder: string): boolean {
+  return Boolean(getDb().prepare('select 1 from reminder_fired where task_id = ? and reminder = ?')
+    .get(taskId, reminder));
+}
+
+export function markReminderFired(taskId: string, reminder: string): void {
+  getDb().prepare(`
+    insert into reminder_fired (task_id, reminder)
+    values (?, ?)
+    on conflict (task_id, reminder) do update set fired_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  `).run(taskId, reminder);
+}
+
+/** Forgets fired reminders when a task is edited or deleted. */
+export function clearReminderFired(taskId: string): void {
+  getDb().prepare('delete from reminder_fired where task_id = ?').run(taskId);
+}
+
+/* ---------- attachment cleanup ---------- */
+
+/** Every attachment id still referenced by a live task. */
+export function referencedAttachmentIds(): Set<string> {
+  const rows = getDb().prepare("select data from entities where entity = 'tasks' and deleted = 0")
+    .all() as unknown as { data: string | null }[];
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (!row.data) continue;
+    let task: unknown;
+    try { task = JSON.parse(row.data); } catch { continue; }
+    const attachments = (task as { attachments?: unknown }).attachments;
+    if (!Array.isArray(attachments)) continue;
+    for (const attachment of attachments) {
+      const id = attachment && typeof attachment === 'object' ? (attachment as { id?: unknown }).id : null;
+      if (typeof id === 'string' && id) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Deletes unreferenced blobs older than `olderThanMs`. The age guard protects
+ * an attachment that was uploaded but not yet saved onto a task.
+ */
+export function removeOrphanBlobs(keep: Set<string>, olderThanMs: number): string[] {
+  const rows = getDb().prepare('select key, updated_at from blobs').all() as unknown as {
+    key: string;
+    updated_at: string;
+  }[];
+  const cutoff = Date.now() - olderThanMs;
+  const removed: string[] = [];
+  for (const row of rows) {
+    if (keep.has(row.key)) continue;
+    const updated = Date.parse(row.updated_at);
+    if (Number.isNaN(updated) || updated > cutoff) continue;
+    if (deleteBlob(row.key)) removed.push(row.key);
+  }
+  return removed;
+}

@@ -1,6 +1,7 @@
 import { createApp, frontendRoot } from './index.ts';
 import { config } from './config.ts';
 import { migrate } from './db/migrate.ts';
+import { startReminderWorker } from './services/reminders.ts';
 
 const app = createApp({ serveApp: config.isProduction });
 
@@ -23,6 +24,8 @@ const server = app.listen(config.PORT, () => {
   if (!config.isProduction) console.log('  development mode: Vite middleware (HMR enabled)');
   console.log(`  database: ${config.DATABASE_PATH}`);
   if (!config.hasPush) console.log('  push notifications disabled (no VAPID keys)');
+  else console.log('  push notifications enabled; reminder worker running');
+  startReminderWorker();
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

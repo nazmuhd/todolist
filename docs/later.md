@@ -51,11 +51,17 @@ Deferred:
   with per-record revisions, a global cursor and tombstones for deletes.
   Remaining: multi-device identity/auth (so several devices are distinct
   users rather than one shared store).
-- [ ] **API pagination** for large task sets.
+- [x] **API pagination** — the list and Completed views render 100 tasks at a
+  time with a "Show more" control. The sync feed still transfers all changes
+  (local-first needs the full set), so this is a rendering concern.
 - [x] **File attachments** — stored as BLOBs in SQLite and cached in IndexedDB.
 - [x] **Comments** — persisted inside the task state.
 - [ ] **Sharing / collaboration** (assignees, shared projects).
-- [ ] **Server-side reminder scheduling** (the reliable version of section 1).
+- [x] **Server-side reminder scheduling** — a worker reads the synced tasks and
+  sends Web Push through VAPID, even when every tab is closed. The in-page and
+  service-worker timers remain as fallbacks.
+- [x] **Attachment cleanup** — `POST /api/blobs/cleanup` removes unreferenced
+  blobs older than a guard period.
 
 A future data migration would take the current v3 task shape:
 

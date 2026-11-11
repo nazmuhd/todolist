@@ -21,13 +21,21 @@ export function supportsBoard(view = state.ui.view) {
   return view !== 'upcoming' && view !== 'completed' && view !== 'calendar' && view !== 'karma' && !(state.ui.search || '').trim();
 }
 
-const SORT_OPTIONS = [
-  { id: 'manual', label: 'Manual order' },
+const SORT_OPTIONS = [  { id: 'manual', label: 'Manual order' },
   { id: 'date', label: 'Due date' },
   { id: 'priority', label: 'Priority' },
   { id: 'name', label: 'Name (A–Z)' },
   { id: 'added', label: 'Date added' },
 ];
+
+/** Large lists render in pages; the button at the end reveals the next one. */
+const PAGE_SIZE = 100;
+let visibleLimit = PAGE_SIZE;
+let lastViewSignature = '';
+
+function loadMoreRow(remaining) {
+  return `<li class="list-none mt-3"><button type="button" class="qa-pick w-full" data-load-more>Show ${remaining} more</button></li>`;
+}
 
 export function sortTasks(tasks) {
   const sort = state.ui.sort || 'manual';
@@ -128,6 +136,13 @@ export function renderMain() {
   const board = document.getElementById('board-view');
   const searchActive = !!(state.ui.search || '').trim();
 
+  // Changing view, search, sort or layout starts a fresh page.
+  const signature = [state.ui.view, state.ui.search || '', state.ui.sort || '', state.ui.layout || 'list'].join('|');
+  if (signature !== lastViewSignature) {
+    lastViewSignature = signature;
+    visibleLimit = PAGE_SIZE;
+  }
+
   // Reset whichever content mode was shown last.
   list.classList.remove('hidden');
   list.innerHTML = '';
@@ -198,7 +213,9 @@ export function renderMain() {
     return;
   }
 
-  list.innerHTML = visible.map(t => renderTaskRow(t, false)).join('');
+  const page = visible.slice(0, visibleLimit);
+  list.innerHTML = page.map(t => renderTaskRow(t, false)).join('')
+    + (visible.length > page.length ? loadMoreRow(visible.length - page.length) : '');
   bindTaskEvents(true);
 }
 
@@ -378,8 +395,9 @@ export function renderCompleted(list) {
   }
   document.getElementById('empty-state').classList.add('hidden');
 
+  const page = tasks.slice(0, visibleLimit);
   const groups = new Map();
-  tasks.forEach(t => {
+  page.forEach(t => {
     const key = completionDayKey(t.completedAt);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(t);
@@ -399,7 +417,7 @@ export function renderCompleted(list) {
       parentTitle: t.parentId ? state.tasks.find(p => p.id === t.parentId)?.title : '',
       noSubtasks: true,
     })).join('')}
-  `).join('');
+  `).join('') + (tasks.length > page.length ? loadMoreRow(tasks.length - page.length) : '');
   // Completion dates define the order, so drag reordering is disabled here.
   bindTaskEvents(false);
 }
@@ -416,6 +434,12 @@ export function renderSortMenu() {
 /** Section filter chips in the project view. */
 export function initListView(onSectionFilter) {
   document.getElementById('task-list').addEventListener('click', (e) => {
+    const more = e.target.closest('[data-load-more]');
+    if (more) {
+      visibleLimit += PAGE_SIZE;
+      onSectionFilter();
+      return;
+    }
     const chip = e.target.closest('[data-section-filter]');
     if (!chip) return;
     e.preventDefault();

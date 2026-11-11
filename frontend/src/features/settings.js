@@ -5,6 +5,7 @@ import { $, settings } from '../core/app.js';
 import { store } from '../core/store.js';
 import { escapeHtml } from '../core/text.js';
 import { requestRender } from '../core/render.js';
+import { pushSupported, pushPermission, isPushEnabled, enablePush, disablePush } from '../core/push.js';
 
 const DEFAULT_SETTINGS = {
   theme: 'system',
@@ -61,6 +62,20 @@ if (darkMedia.addEventListener) darkMedia.addEventListener('change', applyTheme)
 else if (darkMedia.addListener) darkMedia.addListener(applyTheme); // older Safari
 
 const settingsModal = $('#settings-modal');
+let pushReady = false;
+
+function pushSection() {
+  if (!pushSupported()) return '';
+  const blocked = pushPermission() === 'denied';
+  return `
+    <div class="mb-2 border-t border-td-border pt-4">
+      <div class="text-xs text-td-muted mb-1">Reminders on this device</div>
+      <p class="text-xs text-td-muted mb-2">Push reminders keep arriving after you close the app.</p>
+      <button type="button" class="qa-pick" data-push-toggle ${blocked ? 'disabled' : ''}>
+        ${blocked ? 'Notifications blocked in browser settings' : (pushReady ? 'Disable push reminders' : 'Enable push reminders')}
+      </button>
+    </div>`;
+}
 
 function renderSettings() {
   $('#settings-body').innerHTML = SETTINGS_DEFS.map(def => `
@@ -73,10 +88,23 @@ function renderSettings() {
           return `<button type="button" class="qa-pick" data-setting="${def.key}" data-value="${escapeHtml(raw)}" aria-pressed="${active}">${escapeHtml(label)}</button>`;
         }).join('')}
       </div>
-    </div>`).join('');
+    </div>`).join('') + pushSection();
 }
 
-$('#settings-body').addEventListener('click', (e) => {
+$('#settings-body').addEventListener('click', async (e) => {
+  const pushBtn = e.target.closest('[data-push-toggle]');
+  if (pushBtn) {
+    pushBtn.disabled = true;
+    if (pushReady) {
+      await disablePush();
+      pushReady = false;
+    } else {
+      pushReady = await enablePush();
+    }
+    renderSettings();
+    return;
+  }
+
   const btn = e.target.closest('[data-setting]');
   if (!btn) return;
   const key = btn.dataset.setting;
@@ -94,6 +122,11 @@ $('#settings-body').addEventListener('click', (e) => {
 $('#settings-btn').onclick = () => {
   renderSettings();
   if (!settingsModal.open) settingsModal.showModal();
+  isPushEnabled().then((enabled) => {
+    if (enabled === pushReady) return;
+    pushReady = enabled;
+    if (settingsModal.open) renderSettings();
+  });
 };
 $('#settings-close').onclick = () => settingsModal.close();
 

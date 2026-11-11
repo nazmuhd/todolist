@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { deleteBlob, getBlob, listBlobs, putBlob } from '../db/repository.ts';
+import {
+  deleteBlob,
+  getBlob,
+  listBlobs,
+  putBlob,
+  referencedAttachmentIds,
+  removeOrphanBlobs,
+} from '../db/repository.ts';
 
 export const blobsRouter = Router();
 
@@ -9,6 +16,21 @@ function meta(row: { key: string; name: string; mime: string; size: number; rev:
 
 blobsRouter.get('/', (_req, res) => {
   res.json(listBlobs().map(meta));
+});
+
+/**
+ * Removes attachments no live task references. The age guard keeps a file
+ * that was just uploaded but whose task has not been saved yet.
+ *   POST /api/blobs/cleanup?olderThanHours=24
+ */
+blobsRouter.post('/cleanup', (req, res) => {
+  const raw = Number(req.query.olderThanHours ?? 24);
+  if (!Number.isFinite(raw) || raw < 1 || raw > 24 * 365) {
+    res.status(400).json({ error: 'invalid_age' });
+    return;
+  }
+  const removed = removeOrphanBlobs(referencedAttachmentIds(), raw * 60 * 60 * 1000);
+  res.json({ removed: removed.length, keys: removed });
 });
 
 blobsRouter.put('/:key', (req, res) => {

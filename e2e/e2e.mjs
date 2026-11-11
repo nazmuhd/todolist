@@ -192,6 +192,38 @@ try {
   await waitFor(`document.getElementById('task-list').textContent.includes('From another device')`, 'remote task pulled');
   check('the app pulls records from /api/sync', true);
 
+  // Pagination: a second client adds 120 more tasks in one request.
+  const bulk = Array.from({ length: 120 }, (_, i) => ({
+    id: `bulk-${i}`,
+    baseRev: 0,
+    data: {
+      id: `bulk-${i}`,
+      title: `Bulk task ${i}`,
+      notes: '',
+      projectId: null,
+      labelIds: [],
+      priority: 4,
+      completed: false,
+      createdAt: Date.now(),
+      order: i,
+      subtasks: [],
+    },
+  }));
+  const bulkResult = await (await fetch(`http://127.0.0.1:${PORT}/api/sync`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ changes: { tasks: bulk } }),
+  })).json();
+  check('a second client can push many records', bulkResult.applied?.length === 120, JSON.stringify({ applied: bulkResult.applied?.length, conflicts: bulkResult.conflicts?.length }));
+
+  await evalJs(`window.dispatchEvent(new Event('online'))`);
+  await waitFor(`document.querySelectorAll('#task-list li[data-task-id]').length === 100`, 'first page of tasks');
+  check('large lists render a first page of 100', true);
+  check('show-more control appears', await evalJs(`!!document.querySelector('#task-list [data-load-more]')`));
+  await evalJs(`document.querySelector('#task-list [data-load-more]').click()`);
+  await waitFor(`document.querySelectorAll('#task-list li[data-task-id]').length > 100`, 'second page of tasks');
+  check('show more reveals the next page', true);
+
   const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   check('no console errors', realErrors.length === 0, realErrors.join(' | '));
 

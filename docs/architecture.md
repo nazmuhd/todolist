@@ -290,10 +290,11 @@ todoist/
 │   ├── .env.example                ← DATABASE_PATH, PORT, CORS_ORIGINS, VAPID_*
 │   ├── src/
 │   │   ├── index.ts                ← express app
-│   │   ├── server.ts               ← http server, migrations, graceful shutdown
+│   │   ├── server.ts               ← http server, migrations, reminder worker
 │   │   ├── config.ts               ← env parsing and validation
 │   │   ├── middleware/             ← errorHandler
-│   │   ├── routes/                 ← health, state, docs, blobs
+│   │   ├── routes/                 ← health, state, docs, blobs, sync, push
+│   │   ├── services/               ← push delivery, reminder computation
 │   │   └── db/                     ← connection, migration runner, repository
 │   └── tests/                      ← node:test
 └── docs/
@@ -319,6 +320,17 @@ todoist/
   to IndexedDB first, then sync best-effort. `core/sync.js` owns the
   push/pull cycle and its local cursor/revision metadata. Offline use and the
   service-worker reminder index keep working unchanged.
+- **Reminders run server-side.** A worker reads the synced tasks every 30
+  seconds and sends Web Push through VAPID; `push_subscriptions` holds the
+  browsers, `reminder_fired` stops duplicates. The in-page and service-worker
+  timers stay as offline fallbacks. Without VAPID keys the worker does not
+  start.
+- **Large lists are paged in the UI.** The list and Completed views show 100
+  rows with a "Show more" control. The sync feed itself is not paginated:
+  local-first requires the full change set.
+- **Attachment cleanup is explicit.** `POST /api/blobs/cleanup` deletes blobs
+  no live task references, ignoring recent ones so an in-progress upload is
+  safe.
 - **Migrations run on boot** and through `pnpm migrate`. The SQL lives only in
   `server/database/sqlite/migrations/`.
 - **pnpm only for `server/`.** The front-end keeps zero runtime dependencies

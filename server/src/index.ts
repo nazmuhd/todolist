@@ -9,6 +9,7 @@ import { stateRouter } from './routes/state.ts';
 import { docsRouter } from './routes/docs.ts';
 import { blobsRouter } from './routes/blobs.ts';
 import { syncRouter } from './routes/sync.ts';
+import { pushRouter } from './routes/push.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 
 // The repository root: the app lives in frontend/.
@@ -49,6 +50,7 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   app.use('/api/state', stateRouter);
   app.use('/api/docs', docsRouter);
   app.use('/api/blobs', blobsRouter);
+  app.use('/api/push', pushRouter);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
 
   if (serveApp) {

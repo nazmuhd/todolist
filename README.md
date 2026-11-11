@@ -73,7 +73,7 @@ local-only in that browser.
 ## The API (optional)
 
 The app works fully offline on its own — the API only adds persistence beyond
-this browser and, later, multi-device sync and push reminders. It is a
+this browser, multi-device sync and reliable push reminders. It is a
 **single-user SQLite store with no auth yet** (per-entity sync, side documents
 and attachments). See `docs/architecture.md` for the design.
 
@@ -87,6 +87,34 @@ pnpm test
 SQLite comes from Node's built-in `node:sqlite` (Node 24), so there is no native
 module to build. The database file and its `-wal`/`-shm` siblings are created
 on first boot and should not be committed.
+
+### Push reminders
+
+Generate VAPID keys and put them in `server/.env`:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+```
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:you@example.com
+```
+
+Restart the server, then open **Settings → Enable push reminders**. The server
+worker checks the synced tasks every 30 seconds and sends notifications through
+the service worker, so they still arrive with the app closed. Without VAPID
+keys the in-page and service-worker timers keep working as before.
+
+### Attachment cleanup
+
+Attachments abandoned without a task (an upload that was never saved, or a
+deleted task) can be removed after a guard period:
+
+```bash
+curl -X POST "http://localhost:4000/api/blobs/cleanup?olderThanHours=24"
+```
 
 ## Docs
 

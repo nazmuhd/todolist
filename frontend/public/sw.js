@@ -1,7 +1,11 @@
 /* Offline support for the Todoist clone.
    Everything the app needs is served from this origin (the libraries are
    vendored locally), so the first visit is enough to work offline. */
-const CACHE = 'todoist-clone-v4';
+const CACHE = 'todoist-clone-v5';
+const DB_NAME = 'todoist-clone-files';
+const DB_VERSION = 2;
+const STORE = 'files';
+const DOCS = 'docs';
 const SHELL = [
   './',
   './index.html',
@@ -53,7 +57,6 @@ self.addEventListener('activate', (event) => {
    timers whenever it starts. Browsers may stop the worker at any time, so
    this is best-effort — exactly like the in-page reminders, but it keeps
    firing after the tab is closed. */
-const DOCS = 'docs';
 const armed = {};
 
 function openDb() {
@@ -106,6 +109,20 @@ async function armReminders() {
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'reminders') armReminders();
+});
+
+/* ---------- Web Push ----------
+   The server schedules reminders and sends the payload; the worker shows it
+   even when no tab is open. */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { /* not JSON */ }
+  const title = data.title || 'Task reminder';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: data.body || '',
+    tag: data.tag || 'todoist-clone',
+    data: { id: data.taskId || data.id || '' },
+  }).catch(() => {}));
 });
 
 self.addEventListener('notificationclick', (event) => {
