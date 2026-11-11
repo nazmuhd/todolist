@@ -1625,6 +1625,8 @@ function renderToday(list) {
 }
 
 /** A project with sections groups its tasks under section headers. */
+let projectSectionFilter = null;
+
 function renderProjectSectionsView(list) {
   const projId = state.ui.view.slice(8);
   const proj = state.projects.find(p => p.id === projId);
@@ -1633,11 +1635,19 @@ function renderProjectSectionsView(list) {
     .filter(t => t.projectId === projId && !t.completed)
     .sort((a, b) => a.order - b.order);
 
+  // A filter that belongs to another project (or a removed section) resets.
+  if (projectSectionFilter && !sections.some(s => s.id === projectSectionFilter)) {
+    projectSectionFilter = null;
+  }
+  const visible = projectSectionFilter
+    ? tasks.filter(t => t.sectionId === projectSectionFilter)
+    : tasks;
+
   const groups = sections
-    .map(s => ({ key: s.id, label: s.name, tasks: tasks.filter(t => t.sectionId === s.id) }))
+    .map(s => ({ key: s.id, label: s.name, tasks: visible.filter(t => t.sectionId === s.id) }))
     .filter(g => g.tasks.length);
-  const ungrouped = tasks.filter(t => !t.sectionId || !sections.some(s => s.id === t.sectionId));
-  if (ungrouped.length) groups.push({ key: '', label: 'No section', tasks: ungrouped });
+  const ungrouped = visible.filter(t => !t.sectionId || !sections.some(s => s.id === t.sectionId));
+  if (ungrouped.length && !projectSectionFilter) groups.push({ key: '', label: 'No section', tasks: ungrouped });
 
   if (!groups.length) {
     list.innerHTML = '';
@@ -1645,14 +1655,31 @@ function renderProjectSectionsView(list) {
     return;
   }
   $('#empty-state').classList.add('hidden');
-  list.innerHTML = groups.map(g => `
+  list.innerHTML = `
+    <li class="flex flex-wrap items-center gap-1 mb-3 list-none">
+      <button type="button" class="qa-pick" data-section-filter="" aria-pressed="${!projectSectionFilter}">All</button>
+      ${sections.map(s => `
+        <button type="button" class="qa-pick" data-section-filter="${escapeHtml(s.id)}" aria-pressed="${projectSectionFilter === s.id}">
+          ${escapeHtml(s.name)}
+        </button>`).join('')}
+    </li>
+    ${groups.map(g => `
     <li class="day-group-header" data-day-group="${escapeHtml(g.key)}">
       <span>${escapeHtml(g.label)}</span>
       <span class="text-td-muted font-normal">${g.tasks.length}</span>
     </li>
-    ${g.tasks.map(t => renderTaskRow(t, false)).join('')}`).join('');
+    ${g.tasks.map(t => renderTaskRow(t, false)).join('')}`).join('')}`;
   bindTaskEvents(false);
 }
+
+$('#task-list').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-section-filter]');
+  if (!chip) return;
+  e.preventDefault();
+  e.stopPropagation();
+  projectSectionFilter = chip.dataset.sectionFilter || null;
+  renderMain();
+});
 
 /** "Earlier" covers completed tasks from older data with no timestamp. */
 function completionDayKey(ts) {

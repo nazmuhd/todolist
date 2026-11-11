@@ -21,8 +21,8 @@ with `[ ]`; `[~]` means partly done.
       from the sidebar ("My filters"), with counts, rename and delete.
 - [x] **Per-view sorting** — manual, due date, priority, name, date added.
 - [x] **Sections inside projects** — sections exist (schema v4), the project
-      view groups tasks under them and the task dialog can pick one; a
-      "move to section" drag and a section filter are still open.
+      view groups tasks under them, the task dialog can pick one, and the
+      project view has a section filter. A "move to section" drag is still open.
 
 ## 2. Task detail
 
@@ -48,8 +48,8 @@ with `[ ]`; `[~]` means partly done.
 - [x] **Clickable chips in quick add** — date, repeat, priority, project and
       label chips open inline pickers.
 - [~] **"Move to project / label" action** — available from the context menu
-      and the batch bar; "move to label" was added to the context menu, but
-      there is still no drag between labels.
+      and the batch bar, and labels can be toggled from the context menu; the
+      remaining part is dragging a task onto a sidebar project or label.
 - [x] **Sidebar drag-reorder** of projects and labels.
 - [x] **Undo for edits, plus redo** (Ctrl/Cmd+Shift+Z).
 
@@ -94,10 +94,10 @@ with `[ ]`; `[~]` means partly done.
 
 ---
 
-## Docs drift to fix
+## Docs drift — fixed
 
-`features.md` and `later.md` are out of date. These items are **already
-implemented** but still listed as missing:
+`features.md` and `later.md` have been rewritten to match the code. These
+items were **already implemented** but had still been listed as missing:
 
 - Time-of-day due dates, recurring tasks, reminders, overdue bucket,
   day-grouped Upcoming view, board (Kanban) view.
@@ -110,12 +110,13 @@ implemented** but still listed as missing:
 
 ## Suggested order
 
-1. Attachments + IndexedDB (also lifts the storage ceiling).
-2. Karma / productivity stats.
-3. Accessibility pass (arrow-key list navigation, screen-reader announcements).
-4. i18n and a print stylesheet.
-5. Drag a task onto a sidebar project, and "move to label".
+1. Drag a task onto a sidebar project or label (the last half of the
+   "Move to project / label" item).
+2. Closed-tab reminders — schedule notifications from the service worker.
+3. "This occurrence" vs "entire series", recurrence exceptions and snooze.
+4. i18n — a string table over every label, date format and toast.
+5. Timezone support — a stored zone plus `Intl`.
 
-None of these require a backend; the current `localStorage` schema (v4) stays
-valid for all of them.
+None of these require a backend; the current storage schema (v5) stays valid
+for all of them.
 
