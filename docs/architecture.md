@@ -333,4 +333,25 @@ point of doing this first.
 
 ---
 
-*Plan only — no files have been moved or split yet.*
+## 13. Progress
+
+| Step | Status |
+|---|---|
+| 1 — docs moved to `docs/`, `.gitignore`, `start.bat` | **done** |
+| — `server/` skeleton (Express + TypeScript, pnpm) with `/health`, auth middleware, migration runner | **done** |
+| — `supabase/migrations/0001_schema.sql` — tables, `rev`/`updated_at` triggers, RLS enabled | **done** |
+| 2 — `src/` skeleton + `core/app.js` singletons | next |
+| 3 — extract `core/*` | |
+| 4 — extract `features/quickadd, due-editor, task-modal` | |
+| 5 — extract `features/context-menu, filters, settings` | |
+| 6 — extract `views/*`, `features/calendar, karma` | |
+| 7 — extract `ui/*`, delete the monolith, `app.js` becomes the entry point | |
+| 8 — update `sw.js` cache list, manifest `start_url`, offline check | |
+
+Decisions taken: **TypeScript** for the server; `storage.js` stays a classic
+script; `todoist.html` keeps its name; `app.js` stays the front-end entry
+point.
+
+---
+
+*Plan only — steps 2–8 have not been executed yet.*

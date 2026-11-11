@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Local env
+.env
+.env.local
+server/.env
+
+# Build output
+server/dist/
+*.tsbuildinfo
+
+# Supabase CLI
+supabase/.temp/
+
+# Logs and OS
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
