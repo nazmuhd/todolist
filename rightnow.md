@@ -34,7 +34,7 @@ with `[ ]`; `[~]` means partly done.
       (COUNT / UNTIL), single occurrences can be skipped, and tasks can be
       snoozed until tomorrow. Still open: a separate start date.
 - [x] **Multiple reminders** — the due-date dialog takes a list of reminders.
-- [ ] **Timezone support** — every date/time is the browser's local zone.
+- [ ] **Timezone support** — unplanned: every date/time stays in the browser's local zone.
 
 ## 3. Interaction
 
@@ -69,10 +69,8 @@ with `[ ]`; `[~]` means partly done.
 - [x] **Export formats** — JSON, CSV, Markdown and ICS.
 - [x] **Print stylesheet** — the sidebar, header, quick-add and row actions
       are hidden on paper; the task list prints cleanly.
-- [~] **i18n — deliberately not planned.** The app is English-only by design;
-      a full string table would cost more in readability than it returns. The
-      part that is worth having for an English speaker is a **date-order and
-      12h/24h preference**, which is a setting rather than a translation.
+- [ ] **i18n — unplanned.** The app is English-only by design; a full string
+      table would cost more in readability than it returns.
 - [x] **Storage hardening** — everything goes through the storage adapter, and
       both the documents and the blobs now live in IndexedDB (the ~5 MB
       `localStorage` cap is gone). `localStorage` remains only as a fallback
@@ -116,10 +114,8 @@ items were **already implemented** but had still been listed as missing:
 
 ## Suggested order
 
-1. Date-order and 12h/24h preferences in the settings panel.
-2. A separate start date for recurring tasks (distinct from the due date).
-3. Timezone support — a stored zone plus `Intl` (only if you travel).
-4. Skeleton / loading states.
+1. A separate start date for recurring tasks (distinct from the due date).
+2. Skeleton / loading states.
 
 Drag-to-sidebar, closed-tab reminders and the recurrence work are done.
 

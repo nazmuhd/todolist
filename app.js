@@ -11,7 +11,7 @@ const store = new TodoStore.LocalStore();
    Data lives in the browser for now (see storage.js). `version` is bumped whenever the
    shape changes; MIGRATIONS upgrades older payloads on load, so existing data is never thrown away.
 ============================================================ */
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 const PROJECT_COLORS = ['#246fe0', '#058527', '#db4c3f', '#eb8909', '#8a4dff', '#0f9d58'];
 const LABEL_COLORS = ['#db4c3f', '#eb8909', '#246fe0', '#058527', '#8a4dff'];
@@ -94,6 +94,13 @@ const MIGRATIONS = {
   5: (s) => {
     (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
       if (t && typeof t === 'object' && !Array.isArray(t.exceptions)) t.exceptions = [];
+    });
+    return s;
+  },
+  // v6 -> v7 (separate start date for repeating tasks).
+  6: (s) => {
+    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
+      if (t && typeof t === 'object' && t.startDate === undefined) t.startDate = null;
     });
     return s;
   },
@@ -223,6 +230,7 @@ function normalizeState(s) {
         .map(asText)
         .filter(d => DATE_RE.test(d)),
       recurrenceEnd: normalizeRecurrenceEnd(t.recurrenceEnd),
+      startDate: DATE_RE.test(asText(t.startDate)) ? asText(t.startDate) : null,
       exceptions: (Array.isArray(t.exceptions) ? t.exceptions : [])
         .map(e => (typeof e === 'string' ? { date: e, action: 'skip' } : e))
         .filter(e => e && typeof e === 'object' && DATE_RE.test(asText(e.date)))
@@ -597,14 +605,16 @@ function nextRecurrenceISO(t) {
     const [y, m, d] = t.due.split('-').map(Number);
     const dtstart = new Date(y, m - 1, d, 12, 0, 0, 0);
     const rule = new lib.RRule({ ...lib.RRule.parseString(t.recurrence), dtstart });
-    // Walk forward until an occurrence that has not been skipped.
+    // Walk forward until an occurrence that has not been skipped and that
+    // is not before the task's start date.
     let cursor = dtstart;
     for (let i = 0; i < 60; i++) {
       const next = rule.after(cursor, false);
       if (!next) return null;
       const iso = toISODate(next);
-      if (!isSkippedOccurrence(t, iso)) return iso;
-      cursor = next;
+      if (isSkippedOccurrence(t, iso)) { cursor = next; continue; }
+      if (t.startDate && iso < t.startDate) { cursor = next; continue; }
+      return iso;
     }
     return null;
   } catch {
@@ -2012,6 +2022,7 @@ function renderTaskRow(t, isSub, opts = {}) {
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${parentBadge}${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
+            ${t.startDate && t.startDate !== t.due ? `<span class="flex items-center gap-1 text-td-muted"><i data-lucide="flag" class="w-3 h-3"></i>starts ${escapeHtml(formatDue(t.startDate))}</span>` : ''}
             ${(t.attachments || []).length ? `<span class="flex items-center gap-1 text-td-muted"><i data-lucide="paperclip" class="w-3 h-3"></i>${t.attachments.length}</span>` : ''}
           </div>
           ${subs.length ? `<ul class="mt-1.5 space-y-0.5 pl-3 border-l-2 border-gray-100">
@@ -3022,6 +3033,14 @@ const dueRepeatEndMode = $('#due-repeat-end-mode');
 const dueRepeatEndCount = $('#due-repeat-end-count');
 const dueRepeatEndUntil = $('#due-repeat-end-until');
 const dueRepeatEndUnit = $('#due-repeat-end-unit');
+const dueStartWrap = $('#due-start-wrap');
+const dueStartInput = $('#due-start');
+
+dueStartInput.addEventListener('change', () => {
+  if (!modalDraft) return;
+  modalDraft.startDate = dueStartInput.value || null;
+  updateModalChips();
+});
 
 const REMINDER_OPTIONS = [
   [0, 'At time of due date'],
@@ -3187,6 +3206,8 @@ function syncDueEditor() {
   dueAllDayInput.checked = !t.dueTime;
   dueTimeInput.disabled = !t.dueTime;
   dueRepeatInput.value = t.recurrence ? recurrenceToText(t.recurrence) : '';
+  dueStartInput.value = t.startDate || '';
+  dueStartWrap.classList.toggle('hidden', !t.recurrence);
   dueRepeatStatus.textContent = '';
   dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-td-muted';
   setDraftReminders(taskReminders(t));
@@ -3536,6 +3557,7 @@ $('#modal-save').onclick = () => {
   t.dueTime = modalDraft.dueTime;
   t.recurrence = modalDraft.recurrence;
   t.recurrenceEnd = recurrenceEndFromBody(modalDraft.recurrence);
+  t.startDate = modalDraft.startDate || null;
   t.reminders = taskReminders(modalDraft).map(r => ({ id: r.id, minutes: r.minutes }));
   t.reminderMinutes = t.reminders.length ? t.reminders[0].minutes : null;
   t.comments = (modalDraft.comments || []).map(c => ({ ...c }));
@@ -5075,6 +5097,9 @@ document.addEventListener('visibilitychange', () => {
    INIT
 ============================================================ */
 async function init() {
+  // The state loads from IndexedDB, so show a placeholder while it does.
+  $('#loading-skeleton').classList.remove('hidden');
+
   // Filters must be known before the state is read: a saved filter can be
   // the active view, and the state loader validates the view name.
   await loadSavedFilters();
@@ -5110,6 +5135,7 @@ async function init() {
   }
 
   render();
+  $('#loading-skeleton').classList.add('hidden');
   applySidebarState();
 
   // Persist right away on first run, or right after a migration.

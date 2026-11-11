@@ -467,6 +467,30 @@ h1, h2, h3 {
 [data-theme="dark"] .batch-menu-item { color: #e6e6e6 !important; }
 [data-theme="dark"] .batch-menu-item:hover { background: #242424 !important; }
 
+/* ---------- Loading skeleton ---------- */
+.skeleton-row {
+  height: 42px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f1f1f1 25%, #e6e6e6 37%, #f1f1f1 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.2s ease infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-row { animation: none; }
+}
+
+[data-theme="dark"] .skeleton-row {
+  background: linear-gradient(90deg, #232323 25%, #2c2c2c 37%, #232323 63%);
+  background-size: 400% 100%;
+}
+
 /* ---------- Priority markers (shape, not just colour) ---------- */
 .prio-marker {
   display: inline-block;

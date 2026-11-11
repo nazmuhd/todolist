@@ -223,6 +223,13 @@
     <div class="flex-1 overflow-y-auto scrollbar-thin">
       <div class="max-w-3xl mx-auto px-4 sm:px-6 py-5 sm:py-6" id="content-container">
         <div id="view-subtitle" class="text-xs text-td-muted mb-3"></div>
+        <div id="loading-skeleton" class="hidden" aria-hidden="true">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+        </div>
         <ul id="task-list" class="space-y-0"></ul>
         <div id="board-view" class="hidden"></div>
         <div id="calendar-view" class="hidden"></div>
@@ -448,6 +455,11 @@
             <span id="due-repeat-end-unit" class="hidden text-xs text-td-muted">times</span>
             <input id="due-repeat-end-until" type="date" class="hidden flex-1 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
           </div>
+        </div>
+
+        <div id="due-start-wrap" class="hidden mt-2">
+          <label for="due-start" class="block text-xs text-td-muted mb-1">Starts on</label>
+          <input id="due-start" type="date" class="text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
         </div>
 
         <label class="block text-xs text-td-muted mb-1 mt-2">Reminders</label>
