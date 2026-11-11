@@ -26,8 +26,9 @@
 
   const CHANNEL = 'todoist-clone-store';
   const DB_NAME = 'todoist-clone-files';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const STORE = 'files';
+  const DOCS = 'docs';
 
   const DEFAULT_KEYS = {
     state: 'todoist-clone-v1',
@@ -98,6 +99,32 @@
     }
 
     async getDoc(key) {
+      // IndexedDB is the home of the documents; localStorage is only a
+      // fallback for browsers without it (and the source of the one-time
+      // migration for data saved before this change).
+      try {
+        const db = await this.db();
+        const record = await new Promise((resolve, reject) => {
+          const tx = db.transaction(DOCS, 'readonly');
+          const request = tx.objectStore(DOCS).get(key);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        if (record) return record.value;
+      } catch (err) {
+        // No IndexedDB (private mode, blocked storage) — use localStorage.
+        return this.getDocFromLocalStorage(key);
+      }
+
+      const legacy = this.getDocFromLocalStorage(key);
+      if (legacy !== null) {
+        // Move the old copy forward and drop it from localStorage.
+        this.setDoc(key, legacy).catch(() => {});
+      }
+      return legacy;
+    }
+
+    getDocFromLocalStorage(key) {
       try {
         const raw = localStorage.getItem(key);
         return raw ? JSON.parse(raw) : null;
@@ -109,10 +136,19 @@
 
     async setDoc(key, value) {
       try {
-        localStorage.setItem(key, JSON.stringify(value));
+        const db = await this.db();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(DOCS, 'readwrite');
+          tx.objectStore(DOCS).put({ key, value });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error);
+        });
+        try { localStorage.removeItem(key); } catch {}
       } catch (err) {
         console.error('Could not save', key, err);
         if (typeof global.onStorageError === 'function') global.onStorageError(err);
+        try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
         throw err;
       }
       this.notifyPeers(key);
@@ -127,11 +163,9 @@
     }
 
     async backupState(tag) {
-      const raw = localStorage.getItem(this.keys.state);
-      if (!raw) return;
-      try {
-        localStorage.setItem(`${this.keys.state}-${tag}`, raw);
-      } catch {}
+      const current = await this.getDoc(this.keys.state);
+      if (!current) return;
+      await this.setDoc(`${this.keys.state}-${tag}`, current);
     }
 
     /* ---------- blobs (IndexedDB) ---------- */
@@ -146,6 +180,7 @@
         request.onupgradeneeded = () => {
           const db = request.result;
           if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+          if (!db.objectStoreNames.contains(DOCS)) db.createObjectStore(DOCS, { keyPath: 'key' });
         };
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
