@@ -1,123 +1,121 @@
-# Right now — frontend gaps that need no backend
+# Right now — current gaps
 
-Audit of the current code (not just `features.md`, which is now stale).
-Everything listed here can be shipped client-side only: no server, no auth,
-no sync service.
+Audit of the code as it stands. `features.md` is the shipped checklist; this
+file is the gap ledger. Sections **1–3 are the active backlog**; sections
+**4–9 are marked later** and should not be started now.
 
-**Status: most of the list is now implemented.** What is left is marked
-with `[ ]`; `[~]` means partly done.
+Legend: `[x]` shipped · `[~]` partly shipped · `[ ]` active gap · `⏳ later`
 
----
+## Shipped since the previous audit
 
-## 1. Views & filtering
-
-- [x] **Calendar (month grid) view** — a month grid with today highlighted, a
-      selected-day panel, month navigation and an Add task button.
-- [x] **Filter query language** — the search box understands `p1..p4`,
-      `#project`, `@label`, `overdue`/`today`/`tomorrow`/`week`/`month`,
-      relative ranges (`7 days`), `has:`/`no:` date|project|label|priority,
-      quoted phrases, `!` (not), `&` (and), `|` (or) and parentheses.
-- [x] **Custom / saved filters** — save the current search as a named filter
-      from the sidebar ("My filters"), with counts, rename and delete.
-- [x] **Per-view sorting** — manual, due date, priority, name, date added.
-- [x] **Sections inside projects** — sections exist (schema v4), the project
-      view groups tasks under them, the task dialog can pick one, and the
-      project view has a section filter. A "move to section" drag is still open.
-
-## 2. Task detail
-
-- [x] **Sub-task nesting deeper than one level**.
-- [x] **Attachments** — files are stored as IndexedDB blobs and the task keeps
-      only the metadata. Add, open and remove them from the task dialog.
-- [x] **Comments / activity log** — per-task comments in the task dialog.
-- [x] **Recurrence UI gaps** — a repeat can end after N times or on a date
-      (COUNT / UNTIL), single occurrences can be skipped, and tasks can be
-      snoozed until tomorrow. Still open: a separate start date.
-- [x] **Multiple reminders** — the due-date dialog takes a list of reminders.
-- [ ] **Timezone support** — unplanned: every date/time stays in the browser's local zone.
-
-## 3. Interaction
-
-- [x] **Bulk select / batch actions** — Ctrl/Cmd-click selects, Shift-click
-      selects a range, and the batch bar completes, reprioritises, moves or
-      deletes the selection (undoable as a whole).
-- [x] **Right-click context menu and reschedule shortcuts** — complete,
-      Today/Tomorrow/Next week/No date, Priority 1–4, Move to project, edit,
-      delete; works on list rows and board cards.
-- [x] **Drag a task onto a project or label in the sidebar**.
-- [x] **Clickable chips in quick add** — date, repeat, priority, project and
-      label chips open inline pickers.
-- [x] **"Move to project / label" action** — from the context menu, the batch
-      bar, or by dragging a task onto a project or label in the sidebar.
-- [x] **Sidebar drag-reorder** of projects and labels.
-- [x] **Undo for edits, plus redo** (Ctrl/Cmd+Shift+Z).
-
-## 4. Shell, settings, polish
-
-- [x] **Dark mode** and a **settings panel** (theme, first day of the week,
-      default priority, default reminder, date order and 12h/24h time).
-- [x] **Karma / productivity stats** — a Karma view with completions today, in the
-      last 7 days, the current and best streak, the all-time total and a
-      14-day bar chart.
-- [x] **Deep-linkable URLs** — `#/today?q=p1`; views are shareable and the
-      browser back button works.
-- [x] **PWA / offline** — manifest, icon and a service worker; the libraries
-      are vendored locally, so one visit is enough to work offline.
-- [x] **Accessibility pass** — native dialogs trap focus, task titles are focusable
-      with arrow-key/Home/End navigation (Enter edits, Space completes), and
-      every toast is repeated in a polite live region for screen readers.
-- [x] **Export formats** — JSON, CSV, Markdown and ICS.
-- [x] **Print stylesheet** — the sidebar, header, quick-add and row actions
-      are hidden on paper; the task list prints cleanly.
-- [ ] **i18n — unplanned.** The app is English-only by design; a full string
-      table would cost more in readability than it returns. What *was* worth
-      having — a date-order and 12h/24h preference — is now a setting.
-- [x] **Storage hardening** — everything goes through the storage adapter, and
-      both the documents and the blobs now live in IndexedDB (the ~5 MB
-      `localStorage` cap is gone). `localStorage` remains only as a fallback
-      for browsers without IndexedDB, and as the source of the one-time
-      migration for older data.
-- [x] **Closed-tab reminders** — the page writes the reminder schedule into
-      IndexedDB and the service worker re-arms its timers from it, so
-      reminders can fire after the tab is closed (best effort: browsers may stop
-      the worker at any time).
-
-## 5. Small polish
-
-- [x] Search results highlight the matching text.
-- [x] `?` opens a keyboard-shortcut overlay.
-- [x] Mobile task rows keep their actions visible; the board shows a
-      "Scroll for more" hint while columns are off-screen.
-- [x] The Today view lists overdue work in its own group.
-- [x] "This occurrence" vs "entire series" — a repeating task can have single
-      occurrences skipped ("Skip this occurrence"), and the next occurrence
-      calculation skips the dates you have skipped.
-- [x] Priority levels carry a **shape** as well as a colour (square, dot,
-      ring) so they are readable without colour vision.
-- [x] Empty states are per view, each with its own copy and artwork.
-- [ ] No skeleton/loading states.
+- [x] Attachments: SQLite BLOBs + IndexedDB cache, add/open/remove in the task dialog.
+- [x] Closed-tab reminders: the service worker re-arms from IndexedDB.
+- [x] Server-side reminders: a worker checks synced tasks and sends Web Push.
+- [x] Push subscriptions, VAPID delivery, dead-endpoint cleanup, test notification.
+- [x] Per-entity sync: projects/labels/tasks with per-record revisions, tombstones and retries.
+- [x] Paged sync responses (`since` / `limit` / `hasMore`), with the client paging until caught up.
+- [x] Task-list pagination: 100 rows plus "Show more".
+- [x] Orphan attachment cleanup with a guard period.
+- [x] Karma view, print stylesheet, accessibility pass, drag-to-project/label.
+- [x] `?` shortcut overlay, deep links, import/export, multi-tab sync.
 
 ---
 
-## Docs drift — fixed
+## 1. Task model — active
 
-`features.md` and `later.md` have been rewritten to match the code. These
-items were **already implemented** but had still been listed as missing:
+- [ ] **Deadlines** separate from due dates.
+- [ ] **Start dates** (recurrence anchored to a start date, not just due).
+- [ ] **Completion-based recurrence** — Todoist's `every!` semantics (next occurrence from completion).
+- [ ] **Absolute reminders** — "remind me at 09:00 on Thursday", not only offsets.
+- [ ] **Location reminders** — arrival/leaving. Web cannot do this without a mobile app; likely stays open.
+- [ ] **Rich text** in descriptions/comments — Markdown, checklists, formatting.
+- [ ] **Reusable templates** for tasks and projects (current "templates" are quick-add defaults).
+- [ ] **Per-task timezone** — dates stay in the browser's zone today.
+- [ ] **Attachment UX** — inline image/document previews, drag-and-drop upload.
+- [ ] **Task permalinks** — deep-link directly to a task modal.
+- [~] **Assignees** — no owner field; awaits auth.
 
-- Time-of-day due dates, recurring tasks, reminders, overdue bucket,
-  day-grouped Upcoming view, board (Kanban) view.
-- Project/label edit + delete, project colour picker, pinned projects/labels.
-- Undo + toasts, JSON import/export, completed-tasks view, multi-tab sync.
-- Inline title editing, collapsible sidebar sections, inline "add task" per
-  project in the sidebar, better empty state, completion/view animations.
-- **Full mobile layout pass** — done in `5991c05` (off-canvas sidebar drawer,
-      fluid header/quick-add, viewport-capped dialogs, touch-friendly rows).
+## 2. Views and interaction — active
+
+- [ ] **Board columns by section** — Todoist boards group sections; this board groups priority.
+- [ ] **Calendar week/day views**, drag-to-reschedule and drag-to-create.
+- [ ] **Time blocking** — durations shown visually in the calendar.
+- [ ] **Upcoming parity** — calendar-style Upcoming with drag rescheduling.
+- [ ] **Move/drag a task between sections** (the section filter already exists).
+- [~] **Per-view sort memory** — sorting is global, not remembered per project/view.
+- [ ] **Filter syntax parity** — align with Todoist's operators and add autocomplete/help.
+- [ ] **Mobile gestures** — swipe to complete/schedule, long-press parity.
+- [~] **Keyboard shortcut coverage** — many exist, not Todoist's full set.
+
+## 3. Notifications — active
+
+- [ ] **Notification actions** — Complete and Snooze straight from the notification.
+- [ ] **Snooze presets** on reminders.
+- [ ] **Custom reminder offsets** — currently fixed (at due, 10m, 30m, 1h, 2h, 1d).
+- [ ] **Timezone-correct server scheduling** — the worker uses the server's local zone.
+- [ ] **Per-device subscription management** — the single-user store cannot target devices.
+- [ ] **Delivery retry and quiet-hours behavior** when push fails or the server is down.
+- [ ] **Email notifications** — none.
+
+---
+
+## Later — do not start yet
+
+### 4. Productivity and history ⏳
+
+- Karma levels, goals, weekly/monthly reports (the current view is basic stats).
+- Project/task activity log beyond per-task comments.
+- Vacation mode and streak handling.
+- Persistent undo/action history (undo is session-level).
+
+### 5. Data and interoperability ⏳
+
+- Todoist import (CSV or Todoist backup) and Todoist-format export.
+- Two-way Google Calendar / Outlook sync.
+- Email-to-task.
+- Browser extension / share sheet.
+- Todoist-compatible REST API and webhooks.
+- Scheduled backups, retention and tombstone pruning.
+- Bundled attachment export.
+- Encryption at rest.
+
+### 6. Platform and integrations ⏳
+
+- Native iOS/Android/desktop apps, widgets, Apple Watch, Wear OS.
+- Siri / Google Assistant / Alexa.
+- Gmail/Outlook add-ins.
+- Slack/Teams.
+- Zapier / Make / IFTTT.
+
+### 7. Collaboration and security ⏳
+
+- Accounts, login, `owner_id`.
+- Shared projects, teams, permissions.
+- Assignees, mentions, shared comments.
+- Multi-device identity (the current server is one shared store).
+- 2FA/SSO, audit logs, API keys.
+
+### 8. UX and polish parity ⏳
+
+- Pixel-level visual parity with Todoist (layout, typography, motion).
+- Full i18n (English-only by design).
+- Complete screen-reader/announcement parity.
+- Onboarding, help and empty-state text parity.
+- Quick-add NLP breadth (Chrono + RRULE is capable, not identical to Todoist's parser).
+- Sounds/haptics.
+
+### 9. Self-hosting and operations ⏳
+
+- Authentication and TLS before exposing the API beyond localhost.
+- Rate limiting.
+- Metrics/tracing.
+- Scheduled migrations/backups beyond boot migrations.
+- Non-Windows hosting notes (Node 24 is required for `node:sqlite`).
+
+---
 
 ## Suggested order
 
-Nothing outstanding. Every remaining line is a deliberate "unplanned"
-decision rather than an open gap.
-
-None of these require a backend; the current storage schema (v5) stays valid
-for all of them.
-
+1. Sections 1–3 in the order above.
+2. Re-evaluate section 4+ only when the single-user feature surface feels complete.
+3. Section 7 only if multi-user or sharing becomes a goal.

@@ -1,139 +1,164 @@
-# Later — deliberately not in Phase 3
+# Later — deliberately deferred
 
-Phase 3 shipped time-of-day due dates (schema v3), recurring tasks, in-page
-reminders, and the day-grouped Upcoming view. This file records what was left
-out, with the background-worker and database work called out separately.
+What did **not** ship with the current build. The shipped checklist is
+`features.md`; the active gap ledger is `rightnow.md` (sections 1–3). This file
+keeps the older "later" material, refreshed against the code: anything already
+implemented is marked done so it is not picked up again by mistake.
+
+Legend: `[x]` shipped · `[~]` partly shipped · `[ ]` open · `⏳` later
 
 ---
 
 ## 1. Background workers / scheduling
 
-In-page reminders run on a `setInterval` plus a check when the tab becomes
-visible. The service worker also arms best-effort timers after the tab closes,
-but only push makes delivery reliable.
+Reminders now have three layers: an in-page `setInterval` while a tab is open, a
+best-effort service-worker timer after the tab closes, and **server-side Web
+Push** for reliable delivery.
 
-Deferred:
-
-- [~] **Service worker for reminders when the tab is closed** — implemented as a
-  best-effort local timer: the page writes the schedule to IndexedDB and the
-  service worker re-arms it with `setTimeout` and `showNotification`.
-  - Browsers may stop the worker at any time, so delivery is not reliable.
-  - Push requires a server and VAPID keys (below).
-- [ ] **Web Push notifications** (real background delivery, phone/desktop)
-  - Requires backend subscription storage and permission re-request flows.
+- [x] **Service worker reminders when the tab is closed** — the page writes the
+  schedule to IndexedDB and the service worker re-arms it with `setTimeout` and
+  `showNotification`. Best-effort: browsers may stop the worker.
+- [x] **Web Push notifications** — VAPID delivery from the server, with push
+  subscriptions stored in SQLite. Requires `VAPID_*` keys.
+- [x] **Server-side reminder scheduling** — a worker reads the synced tasks and
+  sends push notifications every 30 seconds; `reminder_fired` deduplicates.
 - [ ] **Notification actions** — Complete / Snooze directly from the notification.
-  - Needs a service worker `notificationclick` handler and an IDB write.
+- [~] **Multiple reminders per task** — done; snooze and custom offsets are open.
 - [ ] **Periodic Background Sync** — browser-throttled; not reliable on its own.
-- [ ] **Background sync / offline queue** for edits made offline.
-- [ ] **Web Worker** for heavy search/indexing if the task list gets large
+- [x] **Background sync / offline queue** — edits made offline are queued and
+  pushed to `/api/sync` when the connection returns.
+- [ ] **Web Worker** for heavy search/indexing if the task list gets very large
   (not needed at current scale).
-- [~] **Multiple reminders per task** — done; **snooze** is still open.
-
-If closed-tab reminders are wanted *without* a server, the minimum viable path is:
-service worker + IndexedDB + a scheduled notification check (best-effort only).
-Reliable delivery still needs push + a backend.
+- [ ] **Timezone-correct scheduling** — the reminder worker uses the server's
+  local timezone.
 
 ---
 
 ## 2. Database / backend / sync
 
-The app is still local-first, but writes now sync to a single-user SQLite
-backend as well; IndexedDB stays the offline cache.
-
-Deferred:
+The app is local-first: IndexedDB (documents and blobs) is the offline cache and
+writes sync to a single-user SQLite backend.
 
 - [x] **Backend** — Express + SQLite (`node:sqlite`), single-user, no auth.
-- [ ] **Authentication** (accounts, login, tokens) — the API is currently open
-  and single-user.
-- [x] **Real database** — the app state, side documents and attachments persist
-  in SQLite instead of only this browser's storage.
-- [x] **Per-entity sync** — projects, labels and tasks sync as individual rows
-  with per-record revisions, a global cursor and tombstones for deletes.
-  Remaining: multi-device identity/auth (so several devices are distinct
-  users rather than one shared store).
-- [x] **API pagination** — the list and Completed views render 100 tasks at a
-  time with a "Show more" control, and `GET /api/sync` accepts
-  `since`/`limit` with `hasMore` so responses are bounded. The client pages
-  until it is caught up; the local model still holds everything.
-- [x] **File attachments** — stored as BLOBs in SQLite and cached in IndexedDB.
-- [x] **Comments** — persisted inside the task state.
-- [ ] **Sharing / collaboration** (assignees, shared projects).
-- [x] **Server-side reminder scheduling** — a worker reads the synced tasks and
-  sends Web Push through VAPID, even when every tab is closed. The in-page and
-  service-worker timers remain as fallbacks.
+- [x] **Real database** — state, side documents and attachments persist in SQLite.
+- [x] **Per-entity sync** — projects, labels and tasks as individual rows, with
+  per-record revisions, a global cursor and tombstones for deletes.
+- [x] **Paged sync responses** — `GET /api/sync?since=N&limit=L` returns
+  `hasMore`; the client pages until caught up. The local model still holds
+  everything.
+- [x] **File attachments** — BLOBs in SQLite, cached in IndexedDB.
 - [x] **Attachment cleanup** — `POST /api/blobs/cleanup` removes unreferenced
-  blobs older than a guard period.
-
-A future data migration would take the current v3 task shape:
-
-```text
-id, title, description, due, dueTime, recurrence,
-reminderMinutes, reminderFiredKey, priority, projectId,
-labels, parentId, completed, completedAt, order, createdAt
-```
-
-plus projects, labels, and UI state, into relational tables (tasks, projects,
-labels, task_labels, reminders, recurrence rules). Keep the existing
-`migrateState`/`normalizeState` path as the import boundary.
+  blobs after a guard period.
+- [x] **Comments** — persisted inside the task state.
+- [ ] **Authentication** (accounts, login, tokens, `owner_id`) — the API is open
+  and single-user.
+- [ ] **Multi-device identity** — several devices share one store rather than
+  being distinct users.
+- [ ] **Sharing / collaboration** (assignees, shared projects).
+- [ ] **Scheduled backups and retention** — backups exist, but nothing prunes
+  tombstones or rotates snapshots.
 
 ---
 
-## 3. Features still missing (not worker/DB work)
+## 3. Product features still missing
 
-From `features.md`; none of these were part of Phase 3.
+Active or later gaps from `rightnow.md`; none block single-user use.
 
-### Views
-- [x] #6 Board / Kanban view (priority columns; drag between columns).
-- [x] #7 Calendar (month grid) view.
-- [x] #25 Completed-tasks view (see/restore completed; grouped by day).
-- [x] #23 Custom filters and #24 filter query language (`&`, `|`, `!`, dates).
-- [x] #26 "No date" / "No priority" filters.
+### Task model
+- [ ] Deadlines separate from due dates.
+- [ ] Start dates.
+- [ ] Completion-based recurrence (`every!` semantics).
+- [ ] Absolute-time and location reminders.
+- [ ] Rich text (Markdown/checklists) in descriptions and comments.
+- [ ] Reusable task/project templates (current "templates" are quick-add defaults).
+- [ ] Task permalinks (deep-link to a task modal).
+- [ ] Attachment previews and drag-and-drop upload.
 
-### Task detail
-- [ ] #9 File attachments — the storage layer is ready (`store.putBlob`), only the UI is missing.
-- [x] #8 Comments / activity log.
-- [x] #10 Task duration / estimated time.
-- [~] #11 Sections inside projects (sections and grouping exist; drag-to-section and a filter are open).
-- [x] #12 Favourite/pinned projects and labels.
-- [x] #15 Sub-task nesting deeper than one level.
+### Views and interaction
+- [x] Board / Kanban view (priority columns; drag between columns).
+- [~] Board columns **by section** (Todoist behaviour); it groups by priority.
+- [x] Calendar (month grid) view.
+- [ ] Calendar week/day views, drag-to-reschedule and drag-to-create.
+- [x] Completed-tasks view (grouped by day, restorable).
+- [x] Custom filters and the filter query language.
+- [x] "No date" / "No priority" views.
+- [ ] Drag a task between sections.
+- [~] Per-view sort memory (sorting is global).
+- [ ] Mobile swipe gestures and long-press parity.
 
-### Interaction
-- [x] #17 Bulk select / batch complete, delete, move.
-- [ ] #18 Drag a task onto a project/label in the sidebar.
-- [x] #19 Inline title editing.
-- [x] #20 Clickable date/project/label pickers in quick add.
-- [~] #21 "Move to project" / "Move to label" (moving to a section is still open).
-- [x] #22 Right-click reschedule shortcuts and #40 task context menu.
+### Task detail and interaction
+- [x] File attachments (add / open / remove in the task dialog).
+- [x] Comments per task.
+- [x] Task duration / estimated time.
+- [~] Sections inside projects (sections, grouping and a filter exist;
+  drag-to-section is open).
+- [x] Pinned projects and labels.
+- [x] Sub-task nesting deeper than one level.
+- [x] Bulk select and batch complete / delete / move.
+- [x] Drag a task onto a project/label in the sidebar.
+- [x] Inline title editing.
+- [x] Clickable date/project/label pickers in quick add.
+- [~] "Move to project" / "Move to label" (moving to a section is open).
+- [x] Right-click reschedule shortcuts and the task context menu.
 
 ### Shell / polish
-- [x] #27 Collapsible sidebar sections.
-- [x] #28 Sidebar drag-reorder of projects/labels.
-- [x] #29 Inline "add task" per project in the sidebar.
-- [x] #30 Settings / preferences (start of week, default priority, etc.).
-- [x] #31 Dark mode.
-- [ ] #32 Karma / productivity stats.
-- [x] #33 Better empty-state illustration and call to action.
-- [~] #37 Accessibility pass (dialogs trap focus; arrow-key task-list
-  navigation and screen-reader announcements are still open).
-- [x] #39 Completion/view animations.
-- [x] #42 Full mobile layout pass.
+- [x] Collapsible sidebar sections.
+- [x] Sidebar drag-reorder of projects/labels.
+- [x] Inline "add task" per project in the sidebar.
+- [x] Settings / preferences.
+- [x] Dark mode.
+- [x] Karma / productivity stats (basic; goals and reports are later).
+- [x] Empty states with a call to action.
+- [~] Accessibility (dialogs trap focus; arrow-key navigation and
+  screen-reader announcements exist, not full Todoist parity).
+- [x] Completion/view animations.
+- [x] Full mobile layout pass.
 - [x] Basic keyboard shortcuts (`q`, `/`, `t`, `u`, `c`, `b`, `?`).
+- [ ] Full i18n (English-only).
+- [ ] Pixel-level visual parity with Todoist.
 
 ### Recurrence refinements
+- [x] End conditions in the UI (count / until date).
+- [x] Multiple reminders.
 - [ ] Exceptions and skips ("every Monday except holidays").
-- [x] End conditions in the UI (count / until date) — the RRULE format supports
-  them, the picker does not expose them yet.
-- [ ] Separate "start date" distinct from due date.
-- [~] Multiple reminders (done) and snooze (open).
+- [ ] Separate start date distinct from the due date.
+- [ ] Snooze presets.
+
+---
+
+## 4–9. Later
+
+These mirror `rightnow.md` §4–9 and are not current work.
+
+### 4. Productivity and history ⏳
+Karma levels/goals/reports, project activity log, vacation mode, persistent undo
+history.
+
+### 5. Data and interoperability ⏳
+Todoist import/export, Google Calendar/Outlook sync, email-to-task, browser
+extension, Todoist-compatible API/webhooks, scheduled backups and tombstone
+pruning, bundled attachment export, encryption at rest.
+
+### 6. Platform and integrations ⏳
+Native apps, widgets, watch apps, voice assistants, Gmail/Outlook add-ins,
+Slack/Teams, Zapier/Make/IFTTT.
+
+### 7. Collaboration and security ⏳
+Accounts and `owner_id`, shared projects and permissions, assignees, mentions,
+2FA/SSO, audit logs, API keys.
+
+### 8. UX and polish parity ⏳
+Pixel parity, full i18n, full screen-reader parity, onboarding copy,
+Todoist-level NLP breadth, sounds/haptics.
+
+### 9. Self-hosting and operations ⏳
+Auth and TLS before exposing the API, rate limiting, metrics/tracing, scheduled
+migrations/backups, non-Windows hosting notes (Node 24 for `node:sqlite`).
 
 ---
 
 ## Suggested order when this is picked up
 
-1. Service worker + IndexedDB, only if closed-tab reminders matter.
-2. Local-only wins: custom filters, attachments via IndexedDB, accessibility.
-3. Backend + auth + sync + object storage (attachments, comments).
-4. Calendar view and collaboration.
-
-Nothing in sections 1–3 is required for the current Phase 3 data to keep working;
-schema v3 remains forward-compatible.
+1. Finish `rightnow.md` §1–3 (task model, views, notifications).
+2. Re-evaluate §4+ only when the single-user surface feels complete.
+3. §7 only if multi-user or sharing becomes a goal.
