@@ -1,0 +1,19 @@
+{
+  "name": "Todoist Clone",
+  "short_name": "Todoist",
+  "description": "A local-first Todoist clone: tasks, projects, labels, recurring tasks, reminders and a calendar.",
+  "start_url": "./todoist.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fafafa",
+  "theme_color": "#db4c3f",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

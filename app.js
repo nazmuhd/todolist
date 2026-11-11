@@ -867,6 +867,57 @@ $('#calendar-view').addEventListener('keydown', (e) => {
 });
 
 /* ============================================================
+   DEEP LINKS
+   The current view (and search) live in the URL hash, so views can be
+   shared and the browser back button works.
+============================================================ */
+function isKnownView(view) {
+  if (['inbox', 'today', 'upcoming', 'calendar', 'completed', 'no-date', 'no-priority'].includes(view)) return true;
+  if (view.startsWith('project:')) return state.projects.some(p => p.id === view.slice(8));
+  if (view.startsWith('label:')) return state.labels.some(l => l.id === view.slice(6));
+  if (view.startsWith('filter:')) return savedFilters.some(f => f.id === view.slice(7));
+  return false;
+}
+
+function currentHash() {
+  const q = (state.ui.search || '').trim();
+  return `#/${state.ui.view}${q ? `?q=${encodeURIComponent(q)}` : ''}`;
+}
+
+function syncHash() {
+  const next = currentHash();
+  if (location.hash !== next) location.hash = next;
+}
+
+function applyHash() {
+  const raw = location.hash.replace(/^#\/?/, '');
+  if (!raw) return;
+  const [viewPart, queryPart] = raw.split('?');
+  const view = decodeURIComponent(viewPart || 'inbox');
+  const q = queryPart ? (new URLSearchParams(queryPart).get('q') || '') : '';
+  if (!isKnownView(view)) return;
+  if (view === state.ui.view && q === (state.ui.search || '')) return;
+  state.ui.view = view;
+  state.ui.search = q;
+  const input = $('#search-input');
+  if (input) input.value = q;
+  saveState();
+  render();
+}
+
+window.addEventListener('hashchange', applyHash);
+
+/* ============================================================
+   SERVICE WORKER (offline)
+============================================================ */
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .catch(err => console.warn('Service worker registration failed:', err));
+  });
+}
+
+/* ============================================================
    SETTINGS
 ============================================================ */
 const SETTINGS_KEY = 'todoist-clone-settings';
@@ -3083,6 +3134,7 @@ function navigateTo(view) {
   $('#search-input').value = '';
   saveState();
   render();
+  syncHash();
   pulseViewIn();
 }
 
@@ -3100,6 +3152,7 @@ $('#search-input').addEventListener('input', (e) => {
   saveState();
   renderMain();
   lucide.createIcons();
+  syncHash();
 });
 
 $('#view-layout').addEventListener('click', (e) => {
@@ -3462,12 +3515,25 @@ function undoPending() {
   });
   saveState();
   render();
+  syncHash();
   showToast('Undone', 'success');
 }
 
 /* ============================================================
    DATA BACKUP (EXPORT / IMPORT)
 ============================================================ */
+function downloadFile(name, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function exportData() {
   const payload = {
     app: 'todoist-clone',
@@ -3480,18 +3546,143 @@ function exportData() {
     },
   };
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `todoist-backup-${todayISO()}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-
+  downloadFile(`todoist-backup-${todayISO()}.json`, JSON.stringify(payload, null, 2), 'application/json');
   showToast(`Exported ${plural(state.tasks.length, 'task')}`, 'success');
 }
+
+/* ---------- Other export formats ---------- */
+const EXPORT_FORMATS = [
+  { id: 'json', label: 'JSON backup', hint: 'Everything, re-importable', icon: 'braces' },
+  { id: 'csv', label: 'CSV', hint: 'One row per task', icon: 'table' },
+  { id: 'md', label: 'Markdown', hint: 'Checklist grouped by project', icon: 'file-text' },
+  { id: 'ics', label: 'Calendar (ICS)', hint: 'Dated tasks as events', icon: 'calendar' },
+];
+
+function csvCell(value) {
+  const s = String(value === null || value === undefined ? '' : value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function csvText() {
+  const header = ['title', 'project', 'labels', 'priority', 'due', 'time', 'repeat', 'completed', 'created'];
+  const rows = state.tasks.map(t => [
+    t.title,
+    t.projectId ? projectName(t.projectId) : '',
+    (t.labels || []).map(labelName).join(' '),
+    `P${t.priority}`,
+    t.due || '',
+    t.dueTime || '',
+    t.recurrence ? recurrenceToText(t.recurrence) : '',
+    t.completed ? 'yes' : 'no',
+    toISODate(new Date(t.createdAt || Date.now())),
+  ]);
+  return [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+}
+
+function exportCsv() {
+  downloadFile(`todoist-${todayISO()}.csv`, csvText(), 'text/csv;charset=utf-8');
+}
+
+function markdownText() {
+  const groups = new Map();
+  state.tasks.forEach(t => {
+    const key = t.projectId ? projectName(t.projectId) : 'Inbox';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(t);
+  });
+  const lines = [`# Tasks (${todayISO()})`, ''];
+  for (const [name, tasks] of groups) {
+    lines.push(`## ${name}`, '');
+    tasks
+      .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))
+      .forEach(t => {
+        const bits = [];
+        if (t.due) bits.push(`@${t.due}${t.dueTime ? ` ${t.dueTime}` : ''}`);
+        if (t.priority < 4) bits.push(`(P${t.priority})`);
+        (t.labels || []).forEach(lid => bits.push(`#${labelName(lid)}`));
+        lines.push(`- [${t.completed ? 'x' : ' '}] ${t.title}${bits.length ? ` — ${bits.join(' ')}` : ''}`);
+      });
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+function exportMarkdown() {
+  downloadFile(`todoist-${todayISO()}.md`, markdownText(), 'text/markdown;charset=utf-8');
+}
+
+function icsEscape(text) {
+  return String(text || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+function icsText() {
+  const stamp = (d) => toISODate(d).replace(/-/g, '');
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Todoist Clone//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+  ];
+  state.tasks.filter(t => t.due && !t.completed).forEach(t => {
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${t.id}@todoist-clone`);
+    lines.push(`DTSTAMP:${stamp(new Date())}T000000`);
+    if (t.dueTime) {
+      lines.push(`DTSTART:${t.due.replace(/-/g, '')}T${t.dueTime.replace(':', '')}00`);
+      lines.push(`SUMMARY:${icsEscape(t.title)}`);
+    } else {
+      lines.push(`DTSTART;VALUE=DATE:${t.due.replace(/-/g, '')}`);
+      const next = parseDate(t.due);
+      next.setDate(next.getDate() + 1);
+      lines.push(`DTEND;VALUE=DATE:${stamp(next)}`);
+      lines.push(`SUMMARY:${icsEscape(t.title)}`);
+    }
+    if (t.description) lines.push(`DESCRIPTION:${icsEscape(t.description)}`);
+    if (t.recurrence) lines.push(`RRULE:${t.recurrence}`);
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+function exportIcs() {
+  downloadFile(`todoist-${todayISO()}.ics`, icsText(), 'text/calendar;charset=utf-8');
+}
+
+const exportModal = $('#export-modal');
+
+function renderExportOptions() {
+  $('#export-options').innerHTML = EXPORT_FORMATS.map(f => `
+    <button type="button" data-export="${f.id}" class="w-full flex items-center gap-3 px-2 py-2 rounded hover:bg-gray-50 text-left">
+      <i data-lucide="${f.icon}" class="w-4 h-4 text-td-muted flex-shrink-0"></i>
+      <span class="flex-1">
+        <span class="block text-sm">${escapeHtml(f.label)}</span>
+        <span class="block text-[11px] text-td-muted">${escapeHtml(f.hint)}</span>
+      </span>
+    </button>`).join('');
+  lucide.createIcons();
+}
+
+$('#export-data-btn').onclick = () => {
+  renderExportOptions();
+  if (!exportModal.open) exportModal.showModal();
+};
+$('#export-close').onclick = () => exportModal.close();
+$('#export-options').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-export]');
+  if (!btn) return;
+  const format = btn.dataset.export;
+  exportModal.close();
+  if (format === 'csv') exportCsv();
+  else if (format === 'md') exportMarkdown();
+  else if (format === 'ics') exportIcs();
+  else exportData();
+});
 
 /** Reads a backup's text and returns { state } or { error }. */
 function parseBackup(text) {
@@ -3545,10 +3736,11 @@ function applyBackup(imported) {
     if (current) localStorage.setItem(`${STORAGE_KEY}-pre-import-backup`, current);
   } catch {}
 
-  state = { ...imported, ui: { view: 'inbox', activeId: null, search: '' } };
+  state = { ...imported, ui: { ...imported.ui, view: 'inbox', activeId: null, search: '' } };
   $('#search-input').value = '';
   saveState();
   render();
+  syncHash();
   showToast(`Imported ${plural(n, 'task')}`, 'success');
 }
 
@@ -3559,7 +3751,6 @@ function renderStorageBadge() {
   badge.title = `${plural(state.tasks.length, 'task')} stored in this browser · schema v${SCHEMA_VERSION}`;
 }
 
-$('#export-data-btn').onclick = exportData;
 $('#import-data-btn').onclick = () => $('#import-file').click();
 $('#import-file').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
@@ -3648,12 +3839,13 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  const dialogOpen = modal.open || projectModal.open || labelModal.open || dueModal.open || shortcutsModal.open || settingsModal.open;
+  const dialogOpen = modal.open || projectModal.open || labelModal.open || dueModal.open || shortcutsModal.open || settingsModal.open || exportModal.open;
   if (e.key === 'Escape') {
     // Handle every case ourselves; otherwise the browser would also
     // close the dialog while we only meant to dismiss the popover.
     e.preventDefault();
     if (dueModal.open) dueModal.close();
+    else if (exportModal.open) exportModal.close();
     else if (settingsModal.open) settingsModal.close();
     else if (shortcutsModal.open) shortcutsModal.close();
     else if (!rowMenu.classList.contains('hidden')) closeRowMenu();
@@ -3836,6 +4028,17 @@ document.addEventListener('visibilitychange', () => {
 function init() {
   loadSettings();
   applyTheme();
+  if (location.hash.length > 1) {
+    const raw = location.hash.replace(/^#\/?/, '');
+    const [viewPart, queryPart] = raw.split('?');
+    const view = decodeURIComponent(viewPart || 'inbox');
+    const q = queryPart ? (new URLSearchParams(queryPart).get('q') || '') : '';
+    if (isKnownView(view)) {
+      state.ui.view = view;
+      state.ui.search = q;
+      $('#search-input').value = q;
+    }
+  }
   render();
   try { sidebarCollapsedPref = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch {}
   applySidebarState();

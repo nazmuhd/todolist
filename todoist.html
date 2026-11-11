@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="A local-first Todoist clone: tasks, projects, labels, recurring tasks, reminders and a calendar." />
+<meta name="theme-color" content="#db4c3f" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon.svg" />
 <title>Todoist Clone</title>
 
 <!-- Inter (product UI font) -->
@@ -165,7 +170,7 @@
 
     <!-- Data backup -->
     <div class="sidebar-footer border-t border-td-border px-2 py-2 flex items-center gap-1 text-xs flex-shrink-0">
-      <button id="export-data-btn" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Download a JSON backup of all tasks">
+      <button id="export-data-btn" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Download a backup of all tasks">
         <i data-lucide="download" class="w-3.5 h-3.5"></i><span>Export</span>
       </button>
       <button id="import-data-btn" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Restore from a JSON backup">
@@ -431,6 +436,20 @@
 
 <!-- Shared "…" menu for projects / labels -->
 <div id="row-menu" class="hidden fixed z-50 bg-white border border-td-border rounded shadow-lg py-1 text-sm w-40"></div>
+
+<!-- Export formats -->
+<dialog id="export-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-sm border border-td-border">
+  <div class="p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold">Export</h3>
+      <button type="button" id="export-close" class="text-td-muted hover:text-td-text p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-td-red/40" title="Close" aria-label="Close">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div id="export-options" class="space-y-1"></div>
+    <p class="text-[11px] text-td-muted mt-3">Exports are generated in this browser.</p>
+  </div>
+</dialog>
 
 <!-- Settings -->
 <dialog id="settings-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-sm border border-td-border">
