@@ -299,8 +299,25 @@
       </div>
       <textarea id="modal-desc" rows="2" placeholder="Description" class="w-full text-sm border-0 resize-none focus:outline-none px-1 mb-2"></textarea>
 
+      <!-- Comments -->
+      <div id="modal-comments" class="hidden mb-2">
+        <div class="text-[11px] text-td-muted mb-1">Comments</div>
+        <ul id="modal-comment-list" class="space-y-1 mb-1"></ul>
+        <div class="flex items-center gap-1">
+          <input id="modal-comment-input" type="text" placeholder="Write a comment…" autocomplete="off"
+            class="flex-1 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          <button type="button" id="modal-comment-add" class="text-xs text-td-muted hover:text-td-text px-1">Add</button>
+        </div>
+      </div>
+
       <!-- Meta chips -->
       <div class="flex flex-wrap items-center gap-1.5 text-xs">
+        <div class="relative" id="modal-section-wrap" style="display:none">
+          <label class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-td-muted"></i>
+            <select id="modal-section" class="bg-transparent text-xs focus:outline-none" aria-label="Section"></select>
+          </label>
+        </div>
         <div class="relative">
           <button type="button" id="meta-due" class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50">
             <i data-lucide="calendar" class="w-3.5 h-3.5 text-td-muted"></i>
@@ -404,16 +421,25 @@
         </datalist>
         <div id="due-repeat-status" class="text-[11px] mt-0.5 min-h-[14px] text-td-muted"></div>
 
-        <label for="due-reminder" class="block text-xs text-td-muted mb-1 mt-2">Reminder</label>
-        <select id="due-reminder" class="w-full text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30">
-          <option value="">No reminder</option>
-          <option value="0">At time of due date</option>
-          <option value="10">10 minutes before</option>
-          <option value="30">30 minutes before</option>
-          <option value="60">1 hour before</option>
-          <option value="120">2 hours before</option>
-          <option value="1440">1 day before</option>
-        </select>
+        <div id="due-repeat-end" class="hidden mt-2">
+          <label for="due-repeat-end-mode" class="block text-xs text-td-muted mb-1">Ends</label>
+          <div class="flex items-center gap-2">
+            <select id="due-repeat-end-mode" class="text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30">
+              <option value="never">Never</option>
+              <option value="count">After</option>
+              <option value="until">On</option>
+            </select>
+            <input id="due-repeat-end-count" type="number" min="1" max="999" class="hidden w-16 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+            <span id="due-repeat-end-unit" class="hidden text-xs text-td-muted">times</span>
+            <input id="due-repeat-end-until" type="date" class="hidden flex-1 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          </div>
+        </div>
+
+        <label class="block text-xs text-td-muted mb-1 mt-2">Reminders</label>
+        <div id="due-reminders" class="space-y-1"></div>
+        <button type="button" id="due-add-reminder" class="mt-1 text-xs text-td-muted hover:text-td-text flex items-center gap-1">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i>Add reminder
+        </button>
         </div>
       </div>
     </div>
@@ -434,6 +460,15 @@
     <h3 id="project-modal-title" class="font-semibold mb-3">Add project</h3>
     <input id="project-name" type="text" placeholder="Project name" class="w-full text-sm border border-td-border rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-td-red/30 mb-3" />
     <div id="project-colors" class="flex flex-wrap gap-2 mb-4"></div>
+    <div class="mb-4">
+      <div class="text-xs text-td-muted mb-1">Sections</div>
+      <div id="project-sections" class="space-y-1 mb-1"></div>
+      <div class="flex items-center gap-1">
+        <input id="project-section-name" type="text" placeholder="Section name" autocomplete="off"
+          class="flex-1 text-sm border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        <button type="button" id="project-section-add" class="text-xs text-td-muted hover:text-td-text px-1">Add</button>
+      </div>
+    </div>
     <div class="flex justify-end gap-2">
       <button type="button" class="close-project-modal text-xs text-td-muted px-2 py-1">Cancel</button>
       <button type="button" id="save-project" class="bg-td-red text-white text-xs font-semibold px-3 py-1.5 rounded">Add</button>

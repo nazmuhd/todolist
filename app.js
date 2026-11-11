@@ -5,7 +5,7 @@
    on import, so existing data is never thrown away.
 ============================================================ */
 const STORAGE_KEY = 'todoist-clone-v1';
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const PROJECT_COLORS = ['#246fe0', '#058527', '#db4c3f', '#eb8909', '#8a4dff', '#0f9d58'];
 const LABEL_COLORS = ['#db4c3f', '#eb8909', '#246fe0', '#058527', '#8a4dff'];
@@ -55,6 +55,26 @@ const MIGRATIONS = {
     });
     return s;
   },
+  // v3 -> v4 (sections, comments, multiple reminders, recurrence end).
+  // Existing tasks simply gain empty collections; nothing is dropped.
+  3: (s) => {
+    (Array.isArray(s.projects) ? s.projects : []).forEach((p) => {
+      if (p && !Array.isArray(p.sections)) p.sections = [];
+    });
+    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
+      if (!t || typeof t !== 'object') return;
+      if (!Array.isArray(t.comments)) t.comments = [];
+      if (!Array.isArray(t.skippedDates)) t.skippedDates = [];
+      if (!Array.isArray(t.reminders)) {
+        t.reminders = (t.reminderMinutes === null || t.reminderMinutes === undefined)
+          ? []
+          : [{ id: uid(), minutes: t.reminderMinutes }];
+      }
+      if (t.sectionId === undefined) t.sectionId = null;
+      if (t.recurrenceEnd === undefined) t.recurrenceEnd = null;
+    });
+    return s;
+  },
 };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -82,6 +102,14 @@ const cleanReminderMinutes = (v) =>
   (Number.isInteger(v) && v >= 0 && v <= 10080 ? v : null);
 const cleanDuration = (v) =>
   (Number.isInteger(v) && v > 0 && v <= 10080 ? v : null);
+
+/** { count: n } or { until: 'YYYY-MM-DD' } — how a repeat stops. */
+function normalizeRecurrenceEnd(v) {
+  if (!v || typeof v !== 'object') return null;
+  if (Number.isInteger(v.count) && v.count > 0) return { count: v.count, until: null };
+  if (typeof v.until === 'string' && DATE_RE.test(v.until)) return { count: null, until: v.until };
+  return null;
+}
 
 /** "90" -> "1h 30m"; null/0 -> "". */
 function formatDuration(minutes) {
@@ -115,6 +143,9 @@ function normalizeState(s) {
       name: asText(p.name).trim() || 'Untitled project',
       color: cleanColor(p.color, PROJECT_COLORS[i % PROJECT_COLORS.length]),
       pinned: !!p.pinned,
+      sections: (Array.isArray(p.sections) ? p.sections : [])
+        .filter(x => x && typeof x === 'object' && asText(x.id))
+        .map(x => ({ id: asText(x.id), name: asText(x.name).trim() || 'Untitled section' })),
     });
   });
 
@@ -154,6 +185,22 @@ function normalizeState(s) {
       completedAt: typeof t.completedAt === 'number' ? t.completedAt : null,
       order: typeof t.order === 'number' ? t.order : i,
       createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
+      // v4 additions
+      sectionId: asText(t.sectionId) || null,
+      comments: (Array.isArray(t.comments) ? t.comments : [])
+        .filter(c => c && typeof c === 'object' && asText(c.text))
+        .map(c => ({
+          id: asText(c.id) || uid(),
+          text: asText(c.text),
+          createdAt: typeof c.createdAt === 'number' ? c.createdAt : Date.now(),
+        })),
+      reminders: (Array.isArray(t.reminders) ? t.reminders : [])
+        .filter(r => r && typeof r === 'object' && cleanReminderMinutes(r.minutes) !== null)
+        .map(r => ({ id: asText(r.id) || uid(), minutes: cleanReminderMinutes(r.minutes) })),
+      skippedDates: (Array.isArray(t.skippedDates) ? t.skippedDates : [])
+        .map(asText)
+        .filter(d => DATE_RE.test(d)),
+      recurrenceEnd: normalizeRecurrenceEnd(t.recurrenceEnd),
     });
   });
   // A parent must exist and can't be the task itself.
@@ -510,12 +557,14 @@ function firstRecurrenceISO(body, fromISO) {
 }
 
 function reminderKey(t) {
-  return t && t.due ? `${t.due}|${t.dueTime || ''}|${t.reminderMinutes}` : '';
+  if (!t || !t.due) return '';
+  const offsets = taskReminders(t).map(r => r.minutes).sort((a, b) => a - b).join(',');
+  return `${t.due}|${t.dueTime || ''}|${offsets}`;
 }
-function reminderFireDate(t) {
+function reminderFireDate(t, minutes) {
   const d = taskReminderDate(t);
   if (!d) return null;
-  d.setMinutes(d.getMinutes() - (t.reminderMinutes || 0));
+  d.setMinutes(d.getMinutes() - (minutes || 0));
   return d;
 }
 function ensureNotificationPermission() {
@@ -551,13 +600,18 @@ function notifyTask(t) {
 function checkReminders(now = Date.now()) {
   state.tasks.forEach(t => {
     if (t.completed || !t.due) return;
-    if (t.reminderMinutes === null || t.reminderMinutes === undefined) return;
+    const reminders = taskReminders(t);
+    if (!reminders.length) return;
     const key = reminderKey(t);
     if (!key || t.reminderFiredKey === key) return;
-    const at = reminderFireDate(t);
-    if (!at) return;
-    const late = now - at.getTime();
-    if (late < 0 || late > 12 * 60 * 60 * 1000) return;
+    // Fire the earliest reminder that is due.
+    const due = reminders
+      .map(r => ({ r, at: reminderFireDate(t, r.minutes) }))
+      .filter(x => x.at)
+      .sort((a, b) => a.at - b.at);
+    const hit = due.find(x => now >= x.at.getTime());
+    if (!hit) return;
+    if (now - hit.at.getTime() > 12 * 60 * 60 * 1000) return;
     t.reminderFiredKey = key;
     persistState();
     notifyTask(t);
@@ -1307,6 +1361,15 @@ function renderMain() {
     return;
   }
 
+  // A project with sections groups its tasks under section headers.
+  if (state.ui.view.startsWith('project:') && !searchActive) {
+    const proj = state.projects.find(p => p.id === state.ui.view.slice(8));
+    if (proj && Array.isArray(proj.sections) && proj.sections.length) {
+      renderProjectSectionsView(list);
+      return;
+    }
+  }
+
   // Normal list views hide completed tasks; the Completed view is their home.
   // Completed matches sort last but keep the chosen order otherwise.
   const visible = sortTasks(
@@ -1314,7 +1377,6 @@ function renderMain() {
       .filter(info.filter)
       .filter(t => searchActive || !t.completed)
   ).sort((a, b) => a.completed - b.completed);
-
   if (!visible.length) {
     if (state.ui.search) {
       showEmptyState('No matches', 'Try a different word or clear the search.', false);
@@ -1433,6 +1495,36 @@ function renderToday(list) {
     ${g.tasks.map(t => renderTaskRow(t, false)).join('')}
   `).join('');
   // Grouped order is date order, so drag reordering is disabled here.
+  bindTaskEvents(false);
+}
+
+/** A project with sections groups its tasks under section headers. */
+function renderProjectSectionsView(list) {
+  const projId = state.ui.view.slice(8);
+  const proj = state.projects.find(p => p.id === projId);
+  const sections = proj && Array.isArray(proj.sections) ? proj.sections : [];
+  const tasks = activeTasks()
+    .filter(t => t.projectId === projId && !t.completed)
+    .sort((a, b) => a.order - b.order);
+
+  const groups = sections
+    .map(s => ({ key: s.id, label: s.name, tasks: tasks.filter(t => t.sectionId === s.id) }))
+    .filter(g => g.tasks.length);
+  const ungrouped = tasks.filter(t => !t.sectionId || !sections.some(s => s.id === t.sectionId));
+  if (ungrouped.length) groups.push({ key: '', label: 'No section', tasks: ungrouped });
+
+  if (!groups.length) {
+    list.innerHTML = '';
+    showEmptyState('No tasks', 'Add a task to this project to get started.');
+    return;
+  }
+  $('#empty-state').classList.add('hidden');
+  list.innerHTML = groups.map(g => `
+    <li class="day-group-header" data-day-group="${escapeHtml(g.key)}">
+      <span>${escapeHtml(g.label)}</span>
+      <span class="text-td-muted font-normal">${g.tasks.length}</span>
+    </li>
+    ${g.tasks.map(t => renderTaskRow(t, false)).join('')}`).join('');
   bindTaskEvents(false);
 }
 
@@ -1633,7 +1725,8 @@ function updateBoardCounts() {
 }
 
 function renderTaskRow(t, isSub, opts = {}) {
-  const subs = !isSub && !opts.noSubtasks ? subtasksOf(t.id) : [];
+  // Sub-tasks can nest, so children are rendered at every level.
+  const subs = opts.noSubtasks ? [] : subtasksOf(t.id);
   const parentBadge = opts.parentTitle ? `
     <span class="flex items-center gap-1 text-td-muted">
       <i data-lucide="corner-down-right" class="w-3 h-3"></i>${escapeHtml(opts.parentTitle)}
@@ -2330,7 +2423,7 @@ function openTaskModal(id) {
   editingTaskId = id;
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
-  modalDraft = { ...t, labels: [...(t.labels || [])] };
+  modalDraft = { ...t, labels: [...(t.labels || [])], comments: [...(t.comments || [])] };
 
   $('#modal-title').value = t.title;
   $('#modal-desc').value = t.description || '';
@@ -2339,10 +2432,62 @@ function openTaskModal(id) {
   renderPriorityMenu();
   renderProjectMenu();
   renderLabelMenu();
+  renderModalComments();
+  renderModalSections();
   modal.showModal();
   // Don't open the on-screen keyboard on phones: it would cover the dialog.
   if (!isMobileSidebar()) setTimeout(() => $('#modal-title').focus(), 50);
 }
+
+/* ---------- Task modal: comments and sections ---------- */
+function renderModalComments() {
+  const list = (modalDraft && Array.isArray(modalDraft.comments)) ? modalDraft.comments : [];
+  $('#modal-comments').classList.remove('hidden');
+  $('#modal-comment-list').innerHTML = list.map(c => `
+    <li class="flex items-start gap-2 text-xs">
+      <span class="flex-1">${escapeHtml(c.text)}</span>
+      <button type="button" class="text-td-muted hover:text-red-600" data-comment-remove="${escapeHtml(c.id)}" title="Delete comment" aria-label="Delete comment">
+        <i data-lucide="x" class="w-3 h-3"></i>
+      </button>
+    </li>`).join('');
+  lucide.createIcons();
+}
+
+function renderModalSections() {
+  const wrap = $('#modal-section-wrap');
+  const select = $('#modal-section');
+  const t = modalDraft || {};
+  const proj = state.projects.find(p => p.id === t.projectId);
+  const sections = proj && Array.isArray(proj.sections) ? proj.sections : [];
+  wrap.style.display = sections.length ? '' : 'none';
+  select.innerHTML = `<option value="">No section</option>${
+    sections.map(s => `<option value="${escapeHtml(s.id)}" ${t.sectionId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}`;
+}
+
+$('#modal-section').onchange = (e) => {
+  modalDraft.sectionId = e.target.value || null;
+};
+
+$('#modal-comment-add').onclick = () => {
+  const input = $('#modal-comment-input');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!Array.isArray(modalDraft.comments)) modalDraft.comments = [];
+  modalDraft.comments.push({ id: uid(), text, createdAt: Date.now() });
+  input.value = '';
+  renderModalComments();
+};
+
+$('#modal-comment-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); $('#modal-comment-add').click(); }
+});
+
+$('#modal-comment-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-comment-remove]');
+  if (!btn) return;
+  modalDraft.comments = (modalDraft.comments || []).filter(c => c.id !== btn.dataset.commentRemove);
+  renderModalComments();
+});
 
 function updateModalChips() {
   const t = modalDraft;
@@ -2388,7 +2533,10 @@ function renderProjectMenu() {
   projectMenu.querySelectorAll('button').forEach(b => {
     b.onclick = () => {
       modalDraft.projectId = b.dataset.id || null;
+      // The section list belongs to the project, so it changes with it.
+      modalDraft.sectionId = null;
       updateModalChips();
+      renderModalSections();
       projectMenu.classList.add('hidden');
       lucide.createIcons();
     };
@@ -2432,7 +2580,142 @@ const dueTimeInput = $('#due-time');
 const dueAllDayInput = $('#due-allday');
 const dueRepeatInput = $('#due-repeat');
 const dueRepeatStatus = $('#due-repeat-status');
-const dueReminderSelect = $('#due-reminder');
+const dueReminderSelect = null; // replaced by the multi-reminder list
+const dueRemindersBox = $('#due-reminders');
+const dueRepeatEndBox = $('#due-repeat-end');
+const dueRepeatEndMode = $('#due-repeat-end-mode');
+const dueRepeatEndCount = $('#due-repeat-end-count');
+const dueRepeatEndUntil = $('#due-repeat-end-until');
+const dueRepeatEndUnit = $('#due-repeat-end-unit');
+
+const REMINDER_OPTIONS = [
+  [0, 'At time of due date'],
+  [10, '10 minutes before'],
+  [30, '30 minutes before'],
+  [60, '1 hour before'],
+  [120, '2 hours before'],
+  [1440, '1 day before'],
+];
+
+/** The reminders of a task, tolerating the old single-reminder shape. */
+function taskReminders(t) {
+  if (!t) return [];
+  if (Array.isArray(t.reminders) && t.reminders.length) {
+    return t.reminders.filter(r => r && cleanReminderMinutes(r.minutes) !== null);
+  }
+  if (t.reminderMinutes !== null && t.reminderMinutes !== undefined) {
+    return [{ id: 'legacy', minutes: t.reminderMinutes }];
+  }
+  return [];
+}
+
+function setDraftReminders(list) {
+  if (!modalDraft) return;
+  modalDraft.reminders = list;
+  // The first reminder stays the "primary" one for the scheduler.
+  modalDraft.reminderMinutes = list.length ? list[0].minutes : null;
+}
+
+function renderDueReminders() {
+  const list = taskReminders(modalDraft);
+  dueRemindersBox.innerHTML = list.length ? list.map(r => `
+    <div class="flex items-center gap-1" data-reminder-id="${escapeHtml(r.id)}">
+      <select class="flex-1 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" data-reminder-minutes aria-label="Reminder">
+        ${REMINDER_OPTIONS.map(([v, l]) => `<option value="${v}" ${Number(r.minutes) === v ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+      <button type="button" class="text-td-muted hover:text-red-600 p-1" data-reminder-remove title="Remove reminder" aria-label="Remove reminder">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>`).join('')
+    : '<div class="text-[11px] text-td-muted">No reminders.</div>';
+  lucide.createIcons();
+}
+
+/* ---------- Repeat end conditions (COUNT / UNTIL) ---------- */
+function recurrenceBase(body) {
+  return String(body || '').split(';').filter(p => p && !/^(COUNT|UNTIL)=/i.test(p)).join(';');
+}
+
+function recurrenceEndFromBody(body) {
+  const c = /COUNT=(\d+)/i.exec(body || '');
+  const u = /UNTIL=([0-9]{8})/i.exec(body || '');
+  return {
+    count: c ? Number(c[1]) : null,
+    until: u ? `${u[1].slice(0, 4)}-${u[1].slice(4, 6)}-${u[1].slice(6, 8)}` : null,
+  };
+}
+
+function recurrenceWithEnd(body, end) {
+  const base = recurrenceBase(body);
+  if (!base) return null;
+  const parts = [base];
+  if (end && end.count) parts.push(`COUNT=${end.count}`);
+  else if (end && end.until) parts.push(`UNTIL=${end.until.replace(/-/g, '')}T235959Z`);
+  return parts.join(';');
+}
+
+function syncDueRepeatEnd() {
+  const body = modalDraft ? modalDraft.recurrence : null;
+  if (!body) {
+    dueRepeatEndBox.classList.add('hidden');
+    return;
+  }
+  dueRepeatEndBox.classList.remove('hidden');
+  const end = recurrenceEndFromBody(body);
+  dueRepeatEndMode.value = end.count ? 'count' : end.until ? 'until' : 'never';
+  dueRepeatEndCount.value = end.count || '';
+  dueRepeatEndUntil.value = end.until || '';
+  const mode = dueRepeatEndMode.value;
+  dueRepeatEndCount.classList.toggle('hidden', mode !== 'count');
+  dueRepeatEndUnit.classList.toggle('hidden', mode !== 'count');
+  dueRepeatEndUntil.classList.toggle('hidden', mode !== 'until');
+}
+
+function applyDueRepeatEnd() {
+  if (!modalDraft) return;
+  const mode = dueRepeatEndMode.value;
+  const end = mode === 'count'
+    ? { count: Math.max(1, Math.min(999, Number(dueRepeatEndCount.value) || 1)) }
+    : mode === 'until' && dueRepeatEndUntil.value
+      ? { until: dueRepeatEndUntil.value }
+      : null;
+  const body = recurrenceWithEnd(modalDraft.recurrence, end);
+  modalDraft.recurrence = body ? cleanRecurrence(body) : null;
+  dueRepeatInput.value = modalDraft.recurrence ? recurrenceToText(modalDraft.recurrence) : '';
+  syncDueRepeatEnd();
+  updateModalChips();
+}
+
+dueRepeatEndMode.addEventListener('change', applyDueRepeatEnd);
+dueRepeatEndCount.addEventListener('change', applyDueRepeatEnd);
+dueRepeatEndUntil.addEventListener('change', applyDueRepeatEnd);
+
+dueRemindersBox.addEventListener('change', (e) => {
+  const select = e.target.closest('[data-reminder-minutes]');
+  if (!select) return;
+  const row = select.closest('[data-reminder-id]');
+  const list = taskReminders(modalDraft).map(r => (r.id === row.dataset.reminderId
+    ? { ...r, minutes: Number(select.value) }
+    : r));
+  setDraftReminders(list);
+});
+
+dueRemindersBox.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-reminder-remove]');
+  if (!btn) return;
+  const row = btn.closest('[data-reminder-id]');
+  setDraftReminders(taskReminders(modalDraft).filter(r => r.id !== row.dataset.reminderId));
+  renderDueReminders();
+  updateModalChips();
+});
+
+$('#due-add-reminder').onclick = () => {
+  const list = taskReminders(modalDraft);
+  list.push({ id: uid(), minutes: 30 });
+  setDraftReminders(list);
+  renderDueReminders();
+  updateModalChips();
+};
 
 let dueCalendar = null;
 let dueCalendarSyncing = false;
@@ -2460,7 +2743,6 @@ function syncDueDateControls() {
     dueCalendarSyncing = false;
   }
   dueNlInput.value = t.due ? formatDue(t.due, t.dueTime) : '';
-  dueReminderSelect.disabled = !t.due;
   setDueNlStatus(t.due ? `Selected: ${formatDue(t.due, t.dueTime)}` : 'No due date selected');
 }
 
@@ -2470,10 +2752,11 @@ function syncDueEditor() {
   dueAllDayInput.checked = !t.dueTime;
   dueTimeInput.disabled = !t.dueTime;
   dueRepeatInput.value = t.recurrence ? recurrenceToText(t.recurrence) : '';
-  dueReminderSelect.value = (t.reminderMinutes === null || t.reminderMinutes === undefined)
-    ? '' : String(t.reminderMinutes);
   dueRepeatStatus.textContent = '';
   dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-td-muted';
+  setDraftReminders(taskReminders(t));
+  renderDueReminders();
+  syncDueRepeatEnd();
   syncDueDateControls();
 }
 
@@ -2482,7 +2765,7 @@ function setDueDate(iso) {
   if (!iso) {
     modalDraft.dueTime = null;
     modalDraft.recurrence = null;
-    modalDraft.reminderMinutes = null;
+    setDraftReminders([]);
   }
   syncDueEditor();
   updateModalChips();
@@ -2533,14 +2816,14 @@ function initDueCalendar() {
       if (!dateStr) {
         modalDraft.dueTime = null;
         modalDraft.recurrence = null;
-        modalDraft.reminderMinutes = null;
+        setDraftReminders([]);
         dueTimeInput.value = '';
         dueAllDayInput.checked = true;
         dueTimeInput.disabled = true;
         dueRepeatInput.value = '';
-        dueReminderSelect.value = '';
+        renderDueReminders();
+        syncDueRepeatEnd();
       }
-      dueReminderSelect.disabled = !dateStr;
       dueNlInput.value = dateStr ? formatDue(dateStr, modalDraft.dueTime) : '';
       setDueNlStatus(dateStr ? `Selected: ${formatDue(dateStr, modalDraft.dueTime)}` : 'No due date selected');
       updateModalChips();
@@ -2554,6 +2837,7 @@ function openDueEditor() {
     due: modalDraft.due,
     dueTime: modalDraft.dueTime,
     recurrence: modalDraft.recurrence,
+    reminders: taskReminders(modalDraft).map(r => ({ ...r })),
     reminderMinutes: modalDraft.reminderMinutes,
   };
   dueEditorCommitted = false;
@@ -2572,6 +2856,7 @@ function parseDueRepeatField() {
   if (!raw) {
     modalDraft.recurrence = null;
     dueRepeatStatus.textContent = '';
+    syncDueRepeatEnd();
     return true;
   }
   const body = parseRecurrenceText(raw);
@@ -2580,10 +2865,13 @@ function parseDueRepeatField() {
     dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-red-600';
     return false;
   }
-  modalDraft.recurrence = body;
+  // Keep any end condition the user already chose.
+  modalDraft.recurrence = recurrenceWithEnd(body, recurrenceEndFromBody(modalDraft.recurrence));
   if (!modalDraft.due) setDueDate(todayISO());
-  dueRepeatStatus.textContent = `Repeats: ${recurrenceToText(body)}`;
+  dueRepeatInput.value = modalDraft.recurrence ? recurrenceToText(modalDraft.recurrence) : '';
+  dueRepeatStatus.textContent = `Repeats: ${recurrenceToText(modalDraft.recurrence)}`;
   dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-green-700';
+  syncDueRepeatEnd();
   return true;
 }
 
@@ -2593,7 +2881,7 @@ function commitDueEdits() {
   if (!modalDraft.due) {
     modalDraft.dueTime = null;
     modalDraft.recurrence = null;
-    modalDraft.reminderMinutes = null;
+    setDraftReminders([]);
   }
   updateModalChips();
   return true;
@@ -2643,11 +2931,9 @@ dueRepeatInput.addEventListener('input', () => {
 });
 dueRepeatInput.addEventListener('change', parseDueRepeatField);
 dueRepeatInput.addEventListener('blur', parseDueRepeatField);
-dueReminderSelect.addEventListener('change', () => {
-  const val = dueReminderSelect.value;
-  modalDraft.reminderMinutes = val === '' ? null : Number(val);
-  if (modalDraft.reminderMinutes !== null) ensureNotificationPermission();
-  updateModalChips();
+
+dueRemindersBox.addEventListener('change', (e) => {
+  if (e.target.closest('[data-reminder-minutes]')) ensureNotificationPermission();
 });
 
 $$('[data-due-preset]').forEach(btn => {
@@ -2683,6 +2969,7 @@ dueModal.addEventListener('close', () => {
     modalDraft.due = dueEditorSnapshot.due;
     modalDraft.dueTime = dueEditorSnapshot.dueTime;
     modalDraft.recurrence = dueEditorSnapshot.recurrence;
+    setDraftReminders((dueEditorSnapshot.reminders || []).map(r => ({ ...r })));
     modalDraft.reminderMinutes = dueEditorSnapshot.reminderMinutes;
     updateModalChips();
   }
@@ -2810,7 +3097,11 @@ $('#modal-save').onclick = () => {
   t.due = modalDraft.due;
   t.dueTime = modalDraft.dueTime;
   t.recurrence = modalDraft.recurrence;
-  t.reminderMinutes = modalDraft.reminderMinutes;
+  t.recurrenceEnd = recurrenceEndFromBody(modalDraft.recurrence);
+  t.reminders = taskReminders(modalDraft).map(r => ({ id: r.id, minutes: r.minutes }));
+  t.reminderMinutes = t.reminders.length ? t.reminders[0].minutes : null;
+  t.comments = (modalDraft.comments || []).map(c => ({ ...c }));
+  t.sectionId = modalDraft.sectionId || null;
   if (reminderKey(t) !== previousReminderKey) t.reminderFiredKey = null;
   if (t.reminderMinutes !== null) ensureNotificationPermission();
   t.durationMinutes = cleanDuration(Number($('#modal-duration').value));
@@ -3391,8 +3682,42 @@ const COLOR_PALETTE = [
 
 let editingProjectId = null;
 let projectDraftColor = null;
+let projectDraftSections = [];
 let editingLabelId = null;
 let labelDraftColor = null;
+
+function renderProjectSections() {
+  $('#project-sections').innerHTML = projectDraftSections.length ? projectDraftSections.map(s => `
+    <div class="flex items-center gap-1" data-section-id="${escapeHtml(s.id)}">
+      <span class="flex-1 text-sm truncate">${escapeHtml(s.name)}</span>
+      <button type="button" class="text-td-muted hover:text-red-600 p-0.5" data-section-remove="${escapeHtml(s.id)}" title="Remove section" aria-label="Remove section">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>`).join('')
+    : '<div class="text-[11px] text-td-muted">No sections yet.</div>';
+  lucide.createIcons();
+}
+
+$('#project-sections').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-section-remove]');
+  if (!btn) return;
+  projectDraftSections = projectDraftSections.filter(s => s.id !== btn.dataset.sectionRemove);
+  renderProjectSections();
+});
+
+$('#project-section-add').onclick = () => {
+  const input = $('#project-section-name');
+  const name = input.value.trim();
+  if (!name) return;
+  projectDraftSections.push({ id: uid(), name });
+  input.value = '';
+  renderProjectSections();
+  input.focus();
+};
+
+$('#project-section-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); $('#project-section-add').click(); }
+});
 
 function renderColorSwatches(container, selected, onPick) {
   const colors = COLOR_PALETTE.includes(selected) ? COLOR_PALETTE : [selected, ...COLOR_PALETTE];
@@ -3426,7 +3751,9 @@ function openProjectModal(id = null) {
   $('#project-name').value = proj ? proj.name : '';
   $('#save-project').textContent = proj ? 'Save' : 'Add';
   projectDraftColor = proj ? proj.color : PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
+  projectDraftSections = proj && Array.isArray(proj.sections) ? proj.sections.map(s => ({ ...s })) : [];
   renderColorSwatches($('#project-colors'), projectDraftColor, pickProjectColor);
+  renderProjectSections();
   projectModal.showModal();
   if (!isMobileSidebar()) setTimeout(() => $('#project-name').focus(), 50);
 }
@@ -3455,8 +3782,9 @@ $('#save-project').onclick = () => {
     if (!proj) { projectModal.close(); return; }
     proj.name = name;
     proj.color = projectDraftColor;
+    proj.sections = projectDraftSections.map(s => ({ ...s }));
   } else {
-    state.projects.push({ id: 'proj_' + uid(), name, color: projectDraftColor });
+    state.projects.push({ id: 'proj_' + uid(), name, color: projectDraftColor, sections: projectDraftSections.map(s => ({ ...s })) });
   }
   saveState();
   render();
