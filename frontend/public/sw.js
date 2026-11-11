@@ -4,21 +4,9 @@
 const CACHE = 'todoist-clone-v3';
 const SHELL = [
   './',
-  './todoist.html',
-  './app.js',
-  './storage.js',
-  './styles.css',
-  './src/core/app.js',
-  './src/core/dates.js',
+  './index.html',
   './manifest.webmanifest',
   './icon.svg',
-  './vendor/tailwind.js',
-  './vendor/lucide.min.js',
-  './vendor/chrono.bundle.js',
-  './vendor/flatpickr.min.js',
-  './vendor/flatpickr.min.css',
-  './vendor/rrule.min.js',
-  './vendor/sortable.min.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -106,7 +94,7 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of list) {
         if ('focus' in client) return client.focus();
       }
-      return self.clients.openWindow('./todoist.html');
+      return self.clients.openWindow('./index.html');
     })
   );
 });
@@ -122,7 +110,7 @@ self.addEventListener('fetch', (event) => {
   // Navigations: serve the app shell when the network is unavailable.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('./todoist.html').then(r => r || caches.match('./')))
+      fetch(request).catch(() => caches.match('./index.html').then(r => r || caches.match('./')))
     );
     return;
   }

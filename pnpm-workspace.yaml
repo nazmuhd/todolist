@@ -1,0 +1,7 @@
+packages:
+  - 'frontend'
+  - 'server'
+
+# esbuild ships a prebuilt binary through a postinstall script.
+allowBuilds:
+  esbuild: true

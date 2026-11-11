@@ -9,6 +9,7 @@ server/.env
 
 # Build output
 server/dist/
+frontend/dist/
 *.tsbuildinfo
 
 # Supabase CLI

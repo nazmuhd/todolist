@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <!-- Tailwind (self-hosted so the app works offline) -->
-<script src="vendor/tailwind.js"></script>
+<script src="/vendor/tailwind.js"></script>
 <script>
   tailwind.config = {
     theme: {
@@ -45,22 +45,22 @@
 </script>
 
 <!-- SortableJS (drag reorder) -->
-<script src="vendor/sortable.min.js"></script>
+<script src="/vendor/sortable.min.js"></script>
 
 <!-- Lucide icons -->
-<script src="vendor/lucide.min.js"></script>
+<script src="/vendor/lucide.min.js"></script>
 
 <!-- chrono-node (natural language dates) -->
-<script src="vendor/chrono.bundle.js"></script>
+<script src="/vendor/chrono.bundle.js"></script>
 
 <!-- Flatpickr (inline calendar in the due-date dialog) -->
-<link rel="stylesheet" href="vendor/flatpickr.min.css" />
-<script src="vendor/flatpickr.min.js"></script>
+<link rel="stylesheet" href="/vendor/flatpickr.min.css" />
+<script src="/vendor/flatpickr.min.js"></script>
 
 <!-- rrule (recurring tasks) -->
-<script src="vendor/rrule.min.js"></script>
+<script src="/vendor/rrule.min.js"></script>
 
-<link rel="stylesheet" href="styles.css" />
+
 </head>
 <body class="bg-td-bg text-td-text h-screen overflow-hidden">
 
@@ -566,7 +566,6 @@
 <div id="toast-container" aria-live="polite"></div>
 <div id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="storage.js"></script>
-<script type="module" src="app.js"></script>
+<script type="module" src="/src/app.js"></script>
 </body>
 </html>

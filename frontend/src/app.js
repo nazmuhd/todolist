@@ -1,22 +1,12 @@
-import { settings } from './src/core/app.js';
-import {
-  parseDate,
-  toISODate,
-  todayISO,
-  daysFromToday,
-  prevDayISO,
-  nextWeekdayISO,
-  formatDateShort,
-  formatDue,
-  formatDuration,
-  isTaskOverdue,
-  dueSortValue,
-  reminderFireDate,
-  cleanDueTime,
-  cleanDuration,
-  cleanReminderMinutes,
-  DATE_RE
-} from './src/core/dates.js';
+import './styles.css';
+import { settings, uid } from './core/app.js';
+import { store } from './core/store.js';
+import { parseDate, toISODate, todayISO, daysFromToday, prevDayISO, nextWeekdayISO, formatDateShort, formatDue, formatDuration, isTaskOverdue, dueSortValue, reminderFireDate, cleanDuration } from './core/dates.js';
+import { SCHEMA_VERSION, MIGRATIONS, defaultState, migrateState, state, setState } from './core/state.js';
+import { activeTasks, completedTasks, subtasksOf, addTask, toggleComplete, removeTask, deleteTask, parseRecurrenceText, recurrenceToText, firstRecurrenceISO, skipOccurrence, snoozeTask, taskReminders, priorityColor, priorityLabel, projectName, labelName } from './core/tasks.js';
+import { snapshotData, offerUndo, undoPending, redoPending, clearPendingUndo } from './core/undo.js';
+import { plural, showToast } from './core/toasts.js';
+
 
 /* ============================================================
    STORAGE
@@ -24,35 +14,14 @@ import {
    a backend later is a one-line change:
      const store = new TodoStore.ApiStore({ token });
 ============================================================ */
-const store = new TodoStore.LocalStore();
 
 /* ============================================================
    STATE + PERSISTENCE
    Data lives in the browser for now (see storage.js). `version` is bumped whenever the
    shape changes; MIGRATIONS upgrades older payloads on load, so existing data is never thrown away.
 ============================================================ */
-const SCHEMA_VERSION = 7;
-
 const PROJECT_COLORS = ['#246fe0', '#058527', '#db4c3f', '#eb8909', '#8a4dff', '#0f9d58'];
 const LABEL_COLORS = ['#db4c3f', '#eb8909', '#246fe0', '#058527', '#8a4dff'];
-
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-
-function defaultState() {
-  return {
-    version: SCHEMA_VERSION,
-    projects: [
-      { id: 'proj_default', name: 'Work', color: '#246fe0' },
-      { id: 'proj_home', name: 'Personal', color: '#058527' },
-    ],
-    labels: [
-      { id: 'lbl_urgent', name: 'urgent', color: '#db4c3f' },
-    ],
-    tasks: [],
-    ui: { view: 'inbox', activeId: null, search: '', layout: 'list', sort: 'manual' },
-    updatedAt: 0,
-  };
-}
 
 /* ------------------------------------------------------------
    Migrations, keyed by the version they upgrade FROM.
@@ -60,72 +29,6 @@ function defaultState() {
    To evolve the data later, add MIGRATIONS[SCHEMA_VERSION] and
    bump SCHEMA_VERSION.
 ------------------------------------------------------------ */
-const MIGRATIONS = {
-  // v1 (unversioned) -> v2 (versioned payload + normalised records)
-  1: (s) => {
-    // Old payloads could contain tasks without an explicit sort order.
-    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t, i) => {
-      if (t && typeof t.order !== 'number') t.order = i;
-    });
-    return s;
-  },
-  // v2 -> v3 (time-of-day, recurrence, reminders). Existing tasks simply
-  // become all-day, non-repeating tasks with no reminder.
-  2: (s) => {
-    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
-      if (!t || typeof t !== 'object') return;
-      if (t.dueTime === undefined) t.dueTime = null;
-      if (t.recurrence === undefined) t.recurrence = null;
-      if (t.reminderMinutes === undefined) t.reminderMinutes = null;
-      if (t.reminderFiredKey === undefined) t.reminderFiredKey = null;
-    });
-    return s;
-  },
-  // v3 -> v4 (sections, comments, multiple reminders, recurrence end).
-  // Existing tasks simply gain empty collections; nothing is dropped.
-  3: (s) => {
-    (Array.isArray(s.projects) ? s.projects : []).forEach((p) => {
-      if (p && !Array.isArray(p.sections)) p.sections = [];
-    });
-    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
-      if (!t || typeof t !== 'object') return;
-      if (!Array.isArray(t.comments)) t.comments = [];
-      if (!Array.isArray(t.skippedDates)) t.skippedDates = [];
-      if (!Array.isArray(t.reminders)) {
-        t.reminders = (t.reminderMinutes === null || t.reminderMinutes === undefined)
-          ? []
-          : [{ id: uid(), minutes: t.reminderMinutes }];
-      }
-      if (t.sectionId === undefined) t.sectionId = null;
-      if (t.recurrenceEnd === undefined) t.recurrenceEnd = null;
-    });
-    return s;
-  },
-  // v4 -> v5 (attachments). Files live in IndexedDB; the task only keeps
-  // the metadata needed to find them again.
-  4: (s) => {
-    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
-      if (t && typeof t === 'object' && !Array.isArray(t.attachments)) t.attachments = [];
-    });
-    return s;
-  },
-  // v5 -> v6 (per-occurrence exceptions). Existing tasks simply gain an
-  // empty list of skipped dates.
-  5: (s) => {
-    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
-      if (t && typeof t === 'object' && !Array.isArray(t.exceptions)) t.exceptions = [];
-    });
-    return s;
-  },
-  // v6 -> v7 (separate start date for repeating tasks).
-  6: (s) => {
-    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
-      if (t && typeof t === 'object' && t.startDate === undefined) t.startDate = null;
-    });
-    return s;
-  },
-};
-
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 const asText = (v) => (typeof v === 'string' ? v : '');
 const cleanColor = (c, fallback) => (typeof c === 'string' && COLOR_RE.test(c) ? c : fallback);
@@ -158,148 +61,6 @@ function durationBadge(t) {
   return `<span class="flex items-center gap-1 text-td-muted"><i data-lucide="clock" class="w-3 h-3"></i>${text}</span>`;
 }
 
-/**
- * Coerces a payload into the current shape, dropping anything unusable
- * and repairing dangling references (missing project/label/parent ids).
- * Runs after every migration, and again on import.
- */
-function normalizeState(s) {
-  const projects = [];
-  const projectIds = new Set();
-  (Array.isArray(s.projects) ? s.projects : []).forEach((p, i) => {
-    if (!p || typeof p !== 'object') return;
-    const id = asText(p.id) || 'proj_' + uid();
-    if (projectIds.has(id)) return;
-    projectIds.add(id);
-    projects.push({
-      id,
-      name: asText(p.name).trim() || 'Untitled project',
-      color: cleanColor(p.color, PROJECT_COLORS[i % PROJECT_COLORS.length]),
-      pinned: !!p.pinned,
-      sections: (Array.isArray(p.sections) ? p.sections : [])
-        .filter(x => x && typeof x === 'object' && asText(x.id))
-        .map(x => ({ id: asText(x.id), name: asText(x.name).trim() || 'Untitled section' })),
-    });
-  });
-
-  const labels = [];
-  const labelIds = new Set();
-  (Array.isArray(s.labels) ? s.labels : []).forEach((l, i) => {
-    if (!l || typeof l !== 'object') return;
-    const id = asText(l.id) || 'lbl_' + uid();
-    const name = asText(l.name).replace(/^@/, '').trim();
-    if (!name || labelIds.has(id)) return;
-    labelIds.add(id);
-    labels.push({ id, name, color: cleanColor(l.color, LABEL_COLORS[i % LABEL_COLORS.length]), pinned: !!l.pinned });
-  });
-
-  const tasks = [];
-  const taskIds = new Set();
-  (Array.isArray(s.tasks) ? s.tasks : []).forEach((t, i) => {
-    if (!t || typeof t !== 'object') return;
-    let id = asText(t.id);
-    if (!id || taskIds.has(id)) id = uid();
-    taskIds.add(id);
-    tasks.push({
-      id,
-      title: asText(t.title).trim() || 'Untitled',
-      description: asText(t.description),
-      due: typeof t.due === 'string' && DATE_RE.test(t.due) ? t.due : null,
-      dueTime: cleanDueTime(t.dueTime),
-      recurrence: cleanRecurrence(t.recurrence),
-      reminderMinutes: cleanReminderMinutes(t.reminderMinutes),
-      reminderFiredKey: asText(t.reminderFiredKey) || null,
-      durationMinutes: cleanDuration(t.durationMinutes),
-      priority: clampPriority(t.priority),
-      projectId: projectIds.has(t.projectId) ? t.projectId : null,
-      labels: [...new Set((Array.isArray(t.labels) ? t.labels : []).map(asText).filter(lid => labelIds.has(lid)))],
-      parentId: asText(t.parentId) || null,
-      completed: !!t.completed,
-      completedAt: typeof t.completedAt === 'number' ? t.completedAt : null,
-      order: typeof t.order === 'number' ? t.order : i,
-      createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
-      // v4 additions
-      sectionId: asText(t.sectionId) || null,
-      comments: (Array.isArray(t.comments) ? t.comments : [])
-        .filter(c => c && typeof c === 'object' && asText(c.text))
-        .map(c => ({
-          id: asText(c.id) || uid(),
-          text: asText(c.text),
-          createdAt: typeof c.createdAt === 'number' ? c.createdAt : Date.now(),
-        })),
-      reminders: (Array.isArray(t.reminders) ? t.reminders : [])
-        .filter(r => r && typeof r === 'object' && cleanReminderMinutes(r.minutes) !== null)
-        .map(r => ({ id: asText(r.id) || uid(), minutes: cleanReminderMinutes(r.minutes) })),
-      skippedDates: (Array.isArray(t.skippedDates) ? t.skippedDates : [])
-        .map(asText)
-        .filter(d => DATE_RE.test(d)),
-      recurrenceEnd: normalizeRecurrenceEnd(t.recurrenceEnd),
-      startDate: DATE_RE.test(asText(t.startDate)) ? asText(t.startDate) : null,
-      exceptions: (Array.isArray(t.exceptions) ? t.exceptions : [])
-        .map(e => (typeof e === 'string' ? { date: e, action: 'skip' } : e))
-        .filter(e => e && typeof e === 'object' && DATE_RE.test(asText(e.date)))
-        .map(e => ({ date: asText(e.date), action: asText(e.action) || 'skip' })),
-      attachments: (Array.isArray(t.attachments) ? t.attachments : [])
-        .filter(a => a && typeof a === 'object' && asText(a.id))
-        .map(a => ({
-          id: asText(a.id),
-          name: asText(a.name) || 'file',
-          type: asText(a.type),
-          size: Number.isFinite(a.size) ? a.size : 0,
-          addedAt: typeof a.addedAt === 'number' ? a.addedAt : Date.now(),
-        })),
-    });
-  });
-  // A parent must exist and can't be the task itself.
-  tasks.forEach(t => {
-    if (t.parentId && (t.parentId === t.id || !taskIds.has(t.parentId))) t.parentId = null;
-  });
-
-  const rawUi = s.ui && typeof s.ui === 'object' ? s.ui : {};
-  let view = asText(rawUi.view) || 'inbox';
-  const knownView =
-    view === 'inbox' || view === 'today' || view === 'upcoming' || view === 'calendar' || view === 'karma' ||
-    view === 'completed' || view === 'no-date' || view === 'no-priority' ||
-    (view.startsWith('project:') && projectIds.has(view.slice(8))) ||
-    (view.startsWith('label:') && labelIds.has(view.slice(6))) ||
-    (view.startsWith('filter:') && savedFilters.some(f => f.id === view.slice(7)));
-  if (!knownView) view = 'inbox';
-
-  return {
-    version: SCHEMA_VERSION,
-    projects,
-    labels,
-    tasks,
-    ui: {
-      view,
-      activeId: asText(rawUi.activeId) || null,
-      search: asText(rawUi.search),
-      layout: rawUi.layout === 'board' ? 'board' : 'list',
-      sort: ['manual', 'date', 'priority', 'name', 'added'].includes(rawUi.sort) ? rawUi.sort : 'manual',
-      calendarMonth: /^\d{4}-\d{2}$/.test(asText(rawUi.calendarMonth)) ? asText(rawUi.calendarMonth) : null,
-      calendarSelected: /^\d{4}-\d{2}-\d{2}$/.test(asText(rawUi.calendarSelected)) ? asText(rawUi.calendarSelected) : null,
-    },
-    updatedAt: typeof s.updatedAt === 'number' ? s.updatedAt : 0,
-  };
-}
-
-/** Upgrades a raw parsed payload (any supported version) to the current shape. */
-function migrateState(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return defaultState();
-  let s;
-  try { s = JSON.parse(JSON.stringify(raw)); } catch { return defaultState(); }
-
-  let from = Number.isInteger(s.version) ? s.version : 1;
-  if (from > SCHEMA_VERSION) throw new Error(`Data is from a newer version (v${from})`);
-  while (from < SCHEMA_VERSION) {
-    const step = MIGRATIONS[from];
-    if (typeof step === 'function') s = step(s) || s;
-    from += 1;
-    s.version = from;
-  }
-  return normalizeState(s);
-}
-
 /* ============================================================
    SAVED FILTERS
    Stored beside the app state so the task schema stays untouched.
@@ -328,13 +89,9 @@ function filterTaskCount(query) {
 }
 
 // Only the most recent destructive action can be undone (like Todoist's toast).
-let pendingUndo = null;
 // The state before the last undo, so it can be redone.
-let redoSnapshot = null;
-
 // Filters must be known before the state is read: a saved filter can be the
 // active view, and the state loader validates the view name.
-let state = defaultState();
 
 /** Reads the saved state, keeping an unreadable payload as a backup. */
 async function loadState() {
@@ -405,9 +162,6 @@ function saveState() {
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-function priorityColor(p) {
-  return { 1: '#db4c3f', 2: '#eb8909', 3: '#246fe0', 4: '#999999' }[p] || '#999999';
-}
 /**
  * Priorities are also marked with a shape, so the level is readable
  * without relying on colour (red and orange are hard to tell apart for
@@ -418,27 +172,6 @@ function priorityMarker(p) {
   if (p === 2) return '<span class="prio-marker prio-2" aria-hidden="true"></span>';
   if (p === 3) return '<span class="prio-marker prio-3" aria-hidden="true"></span>';
   return '';
-}
-function priorityLabel(p) {
-  return { 1: 'Priority 1', 2: 'Priority 2', 3: 'Priority 3', 4: 'Priority 4' }[p] || 'Priority 4';
-}
-function projectName(id) {
-  return state.projects.find(p => p.id === id)?.name || '';
-}
-function labelName(id) {
-  return state.labels.find(l => l.id === id)?.name || '';
-}
-function activeTasks() {
-  return state.tasks.filter(t => !t.parentId);
-}
-function subtasksOf(id) {
-  return state.tasks.filter(t => t.parentId === id);
-}
-/** Completed view includes subtasks too, newest completion first. */
-function completedTasks() {
-  return state.tasks
-    .filter(t => t.completed)
-    .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0) || a.order - b.order);
 }
 /** Board layout is available for task lists, not grouped/archive views. */
 function supportsBoard(view = state.ui.view) {
@@ -454,124 +187,8 @@ const MONTH_WORDS = /\b(january|february|march|april|may|june|july|august|septem
 
 // Handled explicitly because rrule's English parser reads bare "weekly"
 // as a month/day; these are the phrases people actually type.
-const RECURRENCE_ALIASES = {
-  daily: 'FREQ=DAILY;INTERVAL=1',
-  'every day': 'FREQ=DAILY;INTERVAL=1',
-  weekly: 'FREQ=WEEKLY;INTERVAL=1',
-  'every week': 'FREQ=WEEKLY;INTERVAL=1',
-  monthly: 'FREQ=MONTHLY;INTERVAL=1',
-  'every month': 'FREQ=MONTHLY;INTERVAL=1',
-  yearly: 'FREQ=YEARLY;INTERVAL=1',
-  annually: 'FREQ=YEARLY;INTERVAL=1',
-  'every year': 'FREQ=YEARLY;INTERVAL=1',
-  weekday: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR',
-  weekdays: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR',
-  'every weekday': 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR',
-  'every other day': 'FREQ=DAILY;INTERVAL=2',
-  'every other week': 'FREQ=WEEKLY;INTERVAL=2',
-  'every other month': 'FREQ=MONTHLY;INTERVAL=2',
-  'every other year': 'FREQ=YEARLY;INTERVAL=2',
-};
-
-/**
- * Turns free text ("every Monday", "every 2 weeks") into a stored RRULE
- * body. Pieces the parser guessed from today's date (e.g. "every 2 weeks"
- * becoming "on Tuesday") are dropped unless the user actually said them,
- * so the rule anchors to the task's own due date.
- */
-function parseRecurrenceText(text) {
-  const raw = String(text || '').trim().replace(/^repeat\s+/i, '');
-  if (!raw) return null;
-  if (/^FREQ=/i.test(raw)) return cleanRecurrence(raw);
-  const lower = raw.toLowerCase().replace(/\s+/g, ' ');
-  if (RECURRENCE_ALIASES[lower]) return RECURRENCE_ALIASES[lower];
-
-  const lib = window.rrule;
-  if (!lib || !lib.RRule || typeof lib.RRule.fromText !== 'function') return null;
-
-  let parsed;
-  try { parsed = lib.RRule.fromText(raw); } catch { return null; }
-  if (!parsed || !parsed.options) return null;
-
-  const KEEP = ['freq', 'interval', 'byweekday', 'bymonthday', 'bymonth', 'count', 'until', 'wkst'];
-  const opts = {};
-  for (const key of KEEP) {
-    const value = parsed.options[key];
-    if (value === undefined || value === null) continue;
-    if (Array.isArray(value) && value.length === 0) continue;
-    opts[key] = value;
-  }
-  if (!WEEKDAY_WORDS.test(lower)) delete opts.byweekday;
-  if (!ORDINAL_WORDS.test(lower)) delete opts.bymonthday;
-  if (!MONTH_WORDS.test(lower)) delete opts.bymonth;
-
-  try {
-    // Noon keeps the calendar date identical in every timezone.
-    const rule = new lib.RRule({ ...opts, dtstart: new Date(2020, 0, 1, 12, 0, 0, 0) });
-    const line = rule.toString().split('\n').find(l => l.startsWith('RRULE:'));
-    return line ? cleanRecurrence(line.slice(6)) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Human-readable version of a stored RRULE body. */
-function recurrenceToText(body) {
-  if (!body) return '';
-  const lib = window.rrule;
-  if (lib && lib.RRule && typeof lib.RRule.parseString === 'function') {
-    try { return new lib.RRule(lib.RRule.parseString(body)).toText(); } catch {}
-  }
-  return body;
-}
 
 /** Next occurrence strictly after the task's current due date. */
-/** True when a specific occurrence of a repeating task was skipped. */
-function isSkippedOccurrence(t, iso) {
-  if (!t || !Array.isArray(t.exceptions)) return false;
-  return t.exceptions.some(e => e.date === iso && e.action !== 'done');
-}
-
-function nextRecurrenceISO(t) {
-  if (!t || !t.due || !t.recurrence) return null;
-  const lib = window.rrule;
-  if (!lib || !lib.RRule || typeof lib.RRule.parseString !== 'function') return null;
-  try {
-    const [y, m, d] = t.due.split('-').map(Number);
-    const dtstart = new Date(y, m - 1, d, 12, 0, 0, 0);
-    const rule = new lib.RRule({ ...lib.RRule.parseString(t.recurrence), dtstart });
-    // Walk forward until an occurrence that has not been skipped and that
-    // is not before the task's start date.
-    let cursor = dtstart;
-    for (let i = 0; i < 60; i++) {
-      const next = rule.after(cursor, false);
-      if (!next) return null;
-      const iso = toISODate(next);
-      if (isSkippedOccurrence(t, iso)) { cursor = next; continue; }
-      if (t.startDate && iso < t.startDate) { cursor = next; continue; }
-      return iso;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/** Next occurrence at or after `fromISO` (used when a repeat phrase has no date). */
-function firstRecurrenceISO(body, fromISO) {
-  if (!body) return null;
-  const lib = window.rrule;
-  if (!lib || !lib.RRule || typeof lib.RRule.parseString !== 'function') return null;
-  try {
-    const [y, m, d] = (fromISO || todayISO()).split('-').map(Number);
-    const dtstart = new Date(y, m - 1, d, 12, 0, 0, 0);
-    const rule = new lib.RRule({ ...lib.RRule.parseString(body), dtstart });
-    const next = rule.after(dtstart, true);
-    return next ? toISODate(next) : null;
-  } catch {
-    return null;
-  }
-}
 
 function reminderKey(t) {
   if (!t || !t.due) return '';
@@ -2541,138 +2158,6 @@ function bindTaskEvents(sortable = true) {
 /* ============================================================
    TASK MUTATIONS
 ============================================================ */
-function nextOrder() {
-  const top = activeTasks();
-  return top.length ? Math.max(...top.map(t => t.order || 0)) + 1 : 0;
-}
-
-function addTask(data) {
-  // Settings fill in what the caller did not specify.
-  const priority = data.priority && data.priority < 4 ? data.priority : (settings.defaultPriority || data.priority || 4);
-  const reminder = data.reminderMinutes === undefined || data.reminderMinutes === null
-    ? (settings.defaultReminder === null || settings.defaultReminder === undefined ? null : settings.defaultReminder)
-    : data.reminderMinutes;
-
-  const task = {
-    id: uid(),
-    title: data.title || 'New task',
-    description: data.description || '',
-    due: data.due || null,
-    dueTime: cleanDueTime(data.dueTime),
-    recurrence: cleanRecurrence(data.recurrence),
-    reminderMinutes: cleanReminderMinutes(
-      reminder === undefined || reminder === null ? null : Number(reminder)
-    ),
-    reminderFiredKey: null,
-    durationMinutes: cleanDuration(data.durationMinutes),
-    priority,
-    projectId: data.projectId || null,
-    labels: data.labels || [],
-    parentId: data.parentId || null,
-    completed: false,
-    order: nextOrder(),
-    createdAt: Date.now(),
-  };
-  state.tasks.push(task);
-  saveState();
-  render();
-  return task;
-}
-
-/** Skips one occurrence of a repeating task and rolls it to the next one. */
-function skipOccurrence(task) {
-  if (!task || !task.recurrence || !task.due) return false;
-  const snapshot = snapshotData();
-  const skipped = Array.isArray(task.exceptions) ? [...task.exceptions] : [];
-  if (!skipped.some(e => e.date === task.due)) {
-    skipped.push({ date: task.due, action: 'skip' });
-  }
-  task.exceptions = skipped;
-  const next = nextRecurrenceISO(task);
-  if (next) {
-    task.due = next;
-    task.reminderFiredKey = null;
-  }
-  saveState();
-  render();
-  offerUndo('Occurrence skipped', snapshot);
-  return true;
-}
-
-/** Moves a task to tomorrow, as an all-day task. */
-function snoozeTask(task) {
-  if (!task || !task.due) return false;
-  const snapshot = snapshotData();
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  task.due = toISODate(d);
-  task.dueTime = null;
-  task.reminderFiredKey = null;
-  saveState();
-  render();
-  offerUndo('Snoozed until tomorrow', snapshot);
-  return true;
-}
-
-function toggleComplete(id) {
-  const t = state.tasks.find(x => x.id === id);
-  if (!t) return;
-  const snapshot = snapshotData();
-
-  // Recurring tasks roll forward to their next occurrence instead of
-  // being marked done, so there is only ever one copy of the task.
-  if (!t.completed && t.recurrence && t.due) {
-    // An overdue repeat skips ahead to the next future occurrence rather
-    // than landing back in the past.
-    const anchor = t.due < todayISO() ? todayISO() : t.due;
-    const next = nextRecurrenceISO({ ...t, due: anchor });
-    if (next) {
-      t.due = next;
-      t.completed = false;
-      t.completedAt = null;
-      t.reminderFiredKey = null;
-      subtasksOf(t.id).forEach(s => {
-        s.completed = false;
-        s.completedAt = null;
-        s.reminderFiredKey = null;
-      });
-      saveState();
-      render();
-      offerUndo(`Task moved to ${formatDue(t.due, t.dueTime)}`, snapshot);
-      return;
-    }
-    // An exhausted rule (COUNT/UNTIL) falls through and completes normally.
-  }
-
-  t.completed = !t.completed;
-  if (t.completed) {
-    t.completedAt = Date.now();
-    // complete subtasks too
-    subtasksOf(t.id).forEach(s => { s.completed = true; s.completedAt = Date.now(); });
-  } else {
-    t.completedAt = null;
-  }
-  saveState();
-  render();
-  offerUndo(t.completed ? 'Task completed' : 'Task reopened', snapshot);
-}
-
-/** Deletes a task (and its subtasks) without confirming. Returns success. */
-function removeTask(id) {
-  const t = state.tasks.find(x => x.id === id);
-  if (!t) return false;
-  const snapshot = snapshotData();
-  state.tasks = state.tasks.filter(x => x.id !== id && x.parentId !== id);
-  saveState();
-  render();
-  offerUndo('Task deleted', snapshot);
-  return true;
-}
-
-function deleteTask(id) {
-  // No confirmation dialog: deletion is immediate and undoable from the toast.
-  return removeTask(id);
-}
 
 /* ============================================================
    TASK MODAL
@@ -2967,18 +2452,6 @@ const REMINDER_OPTIONS = [
   [120, '2 hours before'],
   [1440, '1 day before'],
 ];
-
-/** The reminders of a task, tolerating the old single-reminder shape. */
-function taskReminders(t) {
-  if (!t) return [];
-  if (Array.isArray(t.reminders) && t.reminders.length) {
-    return t.reminders.filter(r => r && cleanReminderMinutes(r.minutes) !== null);
-  }
-  if (t.reminderMinutes !== null && t.reminderMinutes !== undefined) {
-    return [{ id: 'legacy', minutes: t.reminderMinutes }];
-  }
-  return [];
-}
 
 function setDraftReminders(list) {
   if (!modalDraft) return;
@@ -4336,8 +3809,6 @@ document.addEventListener('scroll', () => {
 /* ============================================================
    TOASTS
 ============================================================ */
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
 /**
  * Shows a transient message. `actionLabel` adds a button (used for
  * "Undo"); `onTimeout` runs when the toast expires on its own.
@@ -4350,129 +3821,12 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const srStatus = $('#sr-status');
 let srTimer = null;
 
-function announce(message) {
-  if (!message || !srStatus) return;
-  srStatus.textContent = '';
-  clearTimeout(srTimer);
-  srTimer = setTimeout(() => { srStatus.textContent = message; }, 60);
-}
-
-function showToast(message, type = 'info', { actionLabel, onAction, duration = 2600, onTimeout } = {}) {
-  announce(message);
-  const container = document.getElementById('toast-container');
-  if (!container) { console.log(message); return null; }
-
-  const el = document.createElement('div');
-  el.className = 'toast' + (type === 'error' ? ' toast-error' : type === 'success' ? ' toast-success' : '');
-
-  const text = document.createElement('span');
-  text.className = 'toast-message';
-  text.textContent = message;
-  el.appendChild(text);
-
-  let timer = null;
-  const dismiss = () => {
-    clearTimeout(timer);
-    if (!el.isConnected) return;
-    el.classList.remove('show');
-    setTimeout(() => el.remove(), 200);
-  };
-
-  if (actionLabel && typeof onAction === 'function') {
-    const action = document.createElement('button');
-    action.type = 'button';
-    action.className = 'toast-action';
-    action.textContent = actionLabel;
-    action.onclick = () => { dismiss(); onAction(); };
-    el.appendChild(action);
-  }
-
-  container.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('show'));
-  timer = setTimeout(() => {
-    if (typeof onTimeout === 'function') onTimeout();
-    dismiss();
-  }, duration);
-  return el;
-}
-
 /* ============================================================
    UNDO
    The pre-action data (not the UI) is snapshotted, so undo restores
    exactly what was there. Only the most recent action is undoable;
    any other save discards it — see saveState / clearPendingUndo.
 ============================================================ */
-function snapshotData() {
-  return JSON.parse(JSON.stringify({
-    projects: state.projects,
-    labels: state.labels,
-    tasks: state.tasks,
-  }));
-}
-
-function clearPendingUndo() {
-  if (!pendingUndo) return;
-  const el = pendingUndo.toastEl;
-  pendingUndo = null;
-  if (el && el.parentNode) el.remove();
-}
-
-/** Offers an undo toast that restores `snapshot` (captured before the action). */
-function offerUndo(message, snapshot) {
-  const el = showToast(message, 'info', {
-    actionLabel: 'Undo',
-    duration: 7000,
-    onAction: undoPending,
-    onTimeout: () => {
-      if (pendingUndo && pendingUndo.toastEl === el) pendingUndo = null;
-    },
-  });
-  pendingUndo = { snapshot, toastEl: el };
-}
-
-function undoPending() {
-  if (!pendingUndo) return;
-  const { snapshot } = pendingUndo;
-  clearPendingUndo();
-
-  // Remember the current state so the undo itself can be redone.
-  redoSnapshot = {
-    projects: state.projects,
-    labels: state.labels,
-    tasks: state.tasks,
-  };
-
-  state = normalizeState({
-    ...state,
-    projects: snapshot.projects,
-    labels: snapshot.labels,
-    tasks: snapshot.tasks,
-  });
-  saveState();
-  render();
-  syncHash();
-  showToast('Undone', 'success', {
-    actionLabel: 'Redo',
-    onAction: redoPending,
-    duration: 7000,
-  });
-}
-
-function redoPending() {
-  if (!redoSnapshot) return;
-  const snapshot = redoSnapshot;
-  redoSnapshot = null;
-  state = normalizeState({
-    ...state,
-    projects: snapshot.projects,
-    labels: snapshot.labels,
-    tasks: snapshot.tasks,
-  });
-  saveState();
-  render();
-  syncHash();
-  showToast('Redone', 'success');
-}
 
 /* ============================================================
    DATA BACKUP (EXPORT / IMPORT)
@@ -4690,7 +4044,7 @@ async function applyBackup(imported) {
     await store.backupState('pre-import-backup');
   } catch {}
 
-  state = { ...imported, ui: { ...imported.ui, view: 'inbox', activeId: null, search: '' } };
+  setState({ ...imported, ui: { ...imported.ui, view: 'inbox', activeId: null, search: '' } });;
   $('#search-input').value = '';
   saveState();
   render();
@@ -4744,7 +4098,7 @@ store.onChange(async (key) => {
 
   const editing = editingTaskId;
   clearPendingUndo(); // remote data supersedes any local undo snapshot
-  state = { ...incoming, ui: state.ui };
+  setState({ ...incoming, ui: state.ui });;
   render();
 
   if (editing && !state.tasks.some(t => t.id === editing)) {
@@ -5022,7 +4376,7 @@ async function init() {
   await loadSavedFilters();
 
   const loaded = await loadState();
-  state = loaded.state;
+  setState(loaded.state);;
 
   await loadSettings();
   applyTheme();

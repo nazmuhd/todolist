@@ -21,10 +21,7 @@
    Everything is asynchronous on purpose: IndexedDB and HTTP are async,
    so the app code does not have to change shape when the backend does.
 ============================================================ */
-(function (global) {
-  'use strict';
-
-  const CHANNEL = 'todoist-clone-store';
+const CHANNEL = 'todoist-clone-store';
   const DB_NAME = 'todoist-clone-files';
   const DB_VERSION = 2;
   const STORE = 'files';
@@ -308,5 +305,4 @@
     }
   }
 
-  global.TodoStore = { BaseStore, LocalStore, ApiStore, DEFAULT_KEYS };
-})(window);
+export { BaseStore, LocalStore, ApiStore, DEFAULT_KEYS };

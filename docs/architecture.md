@@ -36,7 +36,12 @@ is the plan — nothing below has been executed yet.
 
 ```
 todoist/
-├── index.html                ← the app shell (renamed from todoist.html)
+├── frontend/                ← the app (Vite + TypeScript)
+│   ├── index.html            ← the app shell
+│   ├── src/                  ← the modules
+│   ├── public/               ← manifest, icon, service worker, vendor
+│   ├── vite.config.ts
+│   └── package.json          ← pnpm (workspace)
 ├── app.js                    ← thin entry point: imports the modules, boots
 ├── styles.css                ← app styles (unchanged, maybe split later)
 ├── sw.js                     ← service worker (cache list updated)
@@ -343,19 +348,22 @@ point of doing this first.
 | Step | Status |
 |---|---|
 | 1 — docs moved to `docs/`, `.gitignore`, `start.bat` | **done** |
+| 0 — Vite + TypeScript (gradual), pnpm workspace, `frontend/` + `server/` | **done** |
 | — `server/` skeleton (Express + TypeScript, pnpm) with `/health`, auth middleware, migration runner | **done** |
 | — `server/database/supabase/migrations/0001_schema.sql` — tables, `rev`/`updated_at` triggers, RLS enabled | **done** |
 | 2 — `src/` skeleton + `core/app.js` singletons | **done** (`core/app.js`, `core/dates.js`) |
-| 3 — extract the rest of `core/*` (state, tasks, undo, toasts) | next |
+| 3 — extract the rest of `core/*` (state, tasks, undo, toasts) | **done** |
 | 4 — extract `features/quickadd, due-editor, task-modal` | |
 | 5 — extract `features/context-menu, filters, settings` | |
 | 6 — extract `views/*`, `features/calendar, karma` | |
 | 7 — extract `ui/*` | |
 | 8 — offline check (the service worker now serves network-first) | |
 
-Decisions taken: **TypeScript** for the server; `storage.js` stays a classic
-script; `todoist.html` keeps its name; `app.js` stays the front-end entry
-point.
+Decisions taken: **Vite + TypeScript** (gradual: `allowJs` first), **pnpm
+workspaces** (one root install), `frontend/` and `server/` as the two halves, the
+shell becomes `frontend/index.html`, and `storage.js` becomes a module so Vite can
+bundle it. In development the Express server mounts Vite in middleware mode, so
+there is still one process and one port.
 
 **The app now needs a server** (ES modules and the service worker do not work
 from `file://`). `start.bat` starts the static app and the API together.
