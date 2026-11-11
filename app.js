@@ -238,6 +238,8 @@ function filterTaskCount(query) {
 
 // Only the most recent destructive action can be undone (like Todoist's toast).
 let pendingUndo = null;
+// The state before the last undo, so it can be redone.
+let redoSnapshot = null;
 
 // Filters must be known before the state is read: a saved filter can be the
 // active view, and the state loader validates the view name.
@@ -1145,7 +1147,7 @@ function renderSidebar() {
       const count = state.tasks.filter(t => !t.parentId && !t.completed && t.projectId === p.id).length;
       const active = state.ui.view === `project:${p.id}`;
       return `
-      <div class="group relative">
+      <div class="group relative" data-entry-id="${escapeHtml(p.id)}">
         <a href="#" data-view="project:${p.id}" title="${escapeHtml(p.name)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-12 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
           <i data-lucide="hash" class="w-4 h-4 flex-shrink-0" style="color:${p.color}"></i>
           <span class="sidebar-hide truncate flex-1">${escapeHtml(p.name)}</span>
@@ -1189,7 +1191,7 @@ function renderSidebar() {
     .map(l => {
       const active = state.ui.view === `label:${l.id}`;
       return `
-      <div class="group relative">
+      <div class="group relative" data-entry-id="${escapeHtml(l.id)}">
         <a href="#" data-view="label:${l.id}" title="@${escapeHtml(l.name)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-6 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
           <i data-lucide="tag" class="w-4 h-4 flex-shrink-0" style="color:${l.color}"></i>
           <span class="sidebar-hide truncate flex-1">@${escapeHtml(l.name)}</span>
@@ -1218,6 +1220,33 @@ function renderSidebar() {
       closeMobileSidebar();
       openQuickAdd();
     };
+  });
+
+  bindSidebarSortables();
+}
+
+/** Lets projects and labels be dragged into a new order. */
+function bindSidebarSortables() {
+  [['#projects-list', 'projects'], ['#labels-list', 'labels']].forEach(([sel, kind]) => {
+    const el = $(sel);
+    if (!el) return;
+    if (el._sortable) { el._sortable.destroy(); el._sortable = null; }
+    el._sortable = new Sortable(el, {
+      animation: 150,
+      handle: '.nav-item',
+      filter: 'button',
+      onEnd: () => {
+        const ids = $$(`${sel} > div`).map(d => d.dataset.entryId).filter(Boolean);
+        const list = kind === 'projects' ? state.projects : state.labels;
+        const byId = new Map(list.map(x => [x.id, x]));
+        const next = ids.map(i => byId.get(i)).filter(Boolean);
+        list.forEach(x => { if (!ids.includes(x.id)) next.push(x); });
+        if (kind === 'projects') state.projects = next;
+        else state.labels = next;
+        saveState();
+        render();
+      },
+    });
   });
 }
 
@@ -1856,6 +1885,164 @@ window.addEventListener('scroll', closeContextMenu, true);
 window.addEventListener('resize', closeContextMenu);
 
 /* ============================================================
+   BULK SELECTION
+   Ctrl/Cmd-click toggles a task, Shift-click selects a range.
+============================================================ */
+const selection = new Set();
+let lastSelectedId = null;
+
+function visibleTaskIds() {
+  return $$('#task-list > li[data-task-id]').map(li => li.dataset.taskId);
+}
+
+function selectTask(id, e) {
+  if (!state.tasks.some(t => t.id === id)) return;
+  if (e.shiftKey && lastSelectedId) {
+    const ids = visibleTaskIds();
+    const from = ids.indexOf(lastSelectedId);
+    const to = ids.indexOf(id);
+    if (from >= 0 && to >= 0) {
+      const [a, b] = from < to ? [from, to] : [to, from];
+      for (let i = a; i <= b; i++) selection.add(ids[i]);
+    }
+  } else if (selection.has(id)) {
+    selection.delete(id);
+  } else {
+    selection.add(id);
+  }
+  lastSelectedId = id;
+  renderSelection();
+}
+
+function clearSelection() {
+  selection.clear();
+  lastSelectedId = null;
+  renderSelection();
+}
+
+function renderSelection() {
+  // Forget tasks that no longer exist.
+  for (const id of [...selection]) {
+    if (!state.tasks.some(t => t.id === id)) selection.delete(id);
+  }
+  $$('#task-list > li[data-task-id]').forEach(li => {
+    li.classList.toggle('selected', selection.has(li.dataset.taskId));
+  });
+
+  const bar = $('#batch-bar');
+  const count = selection.size;
+  bar.classList.toggle('hidden', count === 0);
+  if (!count) return;
+  $('#batch-count').textContent = `${count} selected`;
+
+  const tasks = state.tasks.filter(t => selection.has(t.id));
+  const allDone = tasks.length > 0 && tasks.every(t => t.completed);
+  $('#batch-complete').textContent = allDone ? 'Reopen' : 'Complete';
+}
+
+function batchRun(mutate, label) {
+  const ids = [...selection];
+  if (!ids.length) return;
+  const snapshot = snapshotData();
+  ids.forEach(mutate);
+  saveState();
+  render();
+  clearSelection();
+  offerUndo(label, snapshot);
+}
+
+function batchComplete() {
+  const tasks = state.tasks.filter(t => selection.has(t.id));
+  const allDone = tasks.length > 0 && tasks.every(t => t.completed);
+  batchRun((id) => {
+    const t = state.tasks.find(x => x.id === id);
+    if (!t) return;
+    t.completed = !allDone;
+    t.completedAt = allDone ? null : Date.now();
+    subtasksOf(t.id).forEach(s => {
+      s.completed = !allDone;
+      s.completedAt = allDone ? null : Date.now();
+    });
+  }, allDone ? 'Tasks reopened' : 'Tasks completed');
+}
+
+function batchDelete() {
+  batchRun((id) => {
+    state.tasks = state.tasks.filter(x => x.id !== id && x.parentId !== id);
+  }, 'Tasks deleted');
+}
+
+function batchPriority(p) {
+  batchRun((id) => {
+    const t = state.tasks.find(x => x.id === id);
+    if (t) t.priority = p;
+  }, `Priority set to P${p}`);
+}
+
+function batchProject(projectId) {
+  batchRun((id) => {
+    const t = state.tasks.find(x => x.id === id);
+    if (t) t.projectId = projectId || null;
+  }, projectId ? `Moved to ${projectName(projectId)}` : 'Removed from project');
+}
+
+$('#batch-complete').onclick = () => batchComplete();
+$('#batch-delete').onclick = () => batchDelete();
+$('#batch-clear').onclick = () => clearSelection();
+$('#batch-select-all').onclick = () => {
+  visibleTaskIds().forEach(id => selection.add(id));
+  renderSelection();
+};
+
+$('#batch-priority').onclick = (e) => {
+  e.stopPropagation();
+  const menu = $('#batch-priority-menu');
+  const tasks = state.tasks.filter(t => selection.has(t.id));
+  const current = tasks.length && tasks.every(t => t.priority === 1) ? 1 : null;
+  menu.innerHTML = [1, 2, 3, 4].map(p => `
+    <button type="button" class="batch-menu-item" data-batch-priority="${p}" aria-pressed="${current === p}">P${p}</button>`).join('');
+  menu.classList.remove('hidden');
+};
+
+$('#batch-project').onclick = (e) => {
+  e.stopPropagation();
+  const menu = $('#batch-project-menu');
+  const tasks = state.tasks.filter(t => selection.has(t.id));
+  const current = tasks.length && tasks.every(t => t.projectId === 'none') ? 'none' : null;
+  menu.innerHTML = `
+    <button type="button" class="batch-menu-item" data-batch-project="none" aria-pressed="${current === 'none'}">No project</button>
+    ${state.projects.map(p => `
+      <button type="button" class="batch-menu-item" data-batch-project="${escapeHtml(p.id)}" aria-pressed="${tasks.length > 0 && tasks.every(t => t.projectId === p.id)}">
+        <span style="color:${escapeHtml(p.color)}">#</span>${escapeHtml(p.name)}
+      </button>`).join('')}`;
+  menu.classList.remove('hidden');
+};
+
+$('#batch-priority-menu').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-batch-priority]');
+  if (!btn) return;
+  $('#batch-priority-menu').classList.add('hidden');
+  batchPriority(Number(btn.dataset.batchPriority));
+});
+
+$('#batch-project-menu').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-batch-project]');
+  if (!btn) return;
+  $('#batch-project-menu').classList.add('hidden');
+  const id = btn.dataset.batchProject;
+  batchProject(id === 'none' ? null : id);
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#batch-priority-menu') && !e.target.closest('#batch-priority')) {
+    $('#batch-priority-menu').classList.add('hidden');
+  }
+  if (!e.target.closest('#batch-project-menu') && !e.target.closest('#batch-project')) {
+    $('#batch-project-menu').classList.add('hidden');
+  }
+});
+
+/* ============================================================
    TASK ROW EVENTS
 ============================================================ */
 /** Adds a subtask with an inline input (no browser prompt). */
@@ -1950,6 +2137,7 @@ function openInlineTitle(taskId) {
 }
 
 function bindTaskEvents(sortable = true) {
+  renderSelection();
   $$('.task-check').forEach(btn => {
     btn.onclick = (e) => {
       const id = e.currentTarget.closest('[data-task-id]').dataset.taskId;
@@ -1969,7 +2157,23 @@ function bindTaskEvents(sortable = true) {
   $$('.task-title').forEach(el => {
     el.onclick = (e) => {
       const id = e.currentTarget.closest('[data-task-id]').dataset.taskId;
+      // Ctrl/Cmd/Shift-click selects instead of editing.
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        selectTask(id, e);
+        return;
+      }
       openInlineTitle(id);
+    };
+  });
+  $$('.task-row').forEach(row => {
+    row.onclick = (e) => {
+      if (e.target.closest('button')) return;
+      if (!(e.ctrlKey || e.metaKey || e.shiftKey)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      selectTask(row.dataset.taskId, e);
     };
   });
   $$('.task-edit').forEach(el => {
@@ -3507,6 +3711,13 @@ function undoPending() {
   const { snapshot } = pendingUndo;
   clearPendingUndo();
 
+  // Remember the current state so the undo itself can be redone.
+  redoSnapshot = {
+    projects: state.projects,
+    labels: state.labels,
+    tasks: state.tasks,
+  };
+
   state = normalizeState({
     ...state,
     projects: snapshot.projects,
@@ -3516,7 +3727,27 @@ function undoPending() {
   saveState();
   render();
   syncHash();
-  showToast('Undone', 'success');
+  showToast('Undone', 'success', {
+    actionLabel: 'Redo',
+    onAction: redoPending,
+    duration: 7000,
+  });
+}
+
+function redoPending() {
+  if (!redoSnapshot) return;
+  const snapshot = redoSnapshot;
+  redoSnapshot = null;
+  state = normalizeState({
+    ...state,
+    projects: snapshot.projects,
+    labels: snapshot.labels,
+    tasks: snapshot.tasks,
+  });
+  saveState();
+  render();
+  syncHash();
+  showToast('Redone', 'success');
 }
 
 /* ============================================================
@@ -3806,6 +4037,8 @@ const SHORTCUTS = [
   { keys: ['?'], label: 'Show this help' },
   { keys: ['Esc'], label: 'Close dialogs and menus' },
   { keys: ['Ctrl', 'Z'], label: 'Undo the last action' },
+  { keys: ['Ctrl', 'Shift', 'Z'], label: 'Redo the last action' },
+  { keys: ['Ctrl', 'Click'], label: 'Select tasks' },
 ];
 
 const shortcutsModal = $('#shortcuts-modal');
@@ -3836,6 +4069,12 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
     e.preventDefault();
     undoPending();
+    return;
+  }
+  // Ctrl/Cmd+Shift+Z (or Ctrl+Y) redoes it.
+  if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+    e.preventDefault();
+    redoPending();
     return;
   }
 
