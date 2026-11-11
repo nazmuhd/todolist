@@ -1,10 +1,16 @@
 /* ============================================================
-   STATE + PERSISTENCE
-   Data lives in localStorage. `version` is bumped whenever the
-   shape changes; MIGRATIONS upgrades older payloads on load and
-   on import, so existing data is never thrown away.
+   STORAGE
+   All persistence goes through the adapter in storage.js. Moving to
+   a backend later is a one-line change:
+     const store = new TodoStore.ApiStore({ token });
 ============================================================ */
-const STORAGE_KEY = 'todoist-clone-v1';
+const store = new TodoStore.LocalStore();
+
+/* ============================================================
+   STATE + PERSISTENCE
+   Data lives in the browser for now (see storage.js). `version` is bumped whenever the
+   shape changes; MIGRATIONS upgrades older payloads on load, so existing data is never thrown away.
+============================================================ */
 const SCHEMA_VERSION = 4;
 
 const PROJECT_COLORS = ['#246fe0', '#058527', '#db4c3f', '#eb8909', '#8a4dff', '#0f9d58'];
@@ -257,24 +263,21 @@ function migrateState(raw) {
    SAVED FILTERS
    Stored beside the app state so the task schema stays untouched.
 ============================================================ */
-const FILTERS_KEY = 'todoist-clone-filters';
 let savedFilters = [];
 
-function loadSavedFilters() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(FILTERS_KEY) || '[]');
-    if (Array.isArray(raw)) {
-      savedFilters = raw
-        .filter(f => f && typeof f.id === 'string' && typeof f.name === 'string' && typeof f.query === 'string')
-        .map(f => ({ id: f.id, name: f.name, query: f.query }));
-    }
-  } catch {
+async function loadSavedFilters() {
+  const raw = await store.getDoc(store.keys.filters);
+  if (!Array.isArray(raw)) {
     savedFilters = [];
+    return;
   }
+  savedFilters = raw
+    .filter(f => f && typeof f.id === 'string' && typeof f.name === 'string' && typeof f.query === 'string')
+    .map(f => ({ id: f.id, name: f.name, query: f.query }));
 }
 
 function persistSavedFilters() {
-  try { localStorage.setItem(FILTERS_KEY, JSON.stringify(savedFilters)); } catch {}
+  store.setDoc(store.keys.filters, savedFilters).catch(err => console.error('Could not save filters:', err));
 }
 
 /** How many open tasks a saved filter currently matches. */
@@ -290,37 +293,28 @@ let redoSnapshot = null;
 
 // Filters must be known before the state is read: a saved filter can be the
 // active view, and the state loader validates the view name.
-loadSavedFilters();
+let state = defaultState();
 
-let state = loadState();
-
-function loadState() {
-  let raw = null;
-  try { raw = localStorage.getItem(STORAGE_KEY); }
-  catch (err) {
-    console.warn('localStorage unavailable:', err);
-    return defaultState();
-  }
-  if (!raw) return defaultState();
-
+/** Reads the saved state, keeping an unreadable payload as a backup. */
+async function loadState() {
+  const raw = await store.loadState();
+  if (!raw) return { state: defaultState(), storedVersion: null };
   try {
-    return migrateState(JSON.parse(raw));
+    return { state: migrateState(raw), storedVersion: raw.version ?? 1 };
   } catch (err) {
     console.warn('Saved data could not be read:', err);
     // Keep the unreadable payload instead of silently destroying it.
-    try { localStorage.setItem(`${STORAGE_KEY}-corrupt-backup`, raw); } catch {}
-    return defaultState();
+    await store.backupState('corrupt').catch(() => {});
+    return { state: defaultState(), storedVersion: null };
   }
 }
 
 function persistState() {
   state.updatedAt = Date.now();
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (err) {
+  store.saveState(state).catch(err => {
     console.error('Could not save data:', err);
     showToast('Could not save — browser storage may be full', 'error');
-  }
+  });
 }
 
 function saveState() {
@@ -329,16 +323,6 @@ function saveState() {
   clearPendingUndo();
   persistState();
 }
-
-// Persist right away on first run, or right after a migration.
-(function persistAfterLoad() {
-  let storedVersion = null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    storedVersion = raw ? (JSON.parse(raw).version ?? 1) : null;
-  } catch {}
-  if (storedVersion !== SCHEMA_VERSION) saveState();
-})();
 
 /* ============================================================
    HELPERS
@@ -976,7 +960,6 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 /* ============================================================
    SETTINGS
 ============================================================ */
-const SETTINGS_KEY = 'todoist-clone-settings';
 const DEFAULT_SETTINGS = {
   theme: 'system',
   startOfWeek: 'mon',
@@ -996,26 +979,24 @@ const SETTINGS_DEFS = [
   },
 ];
 
-function loadSettings() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    if (raw && typeof raw === 'object') {
-      settings = {
-        theme: ['light', 'dark', 'system'].includes(raw.theme) ? raw.theme : DEFAULT_SETTINGS.theme,
-        startOfWeek: ['mon', 'sun'].includes(raw.startOfWeek) ? raw.startOfWeek : DEFAULT_SETTINGS.startOfWeek,
-        defaultPriority: [1, 2, 3, 4].includes(raw.defaultPriority) ? raw.defaultPriority : null,
-        defaultReminder: raw.defaultReminder === null || raw.defaultReminder === undefined
-          ? null
-          : Number(raw.defaultReminder),
-      };
-    }
-  } catch {
+async function loadSettings() {
+  const raw = await store.getDoc(store.keys.settings);
+  if (!raw || typeof raw !== 'object') {
     settings = { ...DEFAULT_SETTINGS };
+    return;
   }
+  settings = {
+    theme: ['light', 'dark', 'system'].includes(raw.theme) ? raw.theme : DEFAULT_SETTINGS.theme,
+    startOfWeek: ['mon', 'sun'].includes(raw.startOfWeek) ? raw.startOfWeek : DEFAULT_SETTINGS.startOfWeek,
+    defaultPriority: [1, 2, 3, 4].includes(raw.defaultPriority) ? raw.defaultPriority : null,
+    defaultReminder: raw.defaultReminder === null || raw.defaultReminder === undefined
+      ? null
+      : Number(raw.defaultReminder),
+  };
 }
 
 function persistSettings() {
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
+  store.setDoc(store.keys.settings, settings).catch(err => console.error('Could not save settings:', err));
 }
 
 const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
@@ -4280,7 +4261,7 @@ function parseBackup(text) {
   return { state: imported };
 }
 
-function applyBackup(imported) {
+async function applyBackup(imported) {
   const n = imported.tasks.length;
   const ok = confirm(
     `Replace your current data with this backup?\n\n` +
@@ -4291,8 +4272,7 @@ function applyBackup(imported) {
   if (!ok) return;
 
   try {
-    const current = localStorage.getItem(STORAGE_KEY);
-    if (current) localStorage.setItem(`${STORAGE_KEY}-pre-import-backup`, current);
+    await store.backupState('pre-import-backup');
   } catch {}
 
   state = { ...imported, ui: { ...imported.ui, view: 'inbox', activeId: null, search: '' } };
@@ -4318,7 +4298,7 @@ $('#import-file').addEventListener('change', async (e) => {
   try {
     const result = parseBackup(await file.text());
     if (result.error) { showToast(result.error, 'error'); return; }
-    applyBackup(result.state);
+    await applyBackup(result.state);
   } catch (err) {
     console.error('Import failed:', err);
     showToast('Could not read that file.', 'error');
@@ -4327,16 +4307,25 @@ $('#import-file').addEventListener('change', async (e) => {
 
 /* ============================================================
    CROSS-TAB SYNC
-   Other tabs announce their saves through the `storage` event.
-   We adopt their data but keep this tab's current view/search so
-   the UI doesn't jump under the user.
+   The store announces saves in other tabs (BroadcastChannel, with the
+   storage event as a fallback). We adopt their data but keep this
+   tab's current view/search so the UI doesn't jump under the user.
 ============================================================ */
-window.addEventListener('storage', (e) => {
-  if (e.key !== STORAGE_KEY || e.newValue === null) return;
+let syncingFromPeer = false;
+
+store.onChange(async (key) => {
+  if (syncingFromPeer) return;
+  if (key && key !== store.keys.state) return;
 
   let incoming;
-  try { incoming = migrateState(JSON.parse(e.newValue)); }
-  catch (err) { console.warn('Ignored malformed data from another tab:', err); return; }
+  try {
+    const raw = await store.loadState();
+    if (!raw) return;
+    incoming = migrateState(raw);
+  } catch (err) {
+    console.warn('Ignored malformed data from another tab:', err);
+    return;
+  }
 
   const editing = editingTaskId;
   clearPendingUndo(); // remote data supersedes any local undo snapshot
@@ -4459,11 +4448,8 @@ document.addEventListener('keydown', (e) => {
 /* ============================================================
    SIDEBAR SECTIONS (collapse Projects / Labels)
 ============================================================ */
-const SECTION_COLLAPSE_KEYS = {
-  filters: 'todoist-clone-filters-collapsed',
-  projects: 'todoist-clone-projects-collapsed',
-  labels: 'todoist-clone-labels-collapsed',
-};
+const SECTION_NAMES = ['filters', 'projects', 'labels'];
+const sectionCollapsed = { filters: false, projects: false, labels: false };
 
 function setSectionCollapsed(name, collapsed) {
   const list = $(`#${name}-list`);
@@ -4474,26 +4460,24 @@ function setSectionCollapsed(name, collapsed) {
   btn.title = `${collapsed ? 'Expand' : 'Collapse'} ${name}`;
   const icon = btn.querySelector('[data-lucide]');
   if (icon) icon.setAttribute('data-lucide', collapsed ? 'chevron-right' : 'chevron-down');
-  try { localStorage.setItem(SECTION_COLLAPSE_KEYS[name], collapsed ? '1' : '0'); } catch {}
+  sectionCollapsed[name] = collapsed;
+  store.setDoc(store.keys.sectionCollapse, sectionCollapsed)
+    .catch(err => console.error('Could not save preferences:', err));
   lucide.createIcons();
 }
 
-Object.keys(SECTION_COLLAPSE_KEYS).forEach(name => {
+SECTION_NAMES.forEach(name => {
   const btn = $(`#toggle-${name}`);
   if (!btn) return;
   btn.onclick = () => {
     const collapsed = !$(`#${name}-list`).classList.contains('hidden');
     setSectionCollapsed(name, collapsed);
   };
-  let collapsed = false;
-  try { collapsed = localStorage.getItem(SECTION_COLLAPSE_KEYS[name]) === '1'; } catch {}
-  setSectionCollapsed(name, collapsed);
 });
 
 /* ============================================================
    SIDEBAR (desktop collapse rail, mobile drawer)
 ============================================================ */
-const SIDEBAR_COLLAPSED_KEY = 'todoist-clone-sidebar-collapsed';
 const mobileSidebarQuery = window.matchMedia('(max-width: 767px)');
 let sidebarCollapsedPref = false;
 
@@ -4531,7 +4515,8 @@ function applySidebarState() {
 function setSidebarCollapsed(collapsed) {
   sidebarCollapsedPref = collapsed;
   applySidebarState();
-  try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch {}
+  store.setDoc(store.keys.sidebarCollapsed, collapsed)
+    .catch(err => console.error('Could not save preferences:', err));
 }
 
 function openMobileSidebar() {
@@ -4592,9 +4577,17 @@ document.addEventListener('visibilitychange', () => {
 /* ============================================================
    INIT
 ============================================================ */
-function init() {
-  loadSettings();
+async function init() {
+  // Filters must be known before the state is read: a saved filter can be
+  // the active view, and the state loader validates the view name.
+  await loadSavedFilters();
+
+  const loaded = await loadState();
+  state = loaded.state;
+
+  await loadSettings();
   applyTheme();
+
   if (location.hash.length > 1) {
     const raw = location.hash.replace(/^#\/?/, '');
     const [viewPart, queryPart] = raw.split('?');
@@ -4606,9 +4599,27 @@ function init() {
       $('#search-input').value = q;
     }
   }
+
+  // Sidebar preferences (device-local, never synced).
+  const [sidebarPref, sections] = await Promise.all([
+    store.getDoc(store.keys.sidebarCollapsed),
+    store.getDoc(store.keys.sectionCollapse),
+  ]);
+  sidebarCollapsedPref = sidebarPref === true;
+  if (sections && typeof sections === 'object') {
+    SECTION_NAMES.forEach(name => {
+      if (typeof sections[name] === 'boolean') setSectionCollapsed(name, sections[name]);
+    });
+  }
+
   render();
-  try { sidebarCollapsedPref = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch {}
   applySidebarState();
+
+  // Persist right away on first run, or right after a migration.
+  if (loaded.storedVersion !== SCHEMA_VERSION) saveState();
+
   startReminders();
+  // Handy hook for tests and for anything that wants to wait for boot.
+  window.__appReady = true;
 }
 init();

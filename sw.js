@@ -6,6 +6,7 @@ const SHELL = [
   './',
   './todoist.html',
   './app.js',
+  './storage.js',
   './styles.css',
   './manifest.webmanifest',
   './icon.svg',
