@@ -30,4 +30,16 @@ export const settings = {
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
+/**
+ * The task dialog's live draft.
+ *
+ * The dialog and the due-date editor are separate modules that operate on
+ * the same draft, so it lives here with the other shared singletons rather
+ * than in either module (which would make them import each other).
+ */
+export const modalState = {
+  editingTaskId: null,
+  draft: null,
+};
+
 

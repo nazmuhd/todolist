@@ -1,0 +1,384 @@
+/**
+ * The task dialog: title, description, comments, sections, attachments,
+ * the meta chips and their menus.
+ *
+ * The due-date dialog is a separate feature (`due-editor.js`); both edit the
+ * same draft, which lives in `core/app.js`.
+ */
+import { $, $$, uid, modalState } from '../core/app.js';
+import { state, saveState } from '../core/state.js';
+import { store } from '../core/store.js';
+import { cleanDuration, formatDue } from '../core/dates.js';
+import { taskReminders, priorityColor, priorityLabel, projectName, labelName, removeTask } from '../core/tasks.js';
+import { escapeHtml } from '../core/text.js';
+import { requestRender } from '../core/render.js';
+import { services } from '../core/services.js';
+import { showToast } from '../core/toasts.js';
+import { reminderKey, ensureNotificationPermission } from '../core/reminders.js';
+import { positionMetaMenu } from '../ui/menus.js';
+import { commitDueEdits, recurrenceEndFromBody, closeDueEditor, isDueEditorOpen } from './due-editor.js';
+
+const modal = $('#task-modal');
+const priorityMenu = $('#priority-menu');
+const projectMenu = $('#project-menu');
+const labelMenu = $('#label-menu');
+
+const draft = () => modalState.draft;
+
+export function isTaskModalOpen() {
+  return modal.open;
+}
+
+export function closeTaskModal() {
+  if (modal.open) modal.close();
+}
+
+/* ---------- Task modal: attachments ---------- */
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+// Blobs added in this dialog but not saved are cleaned up when it closes.
+const pendingAttachments = new Set();
+
+function formatFileSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderModalAttachments() {
+  const list = (draft() && Array.isArray(draft().attachments)) ? draft().attachments : [];
+  $('#modal-attachments').classList.toggle('hidden', !list.length && !modalState.editingTaskId);
+  $('#modal-attachment-list').innerHTML = list.map(a => `
+    <li class="flex items-center gap-2 text-xs">
+      <i data-lucide="paperclip" class="w-3 h-3 text-td-muted flex-shrink-0"></i>
+      <button type="button" class="flex-1 text-left truncate hover:underline" data-attachment-open="${escapeHtml(a.id)}" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</button>
+      <span class="text-td-muted flex-shrink-0">${formatFileSize(a.size)}</span>
+      <button type="button" class="text-td-muted hover:text-red-600 flex-shrink-0" data-attachment-remove="${escapeHtml(a.id)}" title="Remove attachment" aria-label="Remove attachment">
+        <i data-lucide="x" class="w-3 h-3"></i>
+      </button>
+    </li>`).join('');
+  lucide.createIcons();
+}
+
+$('#modal-attachment-add').onclick = () => $('#modal-attachment-input').click();
+
+$('#modal-attachment-input').addEventListener('change', async (e) => {
+  const files = [...(e.target.files || [])];
+  e.target.value = '';
+  if (!files.length || !draft()) return;
+
+  if (!Array.isArray(draft().attachments)) draft().attachments = [];
+  for (const file of files) {
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      showToast(`${file.name} is larger than 25 MB`, 'error');
+      continue;
+    }
+    const id = uid();
+    try {
+      await store.putBlob(id, file);
+    } catch (err) {
+      showToast(`Could not store ${file.name}`, 'error');
+      continue;
+    }
+    pendingAttachments.add(id);
+    draft().attachments.push({
+      id,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      addedAt: Date.now(),
+    });
+  }
+  renderModalAttachments();
+});
+
+$('#modal-attachment-list').addEventListener('click', async (e) => {
+  const openBtn = e.target.closest('[data-attachment-open]');
+  if (openBtn) {
+    const id = openBtn.dataset.attachmentOpen;
+    try {
+      const blob = await store.getBlob(id);
+      if (!blob) { showToast('That file is no longer stored', 'error'); return; }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = (draft().attachments.find(a => a.id === id) || {}).name || 'file';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      showToast('Could not open that file', 'error');
+    }
+    return;
+  }
+
+  const removeBtn = e.target.closest('[data-attachment-remove]');
+  if (!removeBtn) return;
+  const id = removeBtn.dataset.attachmentRemove;
+  draft().attachments = (draft().attachments || []).filter(a => a.id !== id);
+  pendingAttachments.add(id);
+  store.deleteBlob(id).catch(() => {});
+  renderModalAttachments();
+});
+
+export function openTaskModal(id) {
+  modalState.editingTaskId = id;
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+  // The collections are copied so editing the draft never touches the task
+  // until it is saved.
+  modalState.draft = {
+    ...t,
+    labels: [...(t.labels || [])],
+    comments: [...(t.comments || [])],
+    attachments: [...(t.attachments || [])],
+  };
+
+  $('#modal-title').value = t.title;
+  $('#modal-desc').value = t.description || '';
+  $('#modal-duration').value = t.durationMinutes || '';
+  updateModalChips();
+  renderPriorityMenu();
+  renderProjectMenu();
+  renderLabelMenu();
+  renderModalComments();
+  renderModalSections();
+  renderModalAttachments();
+  modal.showModal();
+  // Don't open the on-screen keyboard on phones: it would cover the dialog.
+  if (!services.isMobileSidebar()) setTimeout(() => $('#modal-title').focus(), 50);
+}
+
+/* ---------- Task modal: comments and sections ---------- */
+function renderModalComments() {
+  const list = (draft() && Array.isArray(draft().comments)) ? draft().comments : [];
+  $('#modal-comments').classList.remove('hidden');
+  $('#modal-comment-list').innerHTML = list.map(c => `
+    <li class="flex items-start gap-2 text-xs">
+      <span class="flex-1">${escapeHtml(c.text)}</span>
+      <button type="button" class="text-td-muted hover:text-red-600" data-comment-remove="${escapeHtml(c.id)}" title="Delete comment" aria-label="Delete comment">
+        <i data-lucide="x" class="w-3 h-3"></i>
+      </button>
+    </li>`).join('');
+  lucide.createIcons();
+}
+
+function renderModalSections() {
+  const wrap = $('#modal-section-wrap');
+  const select = $('#modal-section');
+  const t = draft() || {};
+  const proj = state.projects.find(p => p.id === t.projectId);
+  const sections = proj && Array.isArray(proj.sections) ? proj.sections : [];
+  wrap.style.display = sections.length ? '' : 'none';
+  select.innerHTML = `<option value="">No section</option>${
+    sections.map(s => `<option value="${escapeHtml(s.id)}" ${t.sectionId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}`;
+}
+
+$('#modal-section').onchange = (e) => {
+  draft().sectionId = e.target.value || null;
+};
+
+$('#modal-comment-add').onclick = () => {
+  const input = $('#modal-comment-input');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!Array.isArray(draft().comments)) draft().comments = [];
+  draft().comments.push({ id: uid(), text, createdAt: Date.now() });
+  input.value = '';
+  renderModalComments();
+};
+
+$('#modal-comment-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); $('#modal-comment-add').click(); }
+});
+
+$('#modal-comment-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-comment-remove]');
+  if (!btn) return;
+  draft().comments = (draft().comments || []).filter(c => c.id !== btn.dataset.commentRemove);
+  renderModalComments();
+});
+
+export function updateModalChips() {
+  const t = draft();
+  // due
+  $('#meta-due-text').textContent = t.due ? `${formatDue(t.due, t.dueTime)}${t.recurrence ? ' ↻' : ''}` : 'Due date';
+  $('#meta-due').classList.toggle('text-td-red', !!t.due);
+  // priority
+  $('#meta-priority-text').textContent = priorityLabel(t.priority);
+  $('#meta-priority-icon').style.color = priorityColor(t.priority);
+  $('#meta-priority-icon').setAttribute('fill', t.priority < 4 ? priorityColor(t.priority) : 'none');
+  // project
+  $('#meta-project-text').textContent = t.projectId ? projectName(t.projectId) : 'Project';
+  // labels
+  const names = (t.labels || []).map(labelName).filter(Boolean);
+  $('#meta-label-text').textContent = names.length ? names.map(n => '@' + n).join(', ') : 'Labels';
+}
+
+function renderPriorityMenu() {
+  const opts = [1,2,3,4];
+  priorityMenu.innerHTML = opts.map(p => `
+    <button type="button" data-p="${p}" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="flag" class="w-3.5 h-3.5" style="color:${priorityColor(p)}"></i>
+      ${priorityLabel(p)}
+    </button>`).join('');
+  priorityMenu.querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      draft().priority = +b.dataset.p;
+      updateModalChips();
+      priorityMenu.classList.add('hidden');
+      lucide.createIcons();
+    };
+  });
+  lucide.createIcons();
+}
+
+function renderProjectMenu() {
+  const opts = [{ id: null, name: 'No project', color: '#999' }, ...state.projects];
+  projectMenu.innerHTML = opts.map(p => `
+    <button type="button" data-id="${p.id ?? ''}" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="hash" class="w-3.5 h-3.5" style="color:${p.color}"></i>
+      ${escapeHtml(p.name)}
+    </button>`).join('');
+  projectMenu.querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      draft().projectId = b.dataset.id || null;
+      // The section list belongs to the project, so it changes with it.
+      draft().sectionId = null;
+      updateModalChips();
+      renderModalSections();
+      projectMenu.classList.add('hidden');
+      lucide.createIcons();
+    };
+  });
+  lucide.createIcons();
+}
+
+function renderLabelMenu() {
+  if (!state.labels.length) {
+    labelMenu.innerHTML = `<div class="px-3 py-2 text-td-muted text-xs">No labels yet</div>`;
+    return;
+  }
+  labelMenu.innerHTML = state.labels.map(l => {
+    const checked = (draft().labels || []).includes(l.id);
+    return `
+      <button type="button" data-id="${l.id}" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+        <span class="w-3.5 h-3.5 flex items-center justify-center">${checked ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}</span>
+        <i data-lucide="tag" class="w-3.5 h-3.5" style="color:${l.color}"></i>
+        @${escapeHtml(l.name)}
+      </button>`;
+  }).join('');
+  labelMenu.querySelectorAll('button').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const id = b.dataset.id;
+      const arr = draft().labels || [];
+      draft().labels = arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id];
+      renderLabelMenu();
+      updateModalChips();
+      labelMenu.classList.remove('hidden');
+    };
+  });
+  lucide.createIcons();
+}
+
+/* ---------- The meta chip menus ---------- */
+
+export function closeMetaMenus() {
+  [priorityMenu, projectMenu, labelMenu].forEach(menu => menu.classList.add('hidden'));
+}
+
+function toggleMetaMenu(menu, trigger) {
+  const opening = menu.classList.contains('hidden');
+  closeMetaMenus();
+  if (!opening) return;
+  menu.classList.remove('hidden');
+  positionMetaMenu(menu, trigger);
+}
+
+window.addEventListener('resize', () => {
+  if (!priorityMenu.classList.contains('hidden')) positionMetaMenu(priorityMenu, $('#meta-priority'));
+  if (!projectMenu.classList.contains('hidden')) positionMetaMenu(projectMenu, $('#meta-project'));
+  if (!labelMenu.classList.contains('hidden')) positionMetaMenu(labelMenu, $('#meta-label'));
+});
+window.addEventListener('scroll', () => {
+  if (!priorityMenu.classList.contains('hidden')) positionMetaMenu(priorityMenu, $('#meta-priority'));
+  if (!projectMenu.classList.contains('hidden')) positionMetaMenu(projectMenu, $('#meta-project'));
+  if (!labelMenu.classList.contains('hidden')) positionMetaMenu(labelMenu, $('#meta-label'));
+}, true);
+
+$('#meta-priority').onclick = (e) => {
+  e.stopPropagation();
+  toggleMetaMenu(priorityMenu, e.currentTarget);
+};
+$('#meta-project').onclick = (e) => {
+  e.stopPropagation();
+  toggleMetaMenu(projectMenu, e.currentTarget);
+};
+$('#meta-label').onclick = (e) => {
+  e.stopPropagation();
+  toggleMetaMenu(labelMenu, e.currentTarget);
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.meta-chip') && !e.target.closest('#priority-menu') && !e.target.closest('#project-menu') && !e.target.closest('#label-menu')) {
+    closeMetaMenus();
+  }
+});
+
+$$('.close-modal').forEach(b => b.onclick = () => modal.close());
+modal.addEventListener('close', () => {
+  modalState.editingTaskId = null;
+  modalState.draft = null;
+  // Files added in the dialog but never saved are thrown away.
+  pendingAttachments.forEach(id => store.deleteBlob(id).catch(() => {}));
+  pendingAttachments.clear();
+  if (isDueEditorOpen()) closeDueEditor();
+});
+
+$('#modal-save').onclick = () => {
+  const editingTaskId = modalState.editingTaskId;
+  const modalDraft = draft();
+  if (!editingTaskId || !modalDraft) return;
+  if (!commitDueEdits()) {
+    showToast('That repeat rule is not valid', 'error');
+    $('#due-repeat').focus();
+    return;
+  }
+  const t = state.tasks.find(x => x.id === editingTaskId);
+  if (!t) return;
+  const previousReminderKey = reminderKey(t);
+  t.title = $('#modal-title').value.trim() || 'Untitled';
+  t.description = $('#modal-desc').value.trim();
+  t.due = modalDraft.due;
+  t.dueTime = modalDraft.dueTime;
+  t.recurrence = modalDraft.recurrence;
+  t.recurrenceEnd = recurrenceEndFromBody(modalDraft.recurrence);
+  t.startDate = modalDraft.startDate || null;
+  t.reminders = taskReminders(modalDraft).map(r => ({ id: r.id, minutes: r.minutes }));
+  t.reminderMinutes = t.reminders.length ? t.reminders[0].minutes : null;
+  t.comments = (modalDraft.comments || []).map(c => ({ ...c }));
+  t.attachments = (modalDraft.attachments || []).map(a => ({ ...a }));
+  // The files now belong to the task, so the close handler must not remove them.
+  pendingAttachments.clear();
+  t.sectionId = modalDraft.sectionId || null;
+  if (reminderKey(t) !== previousReminderKey) t.reminderFiredKey = null;
+  if (t.reminderMinutes !== null) ensureNotificationPermission();
+  t.durationMinutes = cleanDuration(Number($('#modal-duration').value));
+  t.priority = modalDraft.priority;
+  t.projectId = modalDraft.projectId;
+  t.labels = modalDraft.labels;
+  saveState();
+  requestRender();
+  modal.close();
+};
+
+$('#modal-delete').onclick = () => {
+  if (!modalState.editingTaskId) return;
+  const id = modalState.editingTaskId;
+  modal.close();
+  removeTask(id);
+};
+
+services.updateModalChips = updateModalChips;
+services.closeMetaMenus = closeMetaMenus;

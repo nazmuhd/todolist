@@ -12,6 +12,10 @@ export const services = {
   openQuickAdd: () => {},
   navigateTo: () => {},
   openRowMenu: () => {},
+  closeRowMenu: () => {},
   closeMobileSidebar: () => {},
+  isMobileSidebar: () => false,
+  updateModalChips: () => {},
+  closeMetaMenus: () => {},
   syncHash: () => {},
 };

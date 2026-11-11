@@ -77,11 +77,20 @@ frontend/src/
 │   ├── text.js            ← escapeHtml, highlightHtml, the colour palettes
 │   ├── render.js          ← the renderer registry (breaks the core → views cycle)
 │   ├── services.js        ← the app-level callback registry (views → app cycle)
+│   ├── router.js          ← hash deep links and navigation
+│   ├── reminders.js       ← notification permission, firing and the scheduler
 │   └── saved-filters.js   ← the saved filter list the state normaliser reads
 ├── features/
 │   ├── filters.js         ← query language, saved filters, the filter editor
 │   ├── empty-states.js    ← per-view empty states
 │   ├── task-row.js        ← the task row and its events
+│   ├── task-modal.js      ← the task dialog, comments, sections, attachments
+│   ├── due-editor.js      ← the due-date dialog, reminders and repeat end
+│   ├── quickadd.js        ← quick-add parser, chips, pickers and submit
+│   ├── context-menu.js    ← the task right-click menu
+│   ├── projects.js        ← project/label dialogs and deletion
+│   ├── settings.js        ← settings dialog, preferences and theme
+│   ├── backup.js          ← JSON/CSV/Markdown/ICS export and import
 │   ├── selection.js       ← bulk selection and the batch bar
 │   ├── calendar.js        ← month grid view
 │   └── karma.js           ← productivity stats view
@@ -89,7 +98,10 @@ frontend/src/
 │   ├── list.js            ← renderMain + the grouped views
 │   ├── board.js           ← board view + its drag groups
 │   └── sidebar.js         ← sidebar rendering, reordering, drop targets
-└── ui/                     ← (step 7) chrome, menus
+└── ui/                    ← chrome, menus
+    ├── chrome.js          ← sidebar drawer, header, sort menu, shortcut overlay
+    ├── menus.js           ← popover positioning (a leaf: imports nothing)
+    └── row-menu.js        ← the project/label/filter "…" menu
 ```
 
 ---
@@ -127,6 +139,13 @@ nothing points back up:
 | `core/render.js` | the renderer | The core repaints after a change, but the core must not import the views: the views import the core. The entry point registers the real renderer once. |
 | `core/services.js` | app-level callbacks | The views open dialogs and navigate, but those features live in the entry point. The entry point registers the callbacks once; the views call them through `services`. |
 
+`core/app.js` also owns `modalState` (`editingTaskId` + `draft`). The task
+dialog and the due-date editor both edit that draft, so keeping it in the
+shared core is what stops those two features from importing each other.
+
+`ui/menus.js` is the one deliberate exception to the layering rule: it only
+positions popovers and imports nothing, so features can use it safely.
+
 ---
 
 ## 5. What maps to what
@@ -142,6 +161,8 @@ nothing points back up:
 | `core/toasts.js` | `showToast`, `announce`, the `#sr-status` live region |
 | `core/render.js` | the renderer registry that breaks the core → views cycle |
 | `core/services.js` | the app-level callback registry that breaks the views → app cycle |
+| `core/router.js` | `isKnownView`, `currentHash`, `syncHash`, `applyHash`, `navigateTo` |
+| `core/reminders.js` | `reminderKey`, `ensureNotificationPermission`, `notifyTask`, `checkReminders`, `startReminders` |
 | `core/saved-filters.js` | the saved filter list, so the state normaliser can validate the active view |
 | `features/due-editor.js` | the whole due-date dialog: `openDueEditor`, `syncDueEditor`, `applyNaturalDue`, `initDueCalendar`, repeat-end controls, reminders, start date |
 | `features/task-modal.js` | `openTaskModal`, comments, sections, attachments, inline title edit |
@@ -149,16 +170,19 @@ nothing points back up:
 | `features/selection.js` | `selectTask`, `clearSelection`, `renderSelection`, the batch bar and its actions |
 | `features/context-menu.js` | `openContextMenu`, `runContextAction` |
 | `features/quickadd.js` | `parseQuickAdd`, `updatePreview`, chip pickers, `submitQuickAdd` |
-| `features/filters.js` | `parseQuery`, `queryMatcher`, saved filters, the filter editor |
+| `features/projects.js` | `openProjectModal`, `openLabelModal`, `deleteProject`, `deleteLabel` |
 | `features/settings.js` | the settings dialog, `loadSettings`, `persistSettings`, theme application |
+| `features/backup.js` | `exportData`, `exportCsv`, `exportMarkdown`, `exportIcs`, `parseBackup`, `applyBackup` |
+| `features/filters.js` | `parseQuery`, `queryMatcher`, saved filters, the filter editor |
 | `features/calendar.js` | `renderCalendar`, month navigation, the day panel |
 | `features/karma.js` | `karmaSummary`, `renderKarma` |
 | `features/empty-states.js` | `EMPTY_STATES`, `currentEmptyState`, `showEmptyState` |
 | `views/list.js` | `renderMain`, `renderUpcoming`, `renderCompleted`, `renderToday`, `renderProjectSectionsView`, `getViewInfo`, `sortTasks` |
 | `views/board.js` | `renderBoard`, `renderBoardCard`, board drag groups |
 | `views/sidebar.js` | `renderSidebar`, project/label rows, drag-reorder, drop targets |
-| `ui/chrome.js` | the header, layout + sort menus, shortcut overlay, mobile-menu button |
-| `ui/menus.js` | `positionMetaMenu`, `positionContextMenu`, the shared popover helpers |
+| `ui/chrome.js` | the header, layout + sort menus, shortcut overlay, keyboard shortcuts, sidebar drawer |
+| `ui/menus.js` | `positionMetaMenu`, `positionContextMenu`, `positionBelowTrigger` |
+| `ui/row-menu.js` | `openRowMenu`, `closeRowMenu` |
 
 `app.js` (the current monolith) is **deleted** once its contents are distributed;
 the new `app.js` is a ~20-line entry point.
@@ -369,10 +393,10 @@ point of doing this first.
 | — `server/database/supabase/migrations/0001_schema.sql` — tables, `rev`/`updated_at` triggers, RLS enabled | **done** |
 | 2 — `src/` skeleton + `core/app.js` singletons | **done** (`core/app.js`, `core/dates.js`) |
 | 3 — extract the rest of `core/*` (state, tasks, undo, toasts) | **done** |
-| 4 — extract `features/quickadd, due-editor, task-modal` | |
-| 5 — extract `features/context-menu, filters, settings` | **done** (`features/filters.js`) |
+| 4 — extract `features/quickadd, due-editor, task-modal` | **done** (`features/quickadd.js`, `features/due-editor.js`, `features/task-modal.js`) |
+| 5 — extract `features/context-menu, filters, settings` | **done** (`features/context-menu.js`, `features/filters.js`, `features/settings.js`; project/label dialogs in `features/projects.js`, backup in `features/backup.js`) |
 | 6 — extract `views/*`, `features/calendar, karma` | **done** (`views/list.js`, `views/board.js`, `views/sidebar.js`, `features/calendar.js`, `features/karma.js`) |
-| 7 — extract `ui/*` | |
+| 7 — extract `ui/*`; `app.js` becomes the entry point | **done** (`ui/chrome.js`, `ui/menus.js`, `ui/row-menu.js`; `app.js` is now ~170 lines of wiring) |
 | 8 — offline check (the service worker now serves network-first) | |
 
 Decisions taken: **Vite + TypeScript** (gradual: `allowJs` first), **pnpm
@@ -385,6 +409,13 @@ there is still one process and one port.
 from `file://`). `start.bat` starts the static app and the API together.
 `app.js` exports a small test surface so the headless harness can drive it
 with `await import("/app.js")`.
+
+The app now has no monolith: `frontend/src/app.js` is the entry point, and
+everything else lives under `core/`, `features/`, `views/` and `ui/`. The
+extraction was verified with a headless Edge pass covering project/label
+creation, quick add, the task dialog, the due editor, the context menu,
+completion + undo, every view, board layout, settings, the shortcut overlay,
+export and the sidebar drawer.
 
 ### The cycles the split ran into
 
@@ -405,4 +436,4 @@ meant resolving them, so that is fixed here too.
 
 ---
 
-*Plan only — steps 2–8 have not been executed yet.*
+*Steps 2–7 are complete; step 8 (the offline check) is still open.*
