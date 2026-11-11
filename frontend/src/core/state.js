@@ -4,7 +4,60 @@
  */
 import { uid } from './app.js';
 import { store } from './store.js';
+import { showToast } from './toasts.js';
+import { taskReminders } from './tasks.js';
+import { reminderFireDate } from './dates.js';
 import { cleanDueTime, cleanDuration, cleanReminderMinutes } from './dates.js';
+
+export function saveState() {
+  // Any new change supersedes a pending undo, so a stale snapshot can
+  // never wipe out work done after the action it was captured for.
+  clearPendingUndo();
+  persistState();
+}
+export function persistState() {
+  state.updatedAt = Date.now();
+  store.saveState(state).catch(err => {
+    console.error('Could not save data:', err);
+    showToast('Could not save — browser storage may be full', 'error');
+  });
+  syncReminderSchedule();
+}
+export function reminderSchedule() {
+  const items = [];
+  state.tasks.forEach(t => {
+    if (t.completed || !t.due) return;
+    taskReminders(t).forEach(r => {
+      const at = reminderFireDate(t, r.minutes);
+      if (!at) return;
+      items.push({
+        id: `${t.id}:${r.minutes}`,
+        taskId: t.id,
+        title: t.title,
+        at: at.getTime(),
+      });
+    });
+  });
+  return items;
+}
+export function syncReminderSchedule() {
+  const items = reminderSchedule();
+  store.setDoc('reminders', items).catch(() => {});
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready
+    .then(reg => { if (reg.active) reg.active.postMessage({ type: 'reminders' }); })
+    .catch(() => {});
+}
+export function clearPendingUndo() {
+  if (!pendingUndo) return;
+  const el = pendingUndo.toastEl;
+  pendingUndo = null;
+  if (el && el.parentNode) el.remove();
+}
+export let pendingUndo = null;
+export let redoSnapshot = null;
+export function setPendingUndo(value) { pendingUndo = value; }
+export function setRedoSnapshot(value) { redoSnapshot = value; }
 
 export const SCHEMA_VERSION = 7;
 

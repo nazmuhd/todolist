@@ -4,12 +4,10 @@
  * Only the most recent destructive action can be undone (like Todoist's
  * toast), and that action can be redone.
  */
-import { state, setState, normalizeState } from './state.js';
+import { state, setState, normalizeState, pendingUndo, redoSnapshot, clearPendingUndo, setPendingUndo, setRedoSnapshot } from './state.js';
 import { showToast } from './toasts.js';
 
-export let pendingUndo = null;
 
-export let redoSnapshot = null;
 
 
 export function snapshotData() {
@@ -27,10 +25,10 @@ export function offerUndo(message, snapshot) {
     duration: 7000,
     onAction: undoPending,
     onTimeout: () => {
-      if (pendingUndo && pendingUndo.toastEl === el) pendingUndo = null;
+      if (pendingUndo && pendingUndo.toastEl === el) setPendingUndo(null);
     },
   });
-  pendingUndo = { snapshot, toastEl: el };
+  setPendingUndo({ snapshot, toastEl: el });
 }
 
 export function undoPending() {
@@ -39,11 +37,11 @@ export function undoPending() {
   clearPendingUndo();
 
   // Remember the current state so the undo itself can be redone.
-  redoSnapshot = {
+  setRedoSnapshot({
     projects: state.projects,
     labels: state.labels,
     tasks: state.tasks,
-  };
+  });
 
   setState(normalizeState({
     ...state,
@@ -64,7 +62,7 @@ export function undoPending() {
 export function redoPending() {
   if (!redoSnapshot) return;
   const snapshot = redoSnapshot;
-  redoSnapshot = null;
+  setRedoSnapshot(null);
   setState(normalizeState({
     ...state,
     projects: snapshot.projects,
@@ -77,9 +75,3 @@ export function redoPending() {
   showToast('Redone', 'success');
 }
 
-export function clearPendingUndo() {
-  if (!pendingUndo) return;
-  const el = pendingUndo.toastEl;
-  pendingUndo = null;
-  if (el && el.parentNode) el.remove();
-}

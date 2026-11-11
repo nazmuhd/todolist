@@ -7,6 +7,18 @@
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+export function cleanRecurrence(v) {
+  if (typeof v !== 'string') return null;
+  const body = v.trim().toUpperCase();
+  if (!body) return null;
+  if (!/^[A-Z0-9=;,:+\-]+$/.test(body)) return null;
+  const lib = window.rrule;
+  if (lib && lib.RRule && typeof lib.RRule.parseString === 'function') {
+    try { lib.RRule.parseString(body); } catch { return null; }
+  }
+  return body;
+}
+
 export const settings = {
   theme: 'system',
   startOfWeek: 'mon',

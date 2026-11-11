@@ -2,8 +2,10 @@
  * Task records: creating, completing and removing tasks, plus the
  * recurrence rules that decide when a repeating task comes back.
  */
-import { state } from './state.js';
-import { parseDate, toISODate, todayISO, isTaskOverdue } from './dates.js';
+import { state, saveState } from './state.js';
+import { requestRender } from './render.js';
+import { settings, uid, cleanRecurrence } from './app.js';
+import { parseDate, toISODate, todayISO, isTaskOverdue, cleanDueTime, cleanDuration, cleanReminderMinutes } from './dates.js';
 
 export const RECURRENCE_ALIASES = {
   daily: 'FREQ=DAILY;INTERVAL=1',
@@ -74,7 +76,7 @@ export function addTask(data) {
   };
   state.tasks.push(task);
   saveState();
-  render();
+  requestRender();
   return task;
 }
 
@@ -101,7 +103,7 @@ export function toggleComplete(id) {
         s.reminderFiredKey = null;
       });
       saveState();
-      render();
+      requestRender();
       offerUndo(`Task moved to ${formatDue(t.due, t.dueTime)}`, snapshot);
       return;
     }
@@ -117,7 +119,7 @@ export function toggleComplete(id) {
     t.completedAt = null;
   }
   saveState();
-  render();
+  requestRender();
   offerUndo(t.completed ? 'Task completed' : 'Task reopened', snapshot);
 }
 
@@ -128,7 +130,7 @@ export function removeTask(id) {
   const snapshot = snapshotData();
   state.tasks = state.tasks.filter(x => x.id !== id && x.parentId !== id);
   saveState();
-  render();
+  requestRender();
   offerUndo('Task deleted', snapshot);
   return true;
 }
@@ -252,7 +254,7 @@ export function skipOccurrence(task) {
     task.reminderFiredKey = null;
   }
   saveState();
-  render();
+  requestRender();
   offerUndo('Occurrence skipped', snapshot);
   return true;
 }
@@ -267,7 +269,7 @@ export function snoozeTask(task) {
   task.dueTime = null;
   task.reminderFiredKey = null;
   saveState();
-  render();
+  requestRender();
   offerUndo('Snoozed until tomorrow', snapshot);
   return true;
 }

@@ -1,13 +1,18 @@
 import './styles.css';
-import { settings, uid, $, $$ } from './core/app.js';
+
+// The core asks for a repaint through this hook, so it never has to
+// import the views (which would be a circular dependency).
+setRenderer(render);
+import { settings, uid, $, $$, cleanRecurrence } from './core/app.js';
 import { store } from './core/store.js';
 import { parseDate, toISODate, todayISO, daysFromToday, prevDayISO, formatDateShort, formatDue, formatDuration, isTaskOverdue, dueSortValue, reminderFireDate, cleanDuration, DATE_RE } from './core/dates.js';
-import { SCHEMA_VERSION, MIGRATIONS, defaultState, migrateState, state, setState } from './core/state.js';
+import { SCHEMA_VERSION, MIGRATIONS, defaultState, migrateState, state, setState, saveState, persistState, syncReminderSchedule, clearPendingUndo } from './core/state.js';
 import { activeTasks, completedTasks, subtasksOf, addTask, toggleComplete, removeTask, deleteTask, parseRecurrenceText, recurrenceToText, firstRecurrenceISO, skipOccurrence, snoozeTask, taskReminders, priorityColor, priorityLabel, projectName, labelName } from './core/tasks.js';
-import { snapshotData, offerUndo, undoPending, redoPending, clearPendingUndo } from './core/undo.js';
+import { snapshotData, offerUndo, undoPending, redoPending } from './core/undo.js';
 import { plural, showToast } from './core/toasts.js';
 import { queryMatcher } from './features/filters.js';
 import { showEmptyState } from './features/empty-states.js';
+import { setRenderer } from './core/render.js';
 
 import './styles.css';
 
@@ -38,17 +43,6 @@ const cleanColor = (c, fallback) => (typeof c === 'string' && COLOR_RE.test(c) ?
 const clampPriority = (p) => (Number.isInteger(p) && p >= 1 && p <= 4 ? p : 4);
 
 /** Accepts only a well-formed RRULE body (e.g. "FREQ=WEEKLY;BYDAY=MO"). */
-function cleanRecurrence(v) {
-  if (typeof v !== 'string') return null;
-  const body = v.trim().toUpperCase();
-  if (!body) return null;
-  if (!/^[A-Z0-9=;,:+\-]+$/.test(body)) return null;
-  const lib = window.rrule;
-  if (lib && lib.RRule && typeof lib.RRule.parseString === 'function') {
-    try { lib.RRule.parseString(body); } catch { return null; }
-  }
-  return body;
-}
 
 /** { count: n } or { until: 'YYYY-MM-DD' } — how a repeat stops. */
 function normalizeRecurrenceEnd(v) {
@@ -110,14 +104,6 @@ async function loadState() {
   }
 }
 
-function persistState() {
-  state.updatedAt = Date.now();
-  store.saveState(state).catch(err => {
-    console.error('Could not save data:', err);
-    showToast('Could not save — browser storage may be full', 'error');
-  });
-  syncReminderSchedule();
-}
 
 /* ------------------------------------------------------------
    REMINDER SCHEDULE FOR THE SERVICE WORKER
@@ -125,39 +111,8 @@ function persistState() {
    fire after the tab is closed (best effort — browsers may stop the
    worker at any time).
 ------------------------------------------------------------ */
-function reminderSchedule() {
-  const items = [];
-  state.tasks.forEach(t => {
-    if (t.completed || !t.due) return;
-    taskReminders(t).forEach(r => {
-      const at = reminderFireDate(t, r.minutes);
-      if (!at) return;
-      items.push({
-        id: `${t.id}:${r.minutes}`,
-        taskId: t.id,
-        title: t.title,
-        at: at.getTime(),
-      });
-    });
-  });
-  return items;
-}
 
-function syncReminderSchedule() {
-  const items = reminderSchedule();
-  store.setDoc('reminders', items).catch(() => {});
-  if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.ready
-    .then(reg => { if (reg.active) reg.active.postMessage({ type: 'reminders' }); })
-    .catch(() => {});
-}
 
-function saveState() {
-  // Any new change supersedes a pending undo, so a stale snapshot can
-  // never wipe out work done after the action it was captured for.
-  clearPendingUndo();
-  persistState();
-}
 
 /* ============================================================
    HELPERS
