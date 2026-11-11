@@ -4,10 +4,10 @@
  * Only the most recent destructive action can be undone (like Todoist's
  * toast), and that action can be redone.
  */
-import { state, setState, normalizeState, pendingUndo, redoSnapshot, clearPendingUndo, setPendingUndo, setRedoSnapshot } from './state.js';
+import { state, setState, normalizeState, saveState, pendingUndo, redoSnapshot, clearPendingUndo, setPendingUndo, setRedoSnapshot } from './state.js';
 import { showToast } from './toasts.js';
-
-
+import { requestRender } from './render.js';
+import { services } from './services.js';
 
 
 export function snapshotData() {
@@ -50,8 +50,8 @@ export function undoPending() {
     tasks: snapshot.tasks,
   }));
   saveState();
-  render();
-  syncHash();
+  requestRender();
+  services.syncHash();
   showToast('Undone', 'success', {
     actionLabel: 'Redo',
     onAction: redoPending,
@@ -70,8 +70,8 @@ export function redoPending() {
     tasks: snapshot.tasks,
   }));
   saveState();
-  render();
-  syncHash();
+  requestRender();
+  services.syncHash();
   showToast('Redone', 'success');
 }
 

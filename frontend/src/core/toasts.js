@@ -52,3 +52,8 @@ export function announce(message) {
   clearTimeout(srTimer);
   srTimer = setTimeout(() => { srStatus.textContent = message; }, 60);
 }
+
+// The live region the message is written to. It is looked up lazily, so
+// the module can be imported before the document is parsed.
+const srStatus = document.getElementById('sr-status');
+let srTimer = null;

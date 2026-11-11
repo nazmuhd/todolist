@@ -4,9 +4,148 @@
  * "p1 | p2", "overdue & !#work", "7 days", "@urgent" — a query is parsed into
  * a predicate that a task is matched against.
  */
-import { state } from '../core/state.js';
-import { isTaskOverdue } from '../core/dates.js';
+import { state, saveState } from '../core/state.js';
+import { isTaskOverdue, todayISO, daysFromToday, nextWeekdayISO, QUERY_WEEKDAYS } from '../core/dates.js';
+import { activeTasks } from '../core/tasks.js';
+import { store } from '../core/store.js';
+import { uid } from '../core/app.js';
+import { requestRender } from '../core/render.js';
+import { services } from '../core/services.js';
+import { showToast } from '../core/toasts.js';
+import { savedFilters, setSavedFilters, findSavedFilter } from '../core/saved-filters.js';
 
+/* ============================================================
+   SAVED FILTERS
+   Stored beside the app state so the task schema stays untouched.
+   ============================================================ */
+
+/** Reads the saved filters from the store. */
+export async function loadSavedFilters() {
+  const raw = await store.getDoc(store.keys.filters);
+  if (!Array.isArray(raw)) {
+    setSavedFilters([]);
+    return;
+  }
+  setSavedFilters(raw
+    .filter(f => f && typeof f.id === 'string' && typeof f.name === 'string' && typeof f.query === 'string')
+    .map(f => ({ id: f.id, name: f.name, query: f.query })));
+}
+
+export function persistSavedFilters() {
+  store.setDoc(store.keys.filters, savedFilters).catch(err => console.error('Could not save filters:', err));
+}
+
+/** How many open tasks a saved filter currently matches. */
+export function filterTaskCount(query) {
+  const fn = queryMatcher(query);
+  return activeTasks().filter(t => fn(t)).length;
+}
+
+/** Creates a filter, or updates the one with the same id. */
+export function upsertSavedFilter(id, name, query) {
+  const existing = findSavedFilter(id);
+  if (existing) {
+    existing.name = name;
+    existing.query = query;
+  } else {
+    savedFilters.push({ id, name, query });
+  }
+  persistSavedFilters();
+}
+
+export function deleteSavedFilter(id) {
+  setSavedFilters(savedFilters.filter(f => f.id !== id));
+  persistSavedFilters();
+}
+
+export { savedFilters, findSavedFilter };
+
+/* ============================================================
+   SAVED FILTER UI
+   The row under the search box: name a filter and save it.
+   ============================================================ */
+
+let editingFilterId = null;
+
+export function openFilterEditor(id) {
+  const f = findSavedFilter(id);
+  if (!f) return;
+  editingFilterId = id;
+  const row = document.getElementById('filter-save-row');
+  const input = document.getElementById('filter-name-input');
+  row.removeAttribute('hidden');
+  input.value = f.name;
+  input.dataset.query = f.query;
+  input.focus();
+  input.select();
+}
+
+export function deleteFilter(id) {
+  deleteSavedFilter(id);
+  if (state.ui.view === `filter:${id}`) {
+    state.ui.view = 'inbox';
+    saveState();
+  }
+  requestRender();
+  showToast('Filter deleted', 'info');
+}
+
+export function saveFilterFromRow() {
+  const input = document.getElementById('filter-name-input');
+  const name = input.value.trim();
+  const query = input.dataset.query !== undefined ? input.dataset.query : (state.ui.search || '').trim();
+  if (!name || !query) {
+    showToast('A filter needs a name and a search', 'error');
+    return;
+  }
+  const editing = editingFilterId;
+  const id = editing || `filter_${uid()}`;
+  upsertSavedFilter(id, name, query);
+  editingFilterId = null;
+  input.value = '';
+  delete input.dataset.query;
+  document.getElementById('filter-save-row').setAttribute('hidden', '');
+  if (!editing) {
+    state.ui.search = '';
+    document.getElementById('search-input').value = '';
+  }
+  saveState();
+  services.navigateTo(`filter:${id}`);
+  showToast(editing ? 'Filter updated' : 'Filter saved', 'success');
+}
+
+/** Wires the "save as filter" row. */
+export function initFilterEditor() {
+  document.getElementById('add-filter-btn').onclick = () => {
+    editingFilterId = null;
+    const input = document.getElementById('filter-name-input');
+    input.value = '';
+    delete input.dataset.query;
+    document.getElementById('filter-save-row').removeAttribute('hidden');
+    input.focus();
+    if (!(state.ui.search || '').trim()) {
+      showToast('Type a search first, then save it as a filter', 'error');
+    }
+  };
+
+  document.getElementById('filter-save-btn').onclick = saveFilterFromRow;
+  document.getElementById('filter-name-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveFilterFromRow(); }
+  });
+}
+
+const QUERY_DATE_TERMS = {
+  overdue: t => isTaskOverdue(t),
+  today: t => t.due === todayISO(),
+  tomorrow: t => t.due === daysFromToday(1),
+  yesterday: t => t.due === daysFromToday(-1),
+  week: t => !!t.due && t.due >= todayISO() && t.due <= daysFromToday(7),
+  month: t => !!t.due && t.due >= todayISO() && t.due <= daysFromToday(30),
+};
+
+const QUERY_RANGES = {
+  day: 1, days: 1, week: 7, weeks: 7, month: 30, months: 30,
+};
 
 let queryCache = { text: null, fn: null };
 

@@ -1,0 +1,155 @@
+/**
+ * The board view: one column per priority.
+ */
+import { state, saveState } from '../core/state.js';
+import { activeTasks, priorityColor, priorityLabel, projectName } from '../core/tasks.js';
+import { formatDue, isTaskOverdue, todayISO } from '../core/dates.js';
+import { escapeHtml, highlightHtml } from '../core/text.js';
+import { bindTaskEvents, priorityMarker, durationBadge, searchTerm } from '../features/task-row.js';
+
+const BOARD_PRIORITIES = [1, 2, 3, 4];
+
+export function renderBoard(info) {
+  const list = document.getElementById('task-list');
+  const board = document.getElementById('board-view');
+  list.classList.add('hidden');
+  list.innerHTML = '';
+  board.classList.remove('hidden');
+  document.getElementById('content-container').classList.add('board-mode');
+
+  const base = activeTasks().filter(info.filter).filter(t => !t.completed);
+  board.innerHTML = `<div class="board-scroll"><div class="board-grid">` + BOARD_PRIORITIES.map(priority => {
+    const tasks = base
+      .filter(t => t.priority === priority)
+      .sort((a, b) => a.order - b.order);
+    return `
+      <section class="board-column" data-priority="${priority}">
+        <header class="board-column-header">
+          <span class="flex items-center gap-1.5 text-sm font-semibold">
+            <i data-lucide="flag" class="w-3.5 h-3.5" style="color:${priorityColor(priority)}"></i>
+            P${priority}
+          </span>
+          <span class="board-count text-xs text-td-muted" title="${tasks.length} tasks">${tasks.length}</span>
+        </header>
+        <ul class="board-cards" data-priority="${priority}" aria-label="${escapeHtml(priorityLabel(priority))}">
+          ${tasks.map(t => renderBoardCard(t)).join('')}
+        </ul>
+      </section>`;
+  }).join('') + `</div></div>` + `<div class="board-scroll-hint" aria-hidden="true"><i data-lucide="move-right" class="w-3.5 h-3.5"></i>Scroll for more</div>`;
+  document.getElementById('empty-state').classList.add('hidden');
+
+  bindTaskEvents(false);
+  bindBoardSortables();
+  updateBoardOverflowHint();
+}
+
+export function renderBoardCard(t) {
+  const dueBadge = t.due ? `
+    <span class="flex items-center gap-1 ${isTaskOverdue(t) ? 'text-red-600' : t.due === todayISO() ? 'text-green-700' : 'text-td-muted'}">
+      <i data-lucide="calendar" class="w-3 h-3"></i>${escapeHtml(formatDue(t.due, t.dueTime))}
+      ${t.recurrence ? '<i data-lucide="repeat" class="w-3 h-3 ml-0.5"></i>' : ''}
+    </span>` : '';
+  const projBadge = t.projectId ? `
+    <span class="flex items-center gap-1 text-td-muted">
+      <i data-lucide="hash" class="w-3 h-3" style="color:${state.projects.find(p => p.id === t.projectId)?.color || '#999'}"></i>${escapeHtml(projectName(t.projectId))}
+    </span>` : '';
+  const labelBadges = (t.labels || []).map(lid => {
+    const l = state.labels.find(x => x.id === lid);
+    if (!l) return '';
+    return `<span class="flex items-center gap-0.5 text-td-muted"><i data-lucide="tag" class="w-3 h-3" style="color:${l.color}"></i>@${escapeHtml(l.name)}</span>`;
+  }).join('');
+
+  return `
+    <li class="board-card group" data-task-id="${t.id}">
+      <div class="flex items-start gap-2 p-2.5">
+        <button class="task-check mt-0.5 flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center"
+          style="border-color:${priorityColor(t.priority)}" title="Complete task">
+        </button>
+        <div class="flex-1 min-w-0">
+          <div class="task-title cursor-pointer text-sm font-medium" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
+          ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
+          <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
+            ${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
+          </div>
+        </div>
+        <div class="task-actions flex items-center gap-0.5">
+          <button class="task-edit text-td-muted hover:text-td-text p-1" title="Edit">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+          </button>
+          <button class="task-delete text-td-muted hover:text-red-600 p-1" title="Delete">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+    </li>`;
+}
+
+/** One Sortable group; dropping into a column rewrites the task's priority. */
+export function destroyBoardSortables() {
+  document.querySelectorAll('.board-cards').forEach(el => {
+    if (el._sortable) { el._sortable.destroy(); el._sortable = null; }
+  });
+}
+
+export function bindBoardSortables() {
+  const board = document.getElementById('board-view');
+  if (!board) return;
+  destroyBoardSortables();
+  board.querySelectorAll('.board-cards').forEach(el => {
+    el._sortable = new Sortable(el, {
+      group: 'board-tasks',
+      animation: 150,
+      handle: '.board-card',
+      filter: 'button',
+      ghostClass: 'board-card-ghost',
+      onEnd: (evt) => {
+        const taskId = evt.item && evt.item.dataset ? evt.item.dataset.taskId : null;
+        const task = state.tasks.find(x => x.id === taskId);
+        const to = evt.to;
+        if (!task || !to) return;
+        const column = to.closest ? to.closest('.board-column') : null;
+        const priority = Number((column && column.dataset.priority) || to.dataset.priority);
+        if (priority >= 1 && priority <= 4) task.priority = priority;
+
+        let order = 0;
+        board.querySelectorAll('.board-cards .board-card').forEach(card => {
+          const t = state.tasks.find(x => x.id === card.dataset.taskId);
+          if (t) t.order = order++;
+        });
+        saveState();
+        updateBoardCounts();
+      },
+    });
+  });
+}
+
+/** Shows a "scroll for more" hint while board columns are off-screen. */
+export function updateBoardOverflowHint() {
+  const view = document.getElementById('board-view');
+  if (!view) return;
+  const scroller = view.querySelector('.board-scroll');
+  if (!scroller) {
+    view.classList.remove('board-overflow');
+    return;
+  }
+  const overflowing = scroller.scrollWidth > scroller.clientWidth + 1;
+  const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 2;
+  view.classList.toggle('board-overflow', overflowing && !atEnd);
+}
+
+export function updateBoardCounts() {
+  document.querySelectorAll('.board-column').forEach(col => {
+    const count = col.querySelectorAll('.board-card').length;
+    const badge = col.querySelector('.board-count');
+    if (badge) {
+      badge.textContent = String(count);
+      badge.title = `${count} tasks`;
+    }
+  });
+}
+
+/** Watches the board for horizontal overflow. */
+export function initBoard() {
+  document.getElementById('board-view').addEventListener('scroll', updateBoardOverflowHint, true);
+  window.addEventListener('resize', updateBoardOverflowHint);
+}

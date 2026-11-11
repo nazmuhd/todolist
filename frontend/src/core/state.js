@@ -2,12 +2,14 @@
  * Application state: the default shape, migrations, normalisation and the
  * live state object itself.
  */
-import { uid } from './app.js';
+import { uid, cleanRecurrence } from './app.js';
 import { store } from './store.js';
 import { showToast } from './toasts.js';
-import { taskReminders } from './tasks.js';
+import { taskReminders, normalizeRecurrenceEnd } from './tasks.js';
 import { reminderFireDate } from './dates.js';
-import { cleanDueTime, cleanDuration, cleanReminderMinutes } from './dates.js';
+import { cleanDueTime, cleanDuration, cleanReminderMinutes, DATE_RE } from './dates.js';
+import { asText, cleanColor, clampPriority, PROJECT_COLORS, LABEL_COLORS } from './text.js';
+import { savedFilterIds } from './saved-filters.js';
 
 export function saveState() {
   // Any new change supersedes a pending undo, so a stale snapshot can
@@ -249,7 +251,7 @@ export function normalizeState(s) {
     view === 'completed' || view === 'no-date' || view === 'no-priority' ||
     (view.startsWith('project:') && projectIds.has(view.slice(8))) ||
     (view.startsWith('label:') && labelIds.has(view.slice(6))) ||
-    (view.startsWith('filter:') && savedFilters.some(f => f.id === view.slice(7)));
+    (view.startsWith('filter:') && savedFilterIds().includes(view.slice(7)));
   if (!knownView) view = 'inbox';
 
   return {

@@ -9,6 +9,9 @@ import { settings } from './app.js';
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** The weekday names, in the order the week starts on. */
+export const QUERY_WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
 export function parseDate(iso) {
   if (!iso) return null;
   const [y,m,d] = iso.split('-').map(Number);

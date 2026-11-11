@@ -5,7 +5,14 @@
 import { state, saveState } from './state.js';
 import { requestRender } from './render.js';
 import { settings, uid, cleanRecurrence } from './app.js';
-import { parseDate, toISODate, todayISO, isTaskOverdue, cleanDueTime, cleanDuration, cleanReminderMinutes } from './dates.js';
+import { parseDate, toISODate, todayISO, isTaskOverdue, cleanDueTime, cleanDuration, cleanReminderMinutes, formatDue, DATE_RE } from './dates.js';
+import { snapshotData, offerUndo } from './undo.js';
+
+/* The phrases people actually type, checked before rrule's own parser:
+   it reads a bare "weekly" as a month/day. */
+const WEEKDAY_WORDS = /\b(monday|mon|tuesday|tues|tue|wednesday|weds|wed|thursday|thurs|thur|thu|friday|fri|saturday|sat|sunday|sun)\b/i;
+const ORDINAL_WORDS = /\b\d{1,2}(?:st|nd|rd|th)\b/i;
+const MONTH_WORDS = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/i;
 
 export const RECURRENCE_ALIASES = {
   daily: 'FREQ=DAILY;INTERVAL=1',
@@ -284,6 +291,14 @@ export function taskReminders(t) {
     return [{ id: 'legacy', minutes: t.reminderMinutes }];
   }
   return [];
+}
+
+/** { count: n } or { until: 'YYYY-MM-DD' } — how a repeat stops. */
+export function normalizeRecurrenceEnd(v) {
+  if (!v || typeof v !== 'object') return null;
+  if (Number.isInteger(v.count) && v.count > 0) return { count: v.count, until: null };
+  if (typeof v.until === 'string' && DATE_RE.test(v.until)) return { count: null, until: v.until };
+  return null;
 }
 
 export function priorityColor(p) {
