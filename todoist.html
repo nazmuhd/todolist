@@ -114,6 +114,24 @@
         </div>
       </div>
 
+      <!-- Saved filters -->
+      <div class="mt-4">
+        <div class="sidebar-section-header flex items-center justify-between px-2 mb-1">
+          <button type="button" id="toggle-filters" class="flex items-center gap-1 text-xs font-semibold text-td-muted uppercase tracking-wide hover:text-td-text" aria-expanded="true" title="Collapse filters">
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i><span>My filters</span>
+          </button>
+          <button id="add-filter-btn" class="text-td-muted hover:text-td-text p-0.5" title="Save the current search as a filter" aria-label="Save the current search as a filter">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+        <div id="filters-list" class="space-y-0.5"></div>
+        <div id="filter-save-row" class="hidden px-2 mt-1 flex items-center gap-1">
+          <input id="filter-name-input" type="text" placeholder="Filter name" autocomplete="off"
+            class="flex-1 min-w-0 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          <button id="filter-save-btn" class="text-xs bg-td-red hover:bg-td-redhover text-white font-semibold px-2 py-1 rounded">Save</button>
+        </div>
+      </div>
+
       <!-- Projects -->
       <div class="mt-4">
         <div class="sidebar-section-header flex items-center justify-between px-2 mb-1">
@@ -171,6 +189,12 @@
           <button type="button" data-layout="board" class="layout-btn" title="Board view" aria-label="Board view" aria-pressed="false">
             <i data-lucide="columns-3" class="w-4 h-4"></i>
           </button>
+        </div>
+        <div class="relative">
+          <button type="button" id="sort-menu-btn" class="layout-btn" style="border:1px solid #e5e5e5;border-radius:4px" title="Sort tasks" aria-label="Sort tasks" aria-haspopup="true">
+            <i data-lucide="arrow-down-up" class="w-4 h-4"></i>
+          </button>
+          <div id="sort-menu" class="hidden absolute right-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-10 w-44 text-sm"></div>
         </div>
         <div class="relative">
           <i data-lucide="search" class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-td-muted"></i>

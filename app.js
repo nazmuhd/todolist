@@ -23,7 +23,7 @@ function defaultState() {
       { id: 'lbl_urgent', name: 'urgent', color: '#db4c3f' },
     ],
     tasks: [],
-    ui: { view: 'inbox', activeId: null, search: '', layout: 'list' },
+    ui: { view: 'inbox', activeId: null, search: '', layout: 'list', sort: 'manual' },
     updatedAt: 0,
   };
 }
@@ -167,7 +167,8 @@ function normalizeState(s) {
     view === 'inbox' || view === 'today' || view === 'upcoming' ||
     view === 'completed' || view === 'no-date' || view === 'no-priority' ||
     (view.startsWith('project:') && projectIds.has(view.slice(8))) ||
-    (view.startsWith('label:') && labelIds.has(view.slice(6)));
+    (view.startsWith('label:') && labelIds.has(view.slice(6))) ||
+    (view.startsWith('filter:') && savedFilters.some(f => f.id === view.slice(7)));
   if (!knownView) view = 'inbox';
 
   return {
@@ -180,6 +181,7 @@ function normalizeState(s) {
       activeId: asText(rawUi.activeId) || null,
       search: asText(rawUi.search),
       layout: rawUi.layout === 'board' ? 'board' : 'list',
+      sort: ['manual', 'date', 'priority', 'name', 'added'].includes(rawUi.sort) ? rawUi.sort : 'manual',
     },
     updatedAt: typeof s.updatedAt === 'number' ? s.updatedAt : 0,
   };
@@ -202,8 +204,42 @@ function migrateState(raw) {
   return normalizeState(s);
 }
 
+/* ============================================================
+   SAVED FILTERS
+   Stored beside the app state so the task schema stays untouched.
+============================================================ */
+const FILTERS_KEY = 'todoist-clone-filters';
+let savedFilters = [];
+
+function loadSavedFilters() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FILTERS_KEY) || '[]');
+    if (Array.isArray(raw)) {
+      savedFilters = raw
+        .filter(f => f && typeof f.id === 'string' && typeof f.name === 'string' && typeof f.query === 'string')
+        .map(f => ({ id: f.id, name: f.name, query: f.query }));
+    }
+  } catch {
+    savedFilters = [];
+  }
+}
+
+function persistSavedFilters() {
+  try { localStorage.setItem(FILTERS_KEY, JSON.stringify(savedFilters)); } catch {}
+}
+
+/** How many open tasks a saved filter currently matches. */
+function filterTaskCount(query) {
+  const fn = queryMatcher(query);
+  return activeTasks().filter(t => fn(t)).length;
+}
+
 // Only the most recent destructive action can be undone (like Todoist's toast).
 let pendingUndo = null;
+
+// Filters must be known before the state is read: a saved filter can be the
+// active view, and the state loader validates the view name.
+loadSavedFilters();
 
 let state = loadState();
 
@@ -525,6 +561,199 @@ function checkReminders(now = Date.now()) {
 }
 
 /* ============================================================
+   FILTER QUERY LANGUAGE
+   "p1 | p2", "overdue & !#work", "7 days", "@urgent", "#work",
+   "has:date", quoted phrases, and ! for negation.
+============================================================ */
+const QUERY_WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+function daysFromToday(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+
+function nextWeekdayISO(name) {
+  const target = QUERY_WEEKDAYS.indexOf(name);
+  const d = new Date();
+  const diff = (target - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + diff);
+  return toISODate(d);
+}
+
+const QUERY_DATE_TERMS = {
+  overdue: t => isTaskOverdue(t),
+  today: t => t.due === todayISO(),
+  tomorrow: t => t.due === daysFromToday(1),
+  yesterday: t => t.due === daysFromToday(-1),
+  week: t => !!t.due && t.due >= todayISO() && t.due <= daysFromToday(7),
+  month: t => !!t.due && t.due >= todayISO() && t.due <= daysFromToday(30),
+};
+
+const QUERY_RANGES = {
+  day: 1, days: 1, week: 7, weeks: 7, month: 30, months: 30,
+};
+
+function tokenizeQuery(text) {
+  const tokens = [];
+  const src = String(text || '').replace(/\bnext\s+/gi, ' ');
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if ('&|!()'.includes(ch)) { tokens.push({ op: ch }); i++; continue; }
+
+    let word = '';
+    if (ch === '"') {
+      i++;
+      while (i < src.length && src[i] !== '"') { word += src[i]; i++; }
+      i++;
+    } else {
+      while (i < src.length && !/[\s&|!()]/.test(src[i])) { word += src[i]; i++; }
+      // "7 days" / "2 weeks" are a single term.
+      if (/^\d+$/.test(word)) {
+        const um = /^\s*(days|day|weeks|week|months|month)/i.exec(src.slice(i));
+        if (um) { word += ' ' + um[1].toLowerCase(); i += um[0].length; }
+      }
+    }
+    if (word) tokens.push({ word });
+  }
+  return tokens;
+}
+
+function queryTermPredicate(word) {
+  const w = String(word || '').trim().toLowerCase();
+  if (!w) return () => true;
+
+  if (/^p[1-4]$/.test(w)) {
+    const p = Number(w[1]);
+    return t => t.priority === p;
+  }
+  if (w.startsWith('#')) {
+    const name = w.slice(1);
+    return t => {
+      const proj = state.projects.find(p => p.name.toLowerCase() === name);
+      const wanted = proj ? proj.id : name;
+      return String(t.projectId || '').toLowerCase() === wanted.toLowerCase();
+    };
+  }
+  if (w.startsWith('@')) {
+    const name = w.slice(1);
+    return t => {
+      const lbl = state.labels.find(l => l.name.toLowerCase() === name);
+      const wanted = lbl ? lbl.id : name;
+      return (t.labels || []).some(lid => String(lid).toLowerCase() === wanted.toLowerCase());
+    };
+  }
+  if (w === 'has:date') return t => !!t.due;
+  if (w === 'no:date') return t => !t.due;
+  if (w === 'has:project') return t => !!t.projectId;
+  if (w === 'no:project') return t => !t.projectId;
+  if (w === 'has:label') return t => (t.labels || []).length > 0;
+  if (w === 'has:priority') return t => t.priority < 4;
+
+  const range = /^(\d+)\s*(days|day|weeks|week|months|month)$/.exec(w);
+  if (range) {
+    const days = QUERY_RANGES[range[2]] * Number(range[1]);
+    return t => !!t.due && t.due >= todayISO() && t.due <= daysFromToday(days);
+  }
+  if (QUERY_DATE_TERMS[w]) return QUERY_DATE_TERMS[w];
+  if (QUERY_WEEKDAYS.includes(w)) {
+    const target = nextWeekdayISO(w);
+    return t => t.due === target;
+  }
+  return t => `${t.title} ${t.description || ''}`.toLowerCase().includes(w);
+}
+
+/** Parses a query into a predicate. | = or, & / spaces = and, ! = not. */
+function parseQuery(text) {
+  const tokens = tokenizeQuery(text);
+  let pos = 0;
+  const peek = () => tokens[pos];
+
+  function parseOr() {
+    let left = parseAnd();
+    while (peek() && peek().op === '|') {
+      pos++;
+      const right = parseAnd();
+      const l = left;
+      left = t => l(t) || right(t);
+    }
+    return left;
+  }
+  function parseAnd() {
+    let left = parseUnary();
+    while (peek() && (peek().word || peek().op === '&' || peek().op === '!')) {
+      if (peek().op === '&') pos++;
+      const right = parseUnary();
+      const l = left;
+      left = t => l(t) && right(t);
+    }
+    return left;
+  }
+  function parseUnary() {
+    if (peek() && peek().op === '!') {
+      pos++;
+      const inner = parseUnary();
+      return t => !inner(t);
+    }
+    return parseTerm();
+  }
+  function parseTerm() {
+    const tok = peek();
+    if (!tok) return () => true;
+    if (tok.op === '(') {
+      pos++;
+      const inner = parseOr();
+      if (peek() && peek().op === ')') pos++;
+      return inner;
+    }
+    if (tok.op === ')') { pos++; return () => true; }
+    pos++;
+    return queryTermPredicate(tok.word || '');
+  }
+  if (!tokens.length) return () => true;
+  return parseOr();
+}
+
+// The parsed query is cached; it only changes when the text changes.
+let queryCache = { text: null, fn: null };
+function queryMatcher(text) {
+  const key = String(text || '');
+  if (queryCache.text === key) return queryCache.fn;
+  queryCache = { text: key, fn: parseQuery(key) };
+  return queryCache.fn;
+}
+
+/* ============================================================
+   SORTING
+============================================================ */
+const SORT_OPTIONS = [
+  { id: 'manual', label: 'Manual order' },
+  { id: 'date', label: 'Due date' },
+  { id: 'priority', label: 'Priority' },
+  { id: 'name', label: 'Name (A–Z)' },
+  { id: 'added', label: 'Date added' },
+];
+
+function sortTasks(tasks) {
+  const sort = state.ui.sort || 'manual';
+  const arr = [...tasks];
+  if (sort === 'date') {
+    arr.sort((a, b) => dueSortValue(a) - dueSortValue(b) || a.order - b.order);
+  } else if (sort === 'priority') {
+    arr.sort((a, b) => (a.priority - b.priority) || (a.order - b.order));
+  } else if (sort === 'name') {
+    arr.sort((a, b) => a.title.localeCompare(b.title) || (a.order - b.order));
+  } else if (sort === 'added') {
+    arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  } else {
+    arr.sort((a, b) => a.order - b.order);
+  }
+  return arr;
+}
+
+/* ============================================================
    ROUTING / VIEW LOGIC
 ============================================================ */
 function getViewInfo() {
@@ -537,9 +766,16 @@ function getViewInfo() {
     title = `Search: "${state.ui.search}"`;
     icon = 'search';
     subtitle = '';
-    filter = (t) =>
-      t.title.toLowerCase().includes(search) ||
-      (t.description || '').toLowerCase().includes(search);
+    const match = queryMatcher(state.ui.search);
+    filter = (t) => match(t);
+  } else if (v.startsWith('filter:')) {
+    const id = v.slice(7);
+    const saved = savedFilters.find(f => f.id === id);
+    title = saved ? saved.name : 'Filter';
+    icon = 'filter';
+    subtitle = saved ? saved.query : '';
+    const match = saved ? queryMatcher(saved.query) : () => false;
+    filter = (t) => match(t);
   } else if (v === 'inbox') {
     title = 'Inbox'; icon = 'inbox';
     subtitle = 'Tasks with no project';
@@ -639,6 +875,25 @@ function renderSidebar() {
       </div>`;
     }).join('');
 
+  // saved filters
+  const fl = $('#filters-list');
+  fl.innerHTML = savedFilters.map(f => {
+    const count = filterTaskCount(f.query);
+    const active = state.ui.view === `filter:${f.id}`;
+    return `
+    <div class="group relative">
+      <a href="#" data-view="filter:${escapeHtml(f.id)}" title="${escapeHtml(f.query)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-6 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
+        <i data-lucide="filter" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+        <span class="sidebar-hide truncate flex-1">${escapeHtml(f.name)}</span>
+        <span class="sidebar-hide text-xs text-td-muted">${count || ''}</span>
+      </a>
+      <button type="button" class="sidebar-hide row-menu-btn absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
+        data-menu-type="filter" data-menu-id="${escapeHtml(f.id)}" title="Filter actions" aria-label="Filter actions">
+        <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+      </button>
+    </div>`;
+  }).join('');
+
   // labels (pinned first)
   const ll = $('#labels-list');
   ll.innerHTML = [...state.labels]
@@ -726,10 +981,12 @@ function renderMain() {
   }
 
   // Normal list views hide completed tasks; the Completed view is their home.
-  const visible = activeTasks()
-    .filter(info.filter)
-    .filter(t => searchActive || !t.completed)
-    .sort((a,b) => (a.completed - b.completed) || (a.order - b.order));
+  // Completed matches sort last but keep the chosen order otherwise.
+  const visible = sortTasks(
+    activeTasks()
+      .filter(info.filter)
+      .filter(t => searchActive || !t.completed)
+  ).sort((a, b) => a.completed - b.completed);
 
   if (!visible.length) {
     if (state.ui.search) {
@@ -2015,6 +2272,9 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('.meta-chip') && !e.target.closest('#priority-menu') && !e.target.closest('#project-menu') && !e.target.closest('#label-menu')) {
     closeMetaMenus();
   }
+  if (!e.target.closest('#sort-menu') && !e.target.closest('#sort-menu-btn')) {
+    sortMenu.classList.add('hidden');
+  }
 });
 
 $$('.close-modal').forEach(b => b.onclick = () => modal.close());
@@ -2448,6 +2708,112 @@ qaInput.addEventListener('keydown', (e) => {
 });
 
 /* ============================================================
+   SAVED FILTER UI + SORT MENU
+============================================================ */
+let editingFilterId = null;
+
+function openFilterEditor(id) {
+  const f = savedFilters.find(x => x.id === id);
+  if (!f) return;
+  editingFilterId = id;
+  const row = $('#filter-save-row');
+  const input = $('#filter-name-input');
+  row.classList.remove('hidden');
+  input.value = f.name;
+  input.dataset.query = f.query;
+  input.focus();
+  input.select();
+}
+
+function deleteFilter(id) {
+  savedFilters = savedFilters.filter(f => f.id !== id);
+  persistSavedFilters();
+  if (state.ui.view === `filter:${id}`) {
+    state.ui.view = 'inbox';
+    saveState();
+  }
+  render();
+  showToast('Filter deleted', 'info');
+}
+
+function saveFilterFromRow() {
+  const input = $('#filter-name-input');
+  const name = input.value.trim();
+  const query = input.dataset.query !== undefined ? input.dataset.query : (state.ui.search || '').trim();
+  if (!name || !query) {
+    showToast('A filter needs a name and a search', 'error');
+    return;
+  }
+  const editing = editingFilterId;
+  let id = editing;
+  if (editing) {
+    const f = savedFilters.find(x => x.id === editing);
+    if (f) { f.name = name; f.query = query; }
+  } else {
+    id = uid();
+    savedFilters.push({ id, name, query });
+  }
+  editingFilterId = null;
+  persistSavedFilters();
+  input.value = '';
+  delete input.dataset.query;
+  $('#filter-save-row').classList.add('hidden');
+  if (!editing) {
+    state.ui.search = '';
+    $('#search-input').value = '';
+  }
+  saveState();
+  navigateTo(`filter:${id}`);
+  showToast(editing ? 'Filter updated' : 'Filter saved', 'success');
+}
+
+$('#add-filter-btn').onclick = () => {
+  editingFilterId = null;
+  const input = $('#filter-name-input');
+  input.value = '';
+  delete input.dataset.query;
+  $('#filter-save-row').classList.remove('hidden');
+  input.focus();
+  if (!(state.ui.search || '').trim()) {
+    showToast('Type a search first, then save it as a filter', 'error');
+  }
+};
+
+$('#filter-save-btn').onclick = saveFilterFromRow;
+$('#filter-name-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); saveFilterFromRow(); }
+});
+
+const sortMenu = $('#sort-menu');
+
+function renderSortMenu() {
+  sortMenu.innerHTML = SORT_OPTIONS.map(o => `
+    <button type="button" data-sort="${o.id}" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2 ${state.ui.sort === o.id ? 'text-td-red font-medium' : ''}">
+      <i data-lucide="check" class="w-3.5 h-3.5 ${state.ui.sort === o.id ? '' : 'invisible'}"></i>${o.label}
+    </button>`).join('');
+}
+
+$('#sort-menu-btn').onclick = (e) => {
+  e.stopPropagation();
+  const opening = sortMenu.classList.contains('hidden');
+  priorityMenu.classList.add('hidden');
+  projectMenu.classList.add('hidden');
+  labelMenu.classList.add('hidden');
+  renderSortMenu();
+  sortMenu.classList.toggle('hidden');
+  lucide.createIcons();
+};
+
+sortMenu.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-sort]');
+  if (!btn) return;
+  state.ui.sort = btn.dataset.sort;
+  sortMenu.classList.add('hidden');
+  saveState();
+  render();
+});
+
+/* ============================================================
    SIDEBAR NAV
 ============================================================ */
 function pulseViewIn() {
@@ -2664,13 +3030,22 @@ let rowMenuTarget = null;
 
 function openRowMenu(trigger, type, id) {
   const isProject = type === 'project';
+  const isFilter = type === 'filter';
   const entry = isProject
     ? state.projects.find(p => p.id === id)
-    : state.labels.find(l => l.id === id);
+    : isFilter
+      ? savedFilters.find(f => f.id === id)
+      : state.labels.find(l => l.id === id);
   if (!entry) return;
 
   rowMenuTarget = { type, id };
-  rowMenu.innerHTML = `
+  rowMenu.innerHTML = isFilter ? `
+    <button type="button" data-row-action="edit" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="pencil" class="w-3.5 h-3.5 text-td-muted"></i>Edit filter
+    </button>
+    <button type="button" data-row-action="delete" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2 text-red-600">
+      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Delete filter
+    </button>` : `
     <button type="button" data-row-action="pin" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
       <i data-lucide="star" class="w-3.5 h-3.5 text-td-muted"></i>${entry.pinned ? 'Unpin from top' : 'Pin to top'}
     </button>
@@ -2720,9 +3095,11 @@ rowMenu.addEventListener('click', (e) => {
   if (btn.dataset.rowAction === 'edit') {
     closeRowMenu();
     if (type === 'project') openProjectModal(id);
+    else if (type === 'filter') openFilterEditor(id);
     else openLabelModal(id);
-  } else {
+  } else if (btn.dataset.rowAction === 'delete') {
     if (type === 'project') deleteProject(id);
+    else if (type === 'filter') deleteFilter(id);
     else deleteLabel(id);
   }
 });
@@ -3070,6 +3447,7 @@ document.addEventListener('keydown', (e) => {
    SIDEBAR SECTIONS (collapse Projects / Labels)
 ============================================================ */
 const SECTION_COLLAPSE_KEYS = {
+  filters: 'todoist-clone-filters-collapsed',
   projects: 'todoist-clone-projects-collapsed',
   labels: 'todoist-clone-labels-collapsed',
 };
