@@ -69,7 +69,10 @@ with `[ ]`; `[~]` means partly done.
 - [x] **Export formats** — JSON, CSV, Markdown and ICS.
 - [x] **Print stylesheet** — the sidebar, header, quick-add and row actions
       are hidden on paper; the task list prints cleanly.
-- [ ] **i18n** — all strings and date formats are hardcoded US-English.
+- [~] **i18n — deliberately not planned.** The app is English-only by design;
+      a full string table would cost more in readability than it returns. The
+      part that is worth having for an English speaker is a **date-order and
+      12h/24h preference**, which is a setting rather than a translation.
 - [x] **Storage hardening** — everything goes through the storage adapter, and
       both the documents and the blobs now live in IndexedDB (the ~5 MB
       `localStorage` cap is gone). `localStorage` remains only as a fallback
@@ -113,12 +116,12 @@ items were **already implemented** but had still been listed as missing:
 
 ## Suggested order
 
-1. Drag a task onto a sidebar project or label (the last half of the
-   "Move to project / label" item).
-2. Closed-tab reminders — schedule notifications from the service worker.
-3. "This occurrence" vs "entire series", recurrence exceptions and snooze.
-4. i18n — a string table over every label, date format and toast.
-5. Timezone support — a stored zone plus `Intl`.
+1. Date-order and 12h/24h preferences in the settings panel.
+2. A separate start date for recurring tasks (distinct from the due date).
+3. Timezone support — a stored zone plus `Intl` (only if you travel).
+4. Skeleton / loading states.
+
+Drag-to-sidebar, closed-tab reminders and the recurrence work are done.
 
 None of these require a backend; the current storage schema (v5) stays valid
 for all of them.
