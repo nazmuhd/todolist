@@ -13,7 +13,8 @@ when the tab becomes visible). That is the honest limitation.
 
 Deferred:
 
-- [ ] **Service worker for reminders when the tab is closed**
+- [ ] **Service worker for reminders when the tab is closed** (the service worker now
+  exists and caches the app; it does not schedule notifications yet)
   - Needs a service worker plus persisted reminder state.
   - A service worker cannot read `localStorage`, so this also requires moving
     task data (or at least a reminder index) to **IndexedDB**.
@@ -72,48 +73,47 @@ From `features.md`; none of these were part of Phase 3.
 
 ### Views
 - [x] #6 Board / Kanban view (priority columns; drag between columns).
-- [ ] #7 Calendar (month grid) view.
+- [x] #7 Calendar (month grid) view.
 - [x] #25 Completed-tasks view (see/restore completed; grouped by day).
-- [ ] #23 Custom filters and #24 filter query language (`&`, `|`, `!`, dates).
+- [x] #23 Custom filters and #24 filter query language (`&`, `|`, `!`, dates).
 - [x] #26 "No date" / "No priority" filters.
 
 ### Task detail
-- [ ] #9 File attachments (also listed above).
-- [ ] #8 Comments / activity log.
+- [ ] #9 File attachments — the storage layer is ready (`store.putBlob`), only the UI is missing.
+- [x] #8 Comments / activity log.
 - [x] #10 Task duration / estimated time.
-- [ ] #11 Sections inside projects.
+- [~] #11 Sections inside projects (sections and grouping exist; drag-to-section and a filter are open).
 - [x] #12 Favourite/pinned projects and labels.
-- [ ] #15 Sub-task nesting deeper than one level.
+- [x] #15 Sub-task nesting deeper than one level.
 
 ### Interaction
-- [ ] #17 Bulk select / batch complete, delete, move.
+- [x] #17 Bulk select / batch complete, delete, move.
 - [ ] #18 Drag a task onto a project/label in the sidebar.
 - [x] #19 Inline title editing.
-- [ ] #20 Clickable date/project/label pickers in quick add (Phase 3 chips are
-  still preview-only).
-- [ ] #21 "Move to project" / "Move to section".
-- [ ] #22 Right-click reschedule shortcuts and #40 task context menu.
+- [x] #20 Clickable date/project/label pickers in quick add.
+- [~] #21 "Move to project" / "Move to label" (moving to a section is still open).
+- [x] #22 Right-click reschedule shortcuts and #40 task context menu.
 
 ### Shell / polish
 - [x] #27 Collapsible sidebar sections.
-- [ ] #28 Sidebar drag-reorder of projects/labels.
+- [x] #28 Sidebar drag-reorder of projects/labels.
 - [x] #29 Inline "add task" per project in the sidebar.
-- [ ] #30 Settings / preferences (start of week, default priority, etc.).
-- [ ] #31 Dark mode.
+- [x] #30 Settings / preferences (start of week, default priority, etc.).
+- [x] #31 Dark mode.
 - [ ] #32 Karma / productivity stats.
 - [x] #33 Better empty-state illustration and call to action.
-- [ ] #37 Accessibility pass (focus trapping in dialogs, keyboard task-list
-  navigation, screen-reader announcements).
+- [~] #37 Accessibility pass (dialogs trap focus; arrow-key task-list
+  navigation and screen-reader announcements are still open).
 - [x] #39 Completion/view animations.
-- [ ] #42 Full mobile layout pass.
+- [x] #42 Full mobile layout pass.
 - [x] Basic keyboard shortcuts (`q`, `/`, `t`, `u`, `c`, `b`, `?`).
 
 ### Recurrence refinements
 - [ ] Exceptions and skips ("every Monday except holidays").
-- [ ] End conditions in the UI (count / until date) — the RRULE format supports
+- [x] End conditions in the UI (count / until date) — the RRULE format supports
   them, the picker does not expose them yet.
 - [ ] Separate "start date" distinct from due date.
-- [ ] Multiple reminders and snooze.
+- [~] Multiple reminders (done) and snooze (open).
 
 ---
 

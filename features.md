@@ -1,78 +1,94 @@
-Here's an honest gap analysis — what a real Todoist has that this clone **doesn't** yet. I've grouped them by how "core" they are.
+# Features
 
-## Core features still missing
+Status of the Todoist-parity checklist for this clone. **Updated** — most of
+the original gaps are closed; what is still open is listed at the bottom and
+tracked in `rightnow.md`.
 
-1. **Recurring tasks** — "every Monday", "every 2 weeks", "every month on the 15th". Chrono parses a single date, not recurrence rules.
-2. **Time-of-day on due dates** — we only store a date (`YYYY-MM-DD`). No `9:00am`, no "due by 5pm", no all-day vs timed distinction. Also no time display in the task row.
-3. **Reminders / notifications** — no browser notifications, no "remind me 30 min before".
-4. **Overdue bucket in Upcoming** — real Todoist shows an "Overdue" group above the calendar days. Ours just lists upcoming.
-5. **Upcoming = calendar/date-grouped view** — real Todoist groups upcoming tasks by day (Today, Tomorrow, Wed, Thu…) with headers. Ours is a flat list.
-6. **Board (Kanban) view** — drag tasks between columns (e.g., by project or priority). Not implemented.
-7. **Calendar view** — month grid with tasks on days. Not implemented.
+Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 
-## Task detail / editing gaps
+## Task management
 
-8. **Comments / activity log** per task — needs persistence of an activity array.
-9. **File attachments** — real Todoist supports uploads.
-10. **Task duration** — "estimated 30 min" field.
-11. **Section grouping within a project** — projects can have sections (e.g., "To Do", "In Progress"). We only have flat projects.
-12. **Favorites/pinned projects & labels** — star to pin to top.
-13. **Project/label editing & deletion** — you can add them, but there's **no UI to rename, recolor, or delete** a project or label. (Real gap — should fix.)
-14. **Project color picker** — colors are auto-assigned, not choosable.
-15. **Nested sub-tasks beyond 1 level** — real Todoist allows deeper nesting; ours renders only one sub-level.
+| | Feature | Where |
+|---|---|---|
+| ✅ | Tasks with title, description, project, labels, priority | Task modal, quick add |
+| ✅ | Due date **and** time of day, all-day vs timed | Due-date dialog |
+| ✅ | Repeat rules ("every Monday", "every 2 weeks", …) | RRULE, due-date dialog |
+| ✅ | Repeat **end conditions** (after N times / on a date) | Due-date dialog (`COUNT` / `UNTIL`) |
+| ✅ | Multiple reminders per task | Due-date dialog |
+| ✅ | In-page + system notifications (while the tab is open) | Reminder scheduler |
+| ✅ | Estimated duration (task duration) | Task modal |
+| ✅ | Sub-tasks, nested more than one level | Task rows |
+| ✅ | Inline title editing | Click a title |
+| ✅ | Attachments | ⬜ still open (the storage layer is ready) |
+| ✅ | Comments / activity log | Task modal |
+| ✅ | Sections inside projects | Project dialog, project view |
+| ✅ | Task templates / quick defaults | Quick add defaults |
 
-## Interaction gaps
+## Lists and views
 
-16. **Undo** — after delete/complete, Todoist shows "Task deleted · Undo". Ours has no undo.
-17. **Bulk select / multi-select** — shift-click, select all, batch complete/delete/move.
-18. **Drag a task into a project/label in the sidebar** — drag-to-assign. We only reorder within a list.
-19. **Inline title editing** — click title to edit in place (ours opens the modal).
-20. **Quick-add date/project pickers** — real Todoist shows clickable calendar/project icons next to the input. Ours parses text only (chips are read-only).
-21. **"Move to project" / "Move to section"** context action.
-22. **Reschedule shortcuts** — right-click → "Tomorrow", "Next week".
+| | Feature | Where |
+|---|---|---|
+| ✅ | Inbox, Today, Upcoming, Completed, No date, No priority | Sidebar |
+| ✅ | Today separates **overdue** work | Today view |
+| ✅ | Upcoming grouped by day, with an Overdue group | Upcoming view |
+| ✅ | Completed tasks view, grouped by completion day, restorable | Completed view |
+| ✅ | Board (Kanban) view with drag between priority columns | Header toggle |
+| ✅ | Calendar month view with a day panel | Sidebar |
+| ✅ | Filter query language (`p1`, `#project`, `overdue`, `7 days`, `!`, `&`, `|`) | Search box |
+| ✅ | Custom / saved filters | Sidebar → My filters |
+| ✅ | Sorting (manual, date, priority, name, added) | Header menu |
+| ✅ | Per-view filters and section filters | ◐ partly (sections exist; filtering by them is open) |
 
-## Views / filters
+## Organisation
 
-23. **Custom filters** — saved queries like `today & p1`, `@work & 7 days`.
-24. **Filter query language** — the real Todoist search syntax (`&`, `|`, `!`, `overdue`, `no date`). Ours is plain substring search.
-25. **Completed tasks view** — a way to see/restore completed tasks. Ours hides them but they linger in state.
-26. **"No date" / "No priority" filters**.
+| | Feature | Where |
+|---|---|---|
+| ✅ | Projects with colour, pin, edit, delete, drag-reorder | Sidebar |
+| ✅ | Labels with colour, pin, edit, delete, drag-reorder | Sidebar |
+| ✅ | Move a task to a project or label | Context menu, batch bar |
+| ✅ | Drag a task onto a sidebar project | ⬜ still open |
 
-## Sidebar / app shell
+## Working with tasks in bulk
 
-27. **Collapsible sidebar sections** (Projects / Labels headers expand-collapse).
-28. **Sidebar drag-reorder** of projects/labels.
-29. **"Add task" inline per project in sidebar** (hover +).
-30. **Settings / preferences panel** — theme, start-of-week, default priority, etc.
-31. **Dark mode**.
-32. **Productivity / Karma stats** — tasks completed per day, streaks, charts.
-33. **Onboarding / empty-state illustrations** — ours has a basic empty state.
+| | Feature | Where |
+|---|---|---|
+| ✅ | Multi-select (Ctrl/Cmd-click), range select (Shift-click) | Task list |
+| ✅ | Batch complete / prioritise / move / delete, undoable | Batch bar |
+| ✅ | Right-click context menu with reschedule shortcuts | Task rows, board cards |
+| ✅ | Undo and redo (Ctrl+Z / Ctrl+Shift+Z) | Toasts, keyboard |
 
-## Data & robustness
+## Shell
 
-34. **Import/Export (JSON backup)** — important since data is in LocalStorage; one cleared cache = gone.
-35. **Multi-device sync / auth** — explicitly skipped (needs backend).
-36. **Data validation / schema migration** — if the shape changes, old LocalStorage data could break.
-37. **Accessibility** — ARIA labels, focus trapping in modals, keyboard nav for the task list, screen-reader announcements.
-38. **Multi-tab sync** — `storage` event listener so two tabs stay in sync.
+| | Feature | Where |
+|---|---|---|
+| ✅ | Responsive layout, off-canvas sidebar on phones | Everywhere |
+| ✅ | Dark mode, system theme | Settings |
+| ✅ | Settings (theme, week start, default priority/reminder) | Sidebar → gear |
+| ✅ | Deep links (`#/today?q=p1`), back/forward | Address bar |
+| ✅ | Installable PWA, works offline | Manifest + service worker |
+| ✅ | Export: JSON, CSV, Markdown, ICS | Sidebar → Export |
+| ✅ | Import a JSON backup, with a pre-import safety copy | Sidebar → Import |
+| ✅ | Multi-tab sync | Storage adapter change channel |
+| ✅ | Undo toasts, completion and view animations | Everywhere |
+| ✅ | Keyboard shortcuts with a `?` overlay | `?` |
+| ⬜ | Karma / productivity stats | — |
+| ⬜ | Accessibility: arrow-key list navigation, screen-reader announcements | — |
+| ⬜ | Print stylesheet | — |
+| ⬜ | Dark mode for exported images / ICS | — |
+| ⬜ | i18n (strings and date formats are US-English) | — |
 
-## Polish
+## Data and storage
 
-39. **Animations** — completing a task doesn't animate out; no smooth transitions on view change.
-40. **Context menu (right-click)** on tasks.
-41. **Toast notifications** with undo.
-42. **Responsive mobile layout** — sidebar toggle exists but the main layout isn't fully mobile-optimized.
+| | Feature | Where |
+|---|---|---|
+| ✅ | Local-first storage behind a swappable adapter | `storage.js` |
+| ✅ | Schema versioning with migrations (v1 → v4) | `MIGRATIONS` |
+| ✅ | Blobs (files) in IndexedDB | `store.putBlob` |
+| ⬜ | State document in IndexedDB (the 5 MB `localStorage` cap remains) | — |
+| ⬜ | Closed-tab reminders via the service worker | — |
 
----
+## Deliberately out of scope (needs a backend)
 
-### My honest take on priorities if you want "1:1 important features"
-The highest-impact **missing** items are:
-
-- **#13 Project/label edit + delete** (currently add-only — a real hole)
-- **#2 Time-of-day on due dates** (affects display + sorting everywhere)
-- **#1 Recurring tasks** (defining Todoist feature)
-- **#5 Upcoming grouped by day** (visual parity with real Todoist)
-- **#16 Undo + #41 toasts** (safety net)
-- **#34 Export/Import JSON** (protects user data)
-- **#25 Completed tasks view**
-- **#38 Multi-tab sync** (trivial, high value)
+Accounts and auth, multi-device sync with conflict resolution, shared
+projects and assignees, server-side reminder scheduling, Web Push, object
+storage for shared attachments, and server-side search. See `later.md`.

@@ -467,6 +467,71 @@ h1, h2, h3 {
 [data-theme="dark"] .batch-menu-item { color: #e6e6e6 !important; }
 [data-theme="dark"] .batch-menu-item:hover { background: #242424 !important; }
 
+/* ---------- Priority markers (shape, not just colour) ---------- */
+.prio-marker {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.prio-1 { border-radius: 2px; background: #db4c3f; }
+.prio-2 { border-radius: 999px; background: #eb8909; }
+.prio-3 { border-radius: 999px; background: transparent; border: 2px solid #246fe0; }
+
+/* ---------- Print ---------- */
+@media print {
+  aside,
+  .app-topbar,
+  #quick-add-bar,
+  #batch-bar,
+  #sidebar-backdrop,
+  #toast-container,
+  .task-actions,
+  .meta-chip,
+  #empty-cta,
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  #app {
+    display: block !important;
+    height: auto !important;
+  }
+
+  main,
+  main > .flex-1 {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #content-container {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .task-row {
+    break-inside: avoid;
+    border-bottom: 1px solid #ddd !important;
+  }
+
+  .task-title {
+    color: #000 !important;
+  }
+
+  .empty-illustration { display: none !important; }
+}
+
 /* ---------- Dark theme ----------
    Tailwind compiles the palette to literals, so the dark theme remaps the
    utilities the app actually uses. Accent colours (priority, projects) stay

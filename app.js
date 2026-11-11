@@ -402,6 +402,17 @@ function dueSortValue(t) {
 function priorityColor(p) {
   return { 1: '#db4c3f', 2: '#eb8909', 3: '#246fe0', 4: '#999999' }[p] || '#999999';
 }
+/**
+ * Priorities are also marked with a shape, so the level is readable
+ * without relying on colour (red and orange are hard to tell apart for
+ * some colour-blind users).
+ */
+function priorityMarker(p) {
+  if (p === 1) return '<span class="prio-marker prio-1" aria-hidden="true"></span>';
+  if (p === 2) return '<span class="prio-marker prio-2" aria-hidden="true"></span>';
+  if (p === 3) return '<span class="prio-marker prio-3" aria-hidden="true"></span>';
+  return '';
+}
 function priorityLabel(p) {
   return { 1: 'Priority 1', 2: 'Priority 2', 3: 'Priority 3', 4: 'Priority 4' }[p] || 'Priority 4';
 }
@@ -1285,11 +1296,40 @@ function bindSidebarSortables() {
   });
 }
 
+/* Copy and artwork for an empty list, per view. */
+const EMPTY_STATES = {
+  inbox: { title: 'Nothing in your inbox', text: 'Tasks you add without a project land here.', icon: 'inbox' },
+  today: { title: 'Nothing due today', text: 'You are all caught up for today.', icon: 'calendar-check' },
+  upcoming: { title: 'Nothing coming up', text: 'Tasks with a due date will appear here.', icon: 'calendar' },
+  completed: { title: 'No completed tasks yet', text: 'Finished tasks appear here, ready to restore.', icon: 'circle-check-big' },
+  'no-date': { title: 'Everything has a date', text: 'No undated tasks right now.', icon: 'calendar-x' },
+  'no-priority': { title: 'Every task has a priority', text: 'No P4 tasks right now.', icon: 'flag' },
+  project: { title: 'No tasks in this project', text: 'Add a task to get started.', icon: 'hash' },
+  label: { title: 'No tasks with this label', text: 'Tasks with this label will show up here.', icon: 'tag' },
+  filter: { title: 'No matches', text: 'This filter matches nothing right now.', icon: 'filter' },
+  search: { title: 'No matches', text: 'Try a different word or clear the search.', icon: 'search' },
+};
+
+function currentEmptyState() {
+  const view = state.ui.view;
+  if ((state.ui.search || '').trim()) return EMPTY_STATES.search;
+  if (view.startsWith('project:')) return EMPTY_STATES.project;
+  if (view.startsWith('label:')) return EMPTY_STATES.label;
+  if (view.startsWith('filter:')) return EMPTY_STATES.filter;
+  return EMPTY_STATES[view] || { title: 'All clear', text: 'Add your first task to get started.', icon: 'clipboard-check' };
+}
+
 function showEmptyState(title, text, showCta = true) {
+  const preset = currentEmptyState();
   $('#empty-state').classList.remove('hidden');
-  $('#empty-title').textContent = title;
-  $('#empty-text').textContent = text;
+  $('#empty-title').textContent = title || preset.title;
+  $('#empty-text').textContent = text || preset.text;
   $('#empty-cta').classList.toggle('hidden', !showCta);
+  const card = $('#empty-illustration-card');
+  if (card) {
+    card.innerHTML = `<i data-lucide="${preset.icon}" class="w-7 h-7"></i>`;
+    lucide.createIcons();
+  }
 }
 
 function renderMain() {
@@ -1359,17 +1399,9 @@ function renderMain() {
       .filter(t => searchActive || !t.completed)
   ).sort((a, b) => a.completed - b.completed);
   if (!visible.length) {
-    if (state.ui.search) {
-      showEmptyState('No matches', 'Try a different word or clear the search.', false);
-    } else if (info.title === 'Today') {
-      showEmptyState('Nothing due today', 'You are all caught up for today.');
-    } else if (info.title === 'No date') {
-      showEmptyState('Everything has a date', 'No undated tasks right now.');
-    } else if (info.title === 'No priority') {
-      showEmptyState('Every task has a priority', 'No P4 tasks right now.');
-    } else {
-      showEmptyState('All clear', 'Add your first task to get started.');
-    }
+    // Each view brings its own copy and artwork.
+    if (state.ui.search) showEmptyState('', '', false);
+    else showEmptyState();
     return;
   }
 
@@ -1424,7 +1456,7 @@ function renderUpcoming(list) {
   const groups = upcomingGroups();
   if (!groups.length) {
     list.innerHTML = '';
-    showEmptyState('Nothing coming up', 'Tasks with a due date will appear here.');
+    showEmptyState();
     return;
   }
   $('#empty-state').classList.add('hidden');
@@ -1463,7 +1495,7 @@ function renderToday(list) {
   const groups = todayGroups();
   if (!groups.length) {
     list.innerHTML = '';
-    showEmptyState('Nothing due today', 'You are all caught up for today.');
+    showEmptyState();
     return;
   }
   $('#empty-state').classList.add('hidden');
@@ -1496,7 +1528,7 @@ function renderProjectSectionsView(list) {
 
   if (!groups.length) {
     list.innerHTML = '';
-    showEmptyState('No tasks', 'Add a task to this project to get started.');
+    showEmptyState();
     return;
   }
   $('#empty-state').classList.add('hidden');
@@ -1530,7 +1562,7 @@ function completionDayLabel(key) {
 function renderCompleted(list) {
   const tasks = completedTasks();
   if (!tasks.length) {
-    showEmptyState('No completed tasks yet', 'Finished tasks will appear here, ready to restore.', false);
+    showEmptyState('', '', false);
     return;
   }
   $('#empty-state').classList.add('hidden');
@@ -1620,7 +1652,7 @@ function renderBoardCard(t) {
           style="border-color:${priorityColor(t.priority)}" title="Complete task">
         </button>
         <div class="flex-1 min-w-0">
-          <div class="task-title cursor-pointer text-sm font-medium">${highlightHtml(t.title, searchTerm())}</div>
+          <div class="task-title cursor-pointer text-sm font-medium">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
@@ -1735,11 +1767,13 @@ function renderTaskRow(t, isSub, opts = {}) {
     <li class="task-row group" data-task-id="${t.id}">
       <div class="flex items-start gap-2 py-2 px-1 border-b border-gray-100 hover:bg-gray-50 rounded">
         <button class="task-check mt-0.5 flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center"
-          style="border-color:${t.completed ? '#808080' : checkColor}; ${t.completed ? 'background:#808080;' : ''}">
+          style="border-color:${t.completed ? '#808080' : checkColor}; ${t.completed ? 'background:#808080;' : ''}"
+          title="${t.completed ? 'Reopen task' : 'Complete task'} · ${priorityLabel(t.priority)}"
+          aria-label="${t.completed ? 'Reopen task' : 'Complete task'} · ${priorityLabel(t.priority)}">
           ${t.completed ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : ''}
         </button>
         <div class="task-content flex-1 min-w-0">
-          <div class="task-title cursor-pointer text-sm ${completedClass}">${highlightHtml(t.title, searchTerm())}</div>
+          <div class="task-title cursor-pointer text-sm ${completedClass}">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${parentBadge}${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
@@ -1858,6 +1892,16 @@ function openContextMenu(taskId, x, y) {
     sep();
   }
 
+  const labels = state.labels.slice(0, 8);
+  if (labels.length) {
+    header('Labels');
+    item('label-none', 'Clear labels', 'tag', { checked: !(t.labels || []).length });
+    labels.forEach(l => {
+      item(`label-${l.id}`, `@${l.name}`, 'tag', { checked: (t.labels || []).includes(l.id), color: l.color });
+    });
+    sep();
+  }
+
   item('edit', 'Edit task', 'pencil');
   item('delete', 'Delete task', 'trash-2', { danger: true });
 
@@ -1893,6 +1937,21 @@ function runContextAction(action, id) {
     saveState();
     render();
     showToast(`Priority ${p}`, 'info');
+    return;
+  }
+
+  if (action.startsWith('label-')) {
+    const labelId = action.slice('label-'.length);
+    const current = t.labels || [];
+    const next = labelId === 'none'
+      ? []
+      : (current.includes(labelId) ? current.filter(x => x !== labelId) : [...current, labelId]);
+    if (next.length === current.length) return;
+    const snapshot = snapshotData();
+    t.labels = next;
+    saveState();
+    render();
+    offerUndo(next.length ? `Label @${labelName(labelId)} added` : 'Label removed', snapshot);
     return;
   }
 

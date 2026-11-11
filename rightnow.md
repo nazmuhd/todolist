@@ -20,9 +20,9 @@ with `[ ]`; `[~]` means partly done.
 - [x] **Custom / saved filters** — save the current search as a named filter
       from the sidebar ("My filters"), with counts, rename and delete.
 - [x] **Per-view sorting** — manual, due date, priority, name, date added.
-- [ ] **Sections inside projects** — sections exist (schema v4) and the project
-      view groups tasks under them, but there is no "move to section" drag or
-      a section filter yet.
+- [x] **Sections inside projects** — sections exist (schema v4), the project
+      view groups tasks under them and the task dialog can pick one; a
+      "move to section" drag and a section filter are still open.
 
 ## 2. Task detail
 
@@ -47,7 +47,8 @@ with `[ ]`; `[~]` means partly done.
 - [x] **Clickable chips in quick add** — date, repeat, priority, project and
       label chips open inline pickers.
 - [~] **"Move to project / label" action** — available from the context menu
-      and the batch bar; "move to label" is still missing.
+      and the batch bar; "move to label" was added to the context menu, but
+      there is still no drag between labels.
 - [x] **Sidebar drag-reorder** of projects and labels.
 - [x] **Undo for edits, plus redo** (Ctrl/Cmd+Shift+Z).
 
@@ -64,10 +65,13 @@ with `[ ]`; `[~]` means partly done.
       exist, task rows are selectable by keyboard. Still missing: arrow-key
       navigation of the task list, screen-reader announcements on complete.
 - [x] **Export formats** — JSON, CSV, Markdown and ICS.
-- [ ] **Print stylesheet**.
+- [x] **Print stylesheet** — the sidebar, header, quick-add and row actions
+      are hidden on paper; the task list prints cleanly.
 - [ ] **i18n** — all strings and date formats are hardcoded US-English.
-- [ ] **Storage hardening** — everything still lives in `localStorage`
-      (~5 MB cap); IndexedDB would remove that ceiling.
+- [~] **Storage hardening** — everything goes through the storage adapter and
+      blobs already live in IndexedDB, but the **state document** is still in
+      `localStorage` (~5 MB cap). Moving it is now a small change inside
+      `LocalStore` only, because the interface is already asynchronous.
 - [ ] **Closed-tab reminders** — the service worker is in place but does not
       schedule notifications yet.
 
@@ -79,8 +83,9 @@ with `[ ]`; `[~]` means partly done.
       "Scroll for more" hint while columns are off-screen.
 - [x] The Today view lists overdue work in its own group.
 - [ ] "This occurrence" vs "entire series" editing for repeating tasks.
-- [ ] Priority colours are not colour-blind safe.
-- [ ] Empty states are generic — no per-view illustration or copy.
+- [x] Priority levels carry a **shape** as well as a colour (square, dot,
+      ring) so they are readable without colour vision.
+- [x] Empty states are per view, each with its own copy and artwork.
 - [ ] No skeleton/loading states.
 
 ---
