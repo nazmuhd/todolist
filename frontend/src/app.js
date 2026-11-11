@@ -1,12 +1,15 @@
 import './styles.css';
-import { settings, uid } from './core/app.js';
+import { settings, uid, $, $$ } from './core/app.js';
 import { store } from './core/store.js';
-import { parseDate, toISODate, todayISO, daysFromToday, prevDayISO, nextWeekdayISO, formatDateShort, formatDue, formatDuration, isTaskOverdue, dueSortValue, reminderFireDate, cleanDuration } from './core/dates.js';
+import { parseDate, toISODate, todayISO, daysFromToday, prevDayISO, formatDateShort, formatDue, formatDuration, isTaskOverdue, dueSortValue, reminderFireDate, cleanDuration, DATE_RE } from './core/dates.js';
 import { SCHEMA_VERSION, MIGRATIONS, defaultState, migrateState, state, setState } from './core/state.js';
 import { activeTasks, completedTasks, subtasksOf, addTask, toggleComplete, removeTask, deleteTask, parseRecurrenceText, recurrenceToText, firstRecurrenceISO, skipOccurrence, snoozeTask, taskReminders, priorityColor, priorityLabel, projectName, labelName } from './core/tasks.js';
 import { snapshotData, offerUndo, undoPending, redoPending, clearPendingUndo } from './core/undo.js';
 import { plural, showToast } from './core/toasts.js';
+import { queryMatcher } from './features/filters.js';
+import { showEmptyState } from './features/empty-states.js';
 
+import './styles.css';
 
 /* ============================================================
    STORAGE
@@ -159,8 +162,6 @@ function saveState() {
 /* ============================================================
    HELPERS
 ============================================================ */
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 /**
  * Priorities are also marked with a shape, so the level is readable
@@ -266,136 +267,7 @@ const QUERY_RANGES = {
   day: 1, days: 1, week: 7, weeks: 7, month: 30, months: 30,
 };
 
-function tokenizeQuery(text) {
-  const tokens = [];
-  const src = String(text || '').replace(/\bnext\s+/gi, ' ');
-  let i = 0;
-  while (i < src.length) {
-    const ch = src[i];
-    if (/\s/.test(ch)) { i++; continue; }
-    if ('&|!()'.includes(ch)) { tokens.push({ op: ch }); i++; continue; }
-
-    let word = '';
-    if (ch === '"') {
-      i++;
-      while (i < src.length && src[i] !== '"') { word += src[i]; i++; }
-      i++;
-    } else {
-      while (i < src.length && !/[\s&|!()]/.test(src[i])) { word += src[i]; i++; }
-      // "7 days" / "2 weeks" are a single term.
-      if (/^\d+$/.test(word)) {
-        const um = /^\s*(days|day|weeks|week|months|month)/i.exec(src.slice(i));
-        if (um) { word += ' ' + um[1].toLowerCase(); i += um[0].length; }
-      }
-    }
-    if (word) tokens.push({ word });
-  }
-  return tokens;
-}
-
-function queryTermPredicate(word) {
-  const w = String(word || '').trim().toLowerCase();
-  if (!w) return () => true;
-
-  if (/^p[1-4]$/.test(w)) {
-    const p = Number(w[1]);
-    return t => t.priority === p;
-  }
-  if (w.startsWith('#')) {
-    const name = w.slice(1);
-    return t => {
-      const proj = state.projects.find(p => p.name.toLowerCase() === name);
-      const wanted = proj ? proj.id : name;
-      return String(t.projectId || '').toLowerCase() === wanted.toLowerCase();
-    };
-  }
-  if (w.startsWith('@')) {
-    const name = w.slice(1);
-    return t => {
-      const lbl = state.labels.find(l => l.name.toLowerCase() === name);
-      const wanted = lbl ? lbl.id : name;
-      return (t.labels || []).some(lid => String(lid).toLowerCase() === wanted.toLowerCase());
-    };
-  }
-  if (w === 'has:date') return t => !!t.due;
-  if (w === 'no:date') return t => !t.due;
-  if (w === 'has:project') return t => !!t.projectId;
-  if (w === 'no:project') return t => !t.projectId;
-  if (w === 'has:label') return t => (t.labels || []).length > 0;
-  if (w === 'has:priority') return t => t.priority < 4;
-
-  const range = /^(\d+)\s*(days|day|weeks|week|months|month)$/.exec(w);
-  if (range) {
-    const days = QUERY_RANGES[range[2]] * Number(range[1]);
-    return t => !!t.due && t.due >= todayISO() && t.due <= daysFromToday(days);
-  }
-  if (QUERY_DATE_TERMS[w]) return QUERY_DATE_TERMS[w];
-  if (QUERY_WEEKDAYS.includes(w)) {
-    const target = nextWeekdayISO(w);
-    return t => t.due === target;
-  }
-  return t => `${t.title} ${t.description || ''}`.toLowerCase().includes(w);
-}
-
-/** Parses a query into a predicate. | = or, & / spaces = and, ! = not. */
-function parseQuery(text) {
-  const tokens = tokenizeQuery(text);
-  let pos = 0;
-  const peek = () => tokens[pos];
-
-  function parseOr() {
-    let left = parseAnd();
-    while (peek() && peek().op === '|') {
-      pos++;
-      const right = parseAnd();
-      const l = left;
-      left = t => l(t) || right(t);
-    }
-    return left;
-  }
-  function parseAnd() {
-    let left = parseUnary();
-    while (peek() && (peek().word || peek().op === '&' || peek().op === '!')) {
-      if (peek().op === '&') pos++;
-      const right = parseUnary();
-      const l = left;
-      left = t => l(t) && right(t);
-    }
-    return left;
-  }
-  function parseUnary() {
-    if (peek() && peek().op === '!') {
-      pos++;
-      const inner = parseUnary();
-      return t => !inner(t);
-    }
-    return parseTerm();
-  }
-  function parseTerm() {
-    const tok = peek();
-    if (!tok) return () => true;
-    if (tok.op === '(') {
-      pos++;
-      const inner = parseOr();
-      if (peek() && peek().op === ')') pos++;
-      return inner;
-    }
-    if (tok.op === ')') { pos++; return () => true; }
-    pos++;
-    return queryTermPredicate(tok.word || '');
-  }
-  if (!tokens.length) return () => true;
-  return parseOr();
-}
-
 // The parsed query is cached; it only changes when the text changes.
-let queryCache = { text: null, fn: null };
-function queryMatcher(text) {
-  const key = String(text || '');
-  if (queryCache.text === key) return queryCache.fn;
-  queryCache = { text: key, fn: parseQuery(key) };
-  return queryCache.fn;
-}
 
 /* ============================================================
    CALENDAR (month grid)
@@ -1041,40 +913,6 @@ function bindSidebarSortables() {
 }
 
 /* Copy and artwork for an empty list, per view. */
-const EMPTY_STATES = {
-  inbox: { title: 'Nothing in your inbox', text: 'Tasks you add without a project land here.', icon: 'inbox' },
-  today: { title: 'Nothing due today', text: 'You are all caught up for today.', icon: 'calendar-check' },
-  upcoming: { title: 'Nothing coming up', text: 'Tasks with a due date will appear here.', icon: 'calendar' },
-  completed: { title: 'No completed tasks yet', text: 'Finished tasks appear here, ready to restore.', icon: 'circle-check-big' },
-  'no-date': { title: 'Everything has a date', text: 'No undated tasks right now.', icon: 'calendar-x' },
-  'no-priority': { title: 'Every task has a priority', text: 'No P4 tasks right now.', icon: 'flag' },
-  project: { title: 'No tasks in this project', text: 'Add a task to get started.', icon: 'hash' },
-  label: { title: 'No tasks with this label', text: 'Tasks with this label will show up here.', icon: 'tag' },
-  filter: { title: 'No matches', text: 'This filter matches nothing right now.', icon: 'filter' },
-  search: { title: 'No matches', text: 'Try a different word or clear the search.', icon: 'search' },
-};
-
-function currentEmptyState() {
-  const view = state.ui.view;
-  if ((state.ui.search || '').trim()) return EMPTY_STATES.search;
-  if (view.startsWith('project:')) return EMPTY_STATES.project;
-  if (view.startsWith('label:')) return EMPTY_STATES.label;
-  if (view.startsWith('filter:')) return EMPTY_STATES.filter;
-  return EMPTY_STATES[view] || { title: 'All clear', text: 'Add your first task to get started.', icon: 'clipboard-check' };
-}
-
-function showEmptyState(title, text, showCta = true) {
-  const preset = currentEmptyState();
-  $('#empty-state').classList.remove('hidden');
-  $('#empty-title').textContent = title || preset.title;
-  $('#empty-text').textContent = text || preset.text;
-  $('#empty-cta').classList.toggle('hidden', !showCta);
-  const card = $('#empty-illustration-card');
-  if (card) {
-    card.innerHTML = `<i data-lucide="${preset.icon}" class="w-7 h-7"></i>`;
-    lucide.createIcons();
-  }
-}
 
 function renderMain() {
   const info = getViewInfo();

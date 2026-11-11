@@ -4,6 +4,9 @@
  * Modules import these instead of relying on globals. The objects are
  * mutated in place so every importer always sees the current value.
  */
+export const $ = (sel, root = document) => root.querySelector(sel);
+export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
 export const settings = {
   theme: 'system',
   startOfWeek: 'mon',
