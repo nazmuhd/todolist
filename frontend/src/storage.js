@@ -240,68 +240,186 @@ const CHANNEL = 'todoist-clone-store';
     }
   }
 
+  /** Local document that remembers which server revision we last saw. */
+  const STATE_META = 'todoist-clone-state-meta';
+
   /**
-   * The backend shape, ready to be filled in. Keeping it here means the
-   * swap is: `const store = new ApiStore({ token })`.
+   * Local-first store backed by the API.
+   *
+   * Every write lands in the local IndexedDB cache first, so the app keeps
+   * working offline and the service worker can still read the reminder index.
+   * Server calls are best-effort: a failed request never blocks a save, and
+   * the next boot pulls whatever the server has.
+   *
+   * The API is a single-user document store for now:
+   *   GET/PUT /state, GET/PUT/DELETE /docs/:key, GET/PUT/DELETE /blobs/:key
    */
-  class ApiStore extends BaseStore {
+  class ApiStore extends LocalStore {
     constructor({ baseUrl = '/api', token = null, keys } = {}) {
       super(keys);
       this.baseUrl = baseUrl;
       this.token = token;
+      this.rev = 0;
     }
 
-    async request(path, options = {}) {
-      const headers = { ...(options.headers || {}) };
+    headers(extra = {}) {
+      const headers = { ...extra };
       if (this.token) headers.Authorization = `Bearer ${this.token}`;
-      if (options.body !== undefined && !(options.body instanceof Blob)) {
-        headers['Content-Type'] = 'application/json';
+      return headers;
+    }
+
+    /** One HTTP call. Throws only when the network itself fails. */
+    request(path, { method = 'GET', json, body, headers } = {}) {
+      const allHeaders = this.headers(headers);
+      if (json !== undefined) {
+        allHeaders['Content-Type'] = 'application/json';
+        body = JSON.stringify(json);
       }
-      const response = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      return response;
+      return fetch(`${this.baseUrl}${path}`, { method, body, headers: allHeaders });
+    }
+
+    /** A request that returns null instead of throwing when offline. */
+    async send(path, options) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
+      try {
+        return await this.request(path, options);
+      } catch {
+        return null;
+      }
+    }
+
+    /** Reads a JSON response, or null for a network/HTML/empty response. */
+    async jsonBody(response) {
+      if (!response || !response.ok) return null;
+      const type = response.headers.get('content-type') || '';
+      if (!type.includes('application/json')) return null;
+      try {
+        return await response.json();
+      } catch {
+        return null;
+      }
+    }
+
+    async rememberRev() {
+      try { await super.setDoc(STATE_META, { rev: this.rev }); } catch {}
+    }
+
+    /** Serialises pushes so two quick saves cannot race their own baseRev. */
+    pushState(state) {
+      this._pushQueue = (this._pushQueue || Promise.resolve())
+        .then(() => this._pushStateNow(state))
+        .catch(() => {});
+      return this._pushQueue;
+    }
+
+    async _pushStateNow(state) {
+      let response = await this.send('/state', {
+        method: 'PUT',
+        json: { data: state, baseRev: this.rev },
+      });
+      if (!response) return;
+
+      if (response.status === 409) {
+        // Another tab wrote first. Rebase and keep the local edit: single-user
+        // last-write-wins is enough until per-entity sync arrives.
+        const current = await this.jsonBody(await this.send('/state'));
+        if (!current) return;
+        this.rev = current.rev;
+        response = await this.send('/state', {
+          method: 'PUT',
+          json: { data: state, baseRev: this.rev },
+        });
+      }
+
+      const body = await this.jsonBody(response);
+      if (body && typeof body.rev === 'number') {
+        this.rev = body.rev;
+        await this.rememberRev();
+      }
     }
 
     async loadState() {
-      const response = await this.request('/state');
-      return response.json();
+      const meta = await super.getDoc(STATE_META);
+      this.rev = meta && Number.isInteger(meta.rev) ? meta.rev : 0;
+
+      const local = await super.loadState();
+      const remote = await this.jsonBody(await this.send('/state'));
+
+      if (remote && remote.data) {
+        if (remote.rev > this.rev || !local) {
+          // The server is ahead (or this is a fresh device): adopt it.
+          this.rev = remote.rev;
+          await super.saveState(remote.data);
+          await this.rememberRev();
+          return remote.data;
+        }
+        if (this.rev > remote.rev && local) {
+          // We have unsynced offline edits: push them.
+          this.pushState(local);
+        }
+      } else if (local && this.rev === 0) {
+        // First run against an empty server: seed it.
+        this.pushState(local);
+      }
+
+      return local ?? null;
     }
 
     async saveState(state) {
-      await this.request('/state', { method: 'PUT', body: JSON.stringify(state) });
-      this.notifyPeers(this.keys.state);
+      await super.saveState(state);
+      await this.pushState(state);
     }
 
     async backupState(tag) {
-      await this.request(`/state/backup/${tag}`, { method: 'POST' }).catch(() => {});
+      await super.backupState(tag);
+      await this.send(`/state/backup/${encodeURIComponent(tag)}`, { method: 'POST' });
     }
 
     async getDoc(key) {
-      const response = await this.request(`/docs/${encodeURIComponent(key)}`);
-      return response.json();
+      const local = await super.getDoc(key);
+      if (local !== null) return local;
+
+      const body = await this.jsonBody(await this.send(`/docs/${encodeURIComponent(key)}`));
+      if (!body || body.data == null) return null;
+      try { await super.setDoc(key, body.data); } catch {}
+      return body.data;
     }
 
     async setDoc(key, value) {
-      await this.request(`/docs/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(value) });
-      this.notifyPeers(key);
+      await super.setDoc(key, value);
+      await this.send(`/docs/${encodeURIComponent(key)}`, { method: 'PUT', json: { data: value } });
     }
 
     async putBlob(id, blob) {
-      await this.request(`/files/${encodeURIComponent(id)}`, { method: 'PUT', body: blob });
+      await super.putBlob(id, blob);
+      await this.send(`/blobs/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': blob.type || 'application/octet-stream',
+          'X-File-Name': encodeURIComponent(blob.name || ''),
+        },
+        body: blob,
+      });
     }
 
     async getBlob(id) {
-      const response = await this.request(`/files/${encodeURIComponent(id)}`);
-      return response.blob();
+      const local = await super.getBlob(id);
+      if (local) return local;
+
+      const response = await this.send(`/blobs/${encodeURIComponent(id)}`);
+      if (!response || !response.ok) return null;
+      const blob = await response.blob();
+      try { await super.putBlob(id, blob); } catch {}
+      return blob;
     }
 
     async deleteBlob(id) {
-      await this.request(`/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await super.deleteBlob(id);
+      await this.send(`/blobs/${encodeURIComponent(id)}`, { method: 'DELETE' });
     }
 
     async listBlobs() {
-      const response = await this.request('/files');
-      return response.json();
+      return super.listBlobs();
     }
   }
 

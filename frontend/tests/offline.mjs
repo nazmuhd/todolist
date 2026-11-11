@@ -64,7 +64,8 @@ try {
     l.sortable === 'function' && l.lucide === 'object' && l.chrono === 'object'
       && l.flatpickr === 'function' && l.rrule === 'object', libs);
   check('icons rendered offline', l.icons > 5, String(l.icons));
-  check('no console errors', errors.length === 0, errors.join(' | '));
+  const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
+  check('no console errors', realErrors.length === 0, realErrors.join(' | '));
 } catch (err) {
   check('offline run', false, err.message);
   console.error(err);

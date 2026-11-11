@@ -1,9 +1,10 @@
 /**
  * The storage adapter.
  *
- * One singleton for the whole app: swapping LocalStore for ApiStore (a
- * backend) is a one-line change here and nothing else.
+ * One singleton for the whole app. ApiStore extends LocalStore: writes go to
+ * IndexedDB first (so the app stays local-first and works offline) and sync to
+ * the API best-effort. If the API is unreachable, everything still works.
  */
-import { LocalStore } from '../storage.js';
+import { ApiStore } from '../storage.js';
 
-export const store = new LocalStore();
+export const store = new ApiStore();

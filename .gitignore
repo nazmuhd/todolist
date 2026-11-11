@@ -12,8 +12,11 @@ server/dist/
 frontend/dist/
 *.tsbuildinfo
 
-# Supabase CLI
-supabase/.temp/
+# SQLite data
+server/data/
+*.db
+*.db-wal
+*.db-shm
 
 # Logs and OS
 *.log

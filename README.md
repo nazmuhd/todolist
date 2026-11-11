@@ -17,8 +17,8 @@ todoist/
 │   │   └── views/            list · board · calendar · karma · sidebar
 │   └── public/               service worker, manifest, icon, vendor libraries
 ├── server/                   the API (Node + Express, pnpm, TypeScript)
-│   ├── database/supabase/    migrations, seed, schema
-│   ├── src/                  the express app
+│   ├── database/sqlite/      numbered SQL migrations
+│   ├── src/                  the express app, SQLite repository and routes
 │   └── tests/
 ├── docs/                     architecture plan and notes
 └── start.bat                 boots the server (app + API)
@@ -62,20 +62,26 @@ the main flows; `pnpm test:offline` loads the app once, switches the network
 off and verifies the reload still boots from the service-worker cache.
 
 A plain static server (`python -m http.server` inside `frontend/dist`) still
-works for the app alone, but then the API is a different origin.
+works for the app alone: the API is unavailable there, so the app simply stays
+local-only in that browser.
 
 ## The API (optional)
 
-The app works fully offline on its own — the API only adds multi-device sync,
-shared projects and reliable push reminders. See `docs/architecture.md` for the
-design.
+The app works fully offline on its own — the API only adds persistence beyond
+this browser and, later, multi-device sync and push reminders. It is a
+**single-user SQLite store with no auth yet** (whole-state sync, side documents
+and attachments). See `docs/architecture.md` for the design.
 
 ```bash
 cd server
-cp .env.example .env      # fill in your Supabase project
-pnpm migrate              # apply server/database/supabase/migrations
+cp .env.example .env      # optional; DATABASE_PATH defaults to ./data/todoist.db
+pnpm migrate              # also applied automatically on boot
 pnpm test
 ```
+
+SQLite comes from Node's built-in `node:sqlite` (Node 24), so there is no native
+module to build. The database file and its `-wal`/`-shm` siblings are created
+on first boot and should not be committed.
 
 ## Docs
 

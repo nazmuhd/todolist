@@ -12,5 +12,10 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // When the frontend runs alone, forward the API to the Express server.
+    // The normal `start.bat` flow mounts Vite in the server, so this is unused.
+    proxy: {
+      '/api': 'http://localhost:4000',
+    },
   },
 });

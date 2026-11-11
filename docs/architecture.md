@@ -1,7 +1,8 @@
 # Architecture & reorganization plan
 
-How the repo will be organised before the Supabase work starts. This document
-is the plan — nothing below has been executed yet.
+How the repo is organised and how the backend fits in. The module split and
+the first SQLite backend are now implemented; this document records the plan
+and the decisions behind them.
 
 ---
 
@@ -12,7 +13,7 @@ is the plan — nothing below has been executed yet.
 2. The `.md` notes move into `docs/` so the app root only contains things the
    browser loads.
 3. The **storage layer stays the single seam** between the app and any backend.
-   Supabase then lands in one place (`storage.js` + a new `sync.js`), not
+   The backend then lands in one place (`storage.js` + a future `sync.js`), not
    scattered through features.
 4. No behaviour change. Every step below is shippable on its own and is
    verified with the existing headless test harness before the next step.
@@ -45,9 +46,8 @@ todoist/
 │
 ├── server/                 ← the API and worker (pnpm)
 │   ├── database/
-│   │   └── supabase/       ← migrations, functions, README
-│   │       ├── migrations/ ← numbered SQL, applied in order
-│   │       └── functions/  ← Edge Functions (reminders, push)
+│   │   └── sqlite/         ← migrations
+│   │       └── migrations/ ← numbered SQL, applied in order
 │   └── src/                ← the express app (see §10)
 │
 ├── docs/                     ← notes, not shipped
@@ -278,71 +278,57 @@ untouched and easy to compare against.
 
 ## 10. The backend: Node + Express with pnpm
 
-**Decision:** Supabase provides the *services* (Postgres, Auth, Storage) and a
-**Node + Express API** (pnpm-managed) is the single door the app talks to.
+**Decision:** the backend is a **single-user SQLite store** behind a
+**Node + Express API** (pnpm, TypeScript). Supabase has been removed, and there
+is no auth yet.
 
 ```
 todoist/
-├── src/                    ← the front-end (modules, no build step)
-├── server/                 ← the API and worker (pnpm)
-│   ├── package.json        ← "packageManager": "pnpm@9.x", engines: node >= 20
-│   ├── pnpm-lock.yaml
-│   ├── .npmrc              ← engine-strict=true, auto-install-peers=true
-│   ├── tsconfig.json
-│   ├── .env.example        ← DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-│   │                         VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, CORS_ORIGINS
+├── frontend/                       ← the app (Vite)
+├── server/                         ← the API (pnpm)
+│   ├── database/sqlite/migrations/ ← numbered SQL, applied in order
+│   ├── .env.example                ← DATABASE_PATH, PORT, CORS_ORIGINS, VAPID_*
 │   ├── src/
-│   │   ├── index.js        ← express app
-│   │   ├── server.js       ← http server + graceful shutdown
-│   │   ├── config.js       ← env parsing and validation
-│   │   ├── lib/            ← supabase admin client, pg pool, JWT verification, logger
-│   │   ├── middleware/     ← requireAuth, errorHandler, rateLimit
-│   │   ├── routes/         ← tasks, projects, labels, comments, attachments,
-│   │   │                     sync, reminders
-│   │   ├── services/       ← sync/revision logic, reminder computation, Web Push
-│   │   ├── jobs/           ← reminderWorker (the cron-like loop)
-│   │   └── db/             ← pool + migration runner
-│   └── tests/              ← node:test
-├── supabase/
-│   ├── migrations/         ← the ONE source of truth for SQL (numbered)
-│   ├── seed.sql
-│   └── functions/          ← optional Edge Functions
+│   │   ├── index.ts                ← express app
+│   │   ├── server.ts               ← http server, migrations, graceful shutdown
+│   │   ├── config.ts               ← env parsing and validation
+│   │   ├── middleware/             ← errorHandler
+│   │   ├── routes/                 ← health, state, docs, blobs
+│   │   └── db/                     ← connection, migration runner, repository
+│   └── tests/                      ← node:test
 └── docs/
 ```
 
 **Rules that keep it simple:**
 
-- **The client talks only to the Express API**, never straight to PostgREST.
-  One origin, one auth path, one place for validation — and the Supabase
-  service-role key never reaches the browser. The API also serves the static
-  app, so there is one process and one port (`http://localhost:4000`): the
-  app at `/`, the API under `/api`.
-- **Auth is Supabase Auth.** The client signs in (magic link / OAuth) and sends
-  the access token as `Authorization: Bearer …`; the API verifies it against
-  Supabase's JWKS and attaches `req.user`.
-- **Attachments bypass the API for the bytes:** the client asks
-  `POST /attachments/sign` for a presigned upload URL, uploads straight to
-  Supabase Storage, then records the metadata.
-- **Sync is per record.** Each table has a `rev` and `updated_at`; the client
-  pulls `GET /sync/changes?since=<cursor>` and pushes
-  `POST /sync/changes` with `{id, rev, patch}`. A stale `rev` comes back as a
-  conflict *for that record only*.
-- **Reminders run server-side.** The worker finds due reminders and sends Web
-  Push (VAPID); the service worker in the browser stays as the best-effort
-  fallback while the tab is closed.
-- **pnpm only for `server/`.** The front-end keeps zero npm dependencies (the
-  libraries are vendored in `vendor/`), so the two halves stay independent.
+- **The client talks only to the Express API.** The API also serves the built
+  app, so there is one process and one port (`http://localhost:4000`): the app
+  at `/`, the API under `/api`.
+- **No auth.** The server is a single-user store; every row belongs to the
+  instance. Accounts and `owner_id` columns arrive later.
+- **Whole-state sync.** A `documents` row named `state` holds the app state,
+  side documents (settings, filters, reminders) live next to it, and
+  attachments are `blobs` rows. Each row carries `rev` and `updated_at`; a
+  stale `baseRev` is a `409` for that document.
+- **The client stays local-first.** `ApiStore` extends `LocalStore`: writes go
+  to IndexedDB first, then sync best-effort. Offline use and the
+  service-worker reminder index keep working unchanged.
+- **Migrations run on boot** and through `pnpm migrate`. The SQL lives only in
+  `server/database/sqlite/migrations/`.
+- **pnpm only for `server/`.** The front-end keeps zero runtime dependencies
+  (the libraries are vendored in `public/vendor/`).
+- **SQLite via `node:sqlite`**, built into Node 24 — no native module to
+  compile on Windows.
 
 **Scripts in `server/package.json`**
 
 ```json
 {
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "dev": "node --watch --experimental-strip-types src/server.ts",
+    "start": "node --experimental-strip-types src/server.ts",
     "test": "node --test",
-    "migrate": "node src/db/migrate.js",
-    "seed": "node src/db/seed.js"
+    "migrate": "node --experimental-strip-types src/db/migrate.ts"
   }
 }
 ```
@@ -353,13 +339,14 @@ todoist/
 
 After the split, the backend lands in exactly three places:
 
-1. `server/database/supabase/migrations/*.sql` — the schema, numbered like the client's
-   `MIGRATIONS`, applied by `pnpm migrate` (the server) or the Supabase CLI.
-2. `storage.js` — a new `SupabaseStore` implementing the **existing**
-   interface (`loadState`/`saveState`/`getDoc`/`setDoc`/`putBlob`/`getBlob`/
-   `deleteBlob`/`onChange`). No feature code changes.
-3. `src/core/sync.js` — the client-side sync loop (push/pull, revisions,
-   conflicts), a new core concern with its own interface.
+1. `server/database/sqlite/migrations/*.sql` — the schema, numbered like the
+   client's `MIGRATIONS`, applied by `pnpm migrate` or on server boot.
+2. `frontend/src/storage.js` — `ApiStore` implements the **existing** interface
+   (`loadState`/`saveState`/`getDoc`/`setDoc`/`putBlob`/`getBlob`/
+   `deleteBlob`/`onChange`) on top of the local cache. No feature code changes.
+3. `frontend/src/core/sync.js` — the future per-entity sync loop (push/pull,
+   revisions, conflicts). The first iteration does whole-document
+   last-write-wins inside `ApiStore` instead.
 
 Everything else — tasks, views, modals — stays untouched. That is the whole
 point of doing this first.
@@ -390,7 +377,8 @@ point of doing this first.
 | 1 — docs moved to `docs/`, `.gitignore`, `start.bat` | **done** |
 | 0 — Vite + TypeScript (gradual), pnpm workspace, `frontend/` + `server/` | **done** |
 | — `server/` skeleton (Express + TypeScript, pnpm) with `/health`, auth middleware, migration runner | **done** |
-| — `server/database/supabase/migrations/0001_schema.sql` — tables, `rev`/`updated_at` triggers, RLS enabled | **done** |
+| — `server/database/supabase/migrations/0001_schema.sql` — tables, `rev`/`updated_at` triggers, RLS enabled | **removed** (Supabase dropped) |
+| — SQLite backend — `node:sqlite`, `0001_init.sql`, repository, `/api/state`, `/api/docs`, `/api/blobs`, `ApiStore` | **done** |
 | 2 — `src/` skeleton + `core/app.js` singletons | **done** (`core/app.js`, `core/dates.js`) |
 | 3 — extract the rest of `core/*` (state, tasks, undo, toasts) | **done** |
 | 4 — extract `features/quickadd, due-editor, task-modal` | **done** (`features/quickadd.js`, `features/due-editor.js`, `features/task-modal.js`) |

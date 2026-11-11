@@ -1,17 +1,16 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getPool, closePool } from './pool.ts';
+import { getDb, closeDb } from './index.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = resolve(here, '../../database/supabase/migrations');
+const migrationsDir = resolve(here, '../../database/sqlite/migrations');
 
 /**
- * Applies every migration in supabase/migrations in filename order, skipping
- * the ones already applied. The client has the same idea in its MIGRATIONS
- * object: each step upgrades from the previous version.
+ * Applies every migration in database/sqlite/migrations in filename order,
+ * skipping the ones already applied. Each file runs in its own transaction.
  */
-async function main() {
+export async function migrate(): Promise<void> {
   const files = (await readdir(migrationsDir))
     .filter(name => name.endsWith('.sql'))
     .sort();
@@ -21,16 +20,17 @@ async function main() {
     return;
   }
 
-  const pool = getPool();
-  await pool.query(`
+  const db = getDb();
+  db.exec(`
     create table if not exists schema_migrations (
       name       text primary key,
-      applied_at timestamptz not null default now()
+      applied_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )
   `);
 
-  const { rows } = await pool.query<{ name: string }>('select name from schema_migrations');
-  const applied = new Set(rows.map(r => r.name));
+  const applied = new Set(
+    (db.prepare('select name from schema_migrations').all() as { name: string }[]).map(r => r.name),
+  );
 
   for (const file of files) {
     if (applied.has(file)) {
@@ -38,22 +38,28 @@ async function main() {
       continue;
     }
     const sql = await readFile(join(migrationsDir, file), 'utf8');
+    db.exec('BEGIN');
     try {
-      await pool.query(sql);
-      await pool.query('insert into schema_migrations (name) values ($1)', [file]);
+      db.exec(sql);
+      db.prepare('insert into schema_migrations (name) values (?)').run(file);
+      db.exec('COMMIT');
       console.log(`ok    ${file}`);
     } catch (err) {
+      db.exec('ROLLBACK');
       console.error(`fail  ${file}`);
       throw err;
     }
   }
 }
 
-main()
-  .then(() => closePool())
-  .then(() => process.exit(0))
-  .catch(async (err) => {
-    console.error(err);
-    await closePool().catch(() => {});
-    process.exit(1);
-  });
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  migrate()
+    .then(() => closeDb())
+    .then(() => process.exit(0))
+    .catch(async (err) => {
+      console.error(err);
+      await closeDb().catch(() => {});
+      process.exit(1);
+    });
+}

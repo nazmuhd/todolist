@@ -1,15 +1,12 @@
 {
-  "pnpm": { "onlyBuiltDependencies": ["esbuild"] },
   "name": "todoist-clone",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@12.16.1",
   "engines": {
-  "pnpm": { "onlyBuiltDependencies": ["esbuild"] },
     "node": ">=23.6"
   },
   "scripts": {
-  "pnpm": { "onlyBuiltDependencies": ["esbuild"] },
     "dev": "pnpm --filter todoist-clone-server dev",
     "build": "pnpm --filter todoist-clone-frontend build",
     "start": "pnpm --filter todoist-clone-server start",

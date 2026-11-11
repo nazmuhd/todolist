@@ -5,8 +5,10 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.ts';
 import { healthRouter } from './routes/health.ts';
+import { stateRouter } from './routes/state.ts';
+import { docsRouter } from './routes/docs.ts';
+import { blobsRouter } from './routes/blobs.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
-import { requireAuth } from './middleware/requireAuth.ts';
 
 // The repository root: the app lives in frontend/.
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -30,7 +32,10 @@ export function createApp(options: { serveApp?: boolean } = {}) {
     origin: config.corsOrigins,
     credentials: true,
   }));
-  app.use(express.json({ limit: '1mb' }));
+  // Blobs arrive as a raw body; mount this before the JSON parser so a
+  // binary attachment is never interpreted as JSON.
+  app.use('/api/blobs', express.raw({ type: () => true, limit: '25mb' }));
+  app.use(express.json({ limit: '10mb' }));
 
   app.get('/info', (_req, res) => {
     res.json({ name: 'todoist-clone-server', version: 1 });
@@ -38,8 +43,10 @@ export function createApp(options: { serveApp?: boolean } = {}) {
 
   app.use('/health', healthRouter);
 
-  // The API. Everything below /api needs a signed-in user.
-  app.use('/api', requireAuth);
+  // The API. There is no auth yet: this is a single-user store.
+  app.use('/api/state', stateRouter);
+  app.use('/api/docs', docsRouter);
+  app.use('/api/blobs', blobsRouter);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
 
   if (serveApp) {

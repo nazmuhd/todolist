@@ -37,18 +37,22 @@ Reliable delivery still needs push + a backend.
 
 ## 2. Database / backend / sync
 
-Everything still lives in this browser's `localStorage` (`todoist-clone-v1`).
+The app is still local-first, but writes now sync to a single-user SQLite
+backend as well; IndexedDB stays the offline cache.
 
 Deferred:
 
-- [ ] **Backend + authentication** (accounts, login, tokens).
-- [ ] **Real database** (SQLite/Postgres or similar) instead of `localStorage`.
-- [ ] **Multi-device sync** with conflict resolution (last-write-wins is not enough
-  once tasks/subtasks/labels are edited concurrently).
-- [ ] **API layer** and pagination for large task sets.
-- [ ] **File attachments** (#9) — needs object storage in a backend, or IndexedDB
-  blobs for a local-only version.
-- [ ] **Comments / activity log** (#8) — needs persistent per-task history.
+- [x] **Backend** — Express + SQLite (`node:sqlite`), single-user, no auth.
+- [ ] **Authentication** (accounts, login, tokens) — the API is currently open
+  and single-user.
+- [x] **Real database** — the app state, side documents and attachments persist
+  in SQLite instead of only this browser's storage.
+- [ ] **Per-entity / multi-device sync** — the first backend syncs the whole
+  state document with last-write-wins. Fine-grained sync and conflict
+  resolution are still open.
+- [ ] **API pagination** for large task sets.
+- [x] **File attachments** — stored as BLOBs in SQLite and cached in IndexedDB.
+- [x] **Comments** — persisted inside the task state.
 - [ ] **Sharing / collaboration** (assignees, shared projects).
 - [ ] **Server-side reminder scheduling** (the reliable version of section 1).
 

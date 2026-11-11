@@ -1,7 +1,11 @@
 import { createApp, frontendRoot } from './index.ts';
 import { config } from './config.ts';
+import { migrate } from './db/migrate.ts';
 
 const app = createApp({ serveApp: config.isProduction });
+
+// The API is useless without its tables; apply pending migrations on boot.
+await migrate();
 
 if (!config.isProduction) {
   // Vite in middleware mode: one process, one port, hot reloading.
@@ -17,9 +21,8 @@ if (!config.isProduction) {
 const server = app.listen(config.PORT, () => {
   console.log(`todoist-clone-server listening on http://localhost:${config.PORT}`);
   if (!config.isProduction) console.log('  development mode: Vite middleware (HMR enabled)');
-  if (!config.hasSupabase) {
-    console.warn('SUPABASE_URL / SUPABASE_ANON_KEY are not set — auth is disabled.');
-  }
+  console.log(`  database: ${config.DATABASE_PATH}`);
+  if (!config.hasPush) console.log('  push notifications disabled (no VAPID keys)');
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

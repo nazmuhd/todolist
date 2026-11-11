@@ -60,8 +60,109 @@ function findBrowser() {
 }
 
 function staticServer(port) {
+  // A tiny in-memory stand-in for the API, so the UI tests stay independent
+  // of the server (which has its own tests). Real API semantics are covered
+  // in server/tests.
+  const api = { state: null, rev: 0, docs: new Map(), blobs: new Map() };
+
+  const readBody = (req) => new Promise((resolve) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+  const sendJson = (res, status, value) => {
+    res.writeHead(status, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(value));
+  };
+
+  async function handleApi(req, res, urlPath) {
+    const parts = urlPath.split('/').filter(Boolean); // ['api', ...]
+    const section = parts[1];
+    const key = parts[2] || ''; // the URL was already decoded above
+    const method = req.method || 'GET';
+
+    if (section === 'state') {
+      if (parts[2] === 'backup') {
+        sendJson(res, 201, { ok: true, tag: key });
+        return;
+      }
+      if (method === 'GET') {
+        sendJson(res, 200, { data: api.state, rev: api.rev });
+        return;
+      }
+      if (method === 'PUT') {
+        const body = JSON.parse((await readBody(req)).toString() || '{}');
+        if (body.baseRev !== undefined && body.baseRev !== api.rev) {
+          sendJson(res, 409, { error: 'conflict', rev: api.rev });
+          return;
+        }
+        api.state = body.data;
+        api.rev += 1;
+        sendJson(res, 200, { rev: api.rev });
+        return;
+      }
+    }
+
+    if (section === 'docs') {
+      if (method === 'GET') {
+        sendJson(res, 200, { data: api.docs.has(key) ? api.docs.get(key) : null, rev: 1 });
+        return;
+      }
+      if (method === 'PUT') {
+        const body = JSON.parse((await readBody(req)).toString() || '{}');
+        api.docs.set(key, body.data);
+        sendJson(res, 200, { rev: 1 });
+        return;
+      }
+      if (method === 'DELETE') {
+        api.docs.delete(key);
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+    }
+
+    if (section === 'blobs') {
+      if (!key) {
+        sendJson(res, 200, [...api.blobs.entries()].map(([id, b]) => ({
+          key: id, name: b.name, mime: b.mime, size: b.data.length, rev: 1,
+        })));
+        return;
+      }
+      if (method === 'GET') {
+        const blob = api.blobs.get(key);
+        if (!blob) { sendJson(res, 404, { error: 'not_found' }); return; }
+        res.writeHead(200, { 'content-type': blob.mime });
+        res.end(blob.data);
+        return;
+      }
+      if (method === 'PUT') {
+        const data = await readBody(req);
+        api.blobs.set(key, {
+          data,
+          mime: req.headers['content-type'] || 'application/octet-stream',
+          name: decodeURIComponent(req.headers['x-file-name'] || ''),
+        });
+        sendJson(res, 200, { key, size: data.length, rev: 1 });
+        return;
+      }
+      if (method === 'DELETE') {
+        api.blobs.delete(key);
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+    }
+
+    sendJson(res, 404, { error: 'not_found' });
+  }
+
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent(req.url.split('?')[0]);
+    if (p.startsWith('/api/')) {
+      handleApi(req, res, p).catch((err) => sendJson(res, 500, { error: String(err) }));
+      return;
+    }
     if (p === '/') p = '/index.html';
     const file = path.join(DIST, p);
     if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
