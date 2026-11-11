@@ -2070,9 +2070,15 @@ const qaEditor = $('#quick-add-editor');
 const qaInput = $('#quick-add-input');
 const qaPreview = $('#quick-add-preview');
 let quickAddDefaults = {};
+// Chip edits layered on top of what the text parser understood.
+let qaOverrides = {};
+let qaPicker = null;
 
 function openQuickAdd(defaults = {}) {
   quickAddDefaults = defaults || {};
+  qaOverrides = {};
+  qaPicker = null;
+  renderQaPicker();
   qaPlaceholder.classList.add('hidden');
   qaEditor.classList.remove('hidden');
   qaInput.value = '';
@@ -2083,6 +2089,9 @@ function openQuickAdd(defaults = {}) {
 }
 function closeQuickAdd() {
   quickAddDefaults = {};
+  qaOverrides = {};
+  qaPicker = null;
+  renderQaPicker();
   qaPlaceholder.classList.remove('hidden');
   qaEditor.classList.add('hidden');
 }
@@ -2092,6 +2101,8 @@ $('#quick-add-cancel').onclick = closeQuickAdd;
 qaInput.addEventListener('input', () => {
   qaInput.style.height = 'auto';
   qaInput.style.height = Math.min(qaInput.scrollHeight, 120) + 'px';
+  // The text is the source of truth, so chip edits are dropped on new input.
+  qaOverrides = {};
   updatePreview();
 });
 
@@ -2204,26 +2215,214 @@ function parseQuickAdd(text) {
   return { title, due, dueTime, recurrence, priority, projectId, labels };
 }
 
+/* ------------------------------------------------------------
+   QUICK ADD CHIPS + PICKERS
+   The text is the source of truth; the pickers write overrides on
+   top of what the text parser understood.
+------------------------------------------------------------ */
+function applyQaOverrides(parsed) {
+  const o = qaOverrides;
+  return {
+    ...parsed,
+    due: o.due !== undefined ? o.due : parsed.due,
+    dueTime: o.dueTime !== undefined ? o.dueTime : parsed.dueTime,
+    recurrence: o.recurrence !== undefined ? o.recurrence : parsed.recurrence,
+    priority: o.priority !== undefined ? o.priority : parsed.priority,
+    projectId: o.projectId !== undefined ? o.projectId : parsed.projectId,
+    labels: o.labels !== undefined ? o.labels : parsed.labels,
+  };
+}
+
+/** `label` is pre-escaped HTML (icon + text). */
+function qaChip(kind, icon, label, extra = '') {
+  return `<button type="button" class="qa-chip${qaPicker === kind ? ' active' : ''}" data-qa-picker="${kind}"${extra}>${label}</button>`;
+}
+
 function updatePreview() {
   const text = qaInput.value.trim();
-  if (!text) { qaPreview.innerHTML = ''; return; }
-  const p = parseQuickAdd(text);
+  if (!text) {
+    qaPreview.innerHTML = '';
+    qaOverrides = {};
+    qaPicker = null;
+    renderQaPicker();
+    return;
+  }
+  const p = applyQaOverrides(parseQuickAdd(text));
   const parts = [];
-  if (p.due) parts.push(`<span class="flex items-center gap-1 bg-gray-100 rounded px-1.5 py-0.5"><i data-lucide="calendar" class="w-3 h-3"></i>${escapeHtml(formatDue(p.due, p.dueTime))}</span>`);
-  if (p.recurrence) parts.push(`<span class="flex items-center gap-1 bg-gray-100 rounded px-1.5 py-0.5"><i data-lucide="repeat" class="w-3 h-3"></i>${escapeHtml(recurrenceToText(p.recurrence))}</span>`);
-  if (p.priority < 4) parts.push(`<span class="flex items-center gap-1 bg-gray-100 rounded px-1.5 py-0.5"><i data-lucide="flag" class="w-3 h-3" style="color:${priorityColor(p.priority)}"></i>P${p.priority}</span>`);
-  if (p.projectId) parts.push(`<span class="flex items-center gap-1 bg-gray-100 rounded px-1.5 py-0.5"><i data-lucide="hash" class="w-3 h-3"></i>${escapeHtml(projectName(p.projectId))}</span>`);
+  if (p.due) {
+    parts.push(qaChip('date', 'calendar',
+      `<i data-lucide="calendar" class="w-3 h-3"></i>${escapeHtml(formatDue(p.due, p.dueTime))}`));
+  }
+  if (p.recurrence) {
+    parts.push(qaChip('repeat', 'repeat',
+      `<i data-lucide="repeat" class="w-3 h-3"></i>${escapeHtml(recurrenceToText(p.recurrence))}`));
+  }
+  if (p.priority < 4) {
+    parts.push(qaChip('priority', 'flag',
+      `<i data-lucide="flag" class="w-3 h-3" style="color:${priorityColor(p.priority)}"></i>P${p.priority}`));
+  }
+  if (p.projectId) {
+    parts.push(qaChip('project', 'hash',
+      `<i data-lucide="hash" class="w-3 h-3"></i>${escapeHtml(projectName(p.projectId))}`));
+  }
   p.labels.forEach(lid => {
-    parts.push(`<span class="flex items-center gap-1 bg-gray-100 rounded px-1.5 py-0.5"><i data-lucide="tag" class="w-3 h-3"></i>@${escapeHtml(labelName(lid))}</span>`);
+    parts.push(qaChip('label', 'tag',
+      `<i data-lucide="tag" class="w-3 h-3"></i>@${escapeHtml(labelName(lid))}`));
   });
+
+  // Affordances for the values the text does not mention yet.
+  if (!p.due) {
+    parts.push(qaChip('date', 'calendar-plus',
+      `<i data-lucide="calendar-plus" class="w-3 h-3"></i>Add date`, ` style="color:#808080"`));
+  }
+  if (!p.projectId) {
+    parts.push(qaChip('project', 'hash',
+      `<i data-lucide="hash" class="w-3 h-3"></i>Add project`, ` style="color:#808080"`));
+  }
+  if (!p.labels.length) {
+    parts.push(qaChip('label', 'tag',
+      `<i data-lucide="tag" class="w-3 h-3"></i>Add label`, ` style="color:#808080"`));
+  }
+
   qaPreview.innerHTML = parts.join('');
   lucide.createIcons();
 }
 
+/** Renders the inline editor for the currently open chip. */
+function renderQaPicker() {
+  const box = $('#quick-add-picker');
+  if (!box) return;
+  if (!qaPicker) {
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  const p = applyQaOverrides(parseQuickAdd(qaInput.value.trim()));
+  box.classList.remove('hidden');
+
+  if (qaPicker === 'date') {
+    const d = new Date();
+    const tomorrow = new Date(d.getTime() + 86400000);
+    const nextWeek = new Date(d.getTime() + 7 * 86400000);
+    box.innerHTML = `
+      <div class="flex flex-wrap items-center gap-1 mb-2">
+        <button type="button" class="qa-pick" data-qa-date="today">Today</button>
+        <button type="button" class="qa-pick" data-qa-date="tomorrow">Tomorrow</button>
+        <button type="button" class="qa-pick" data-qa-date="next-week">Next week</button>
+        <button type="button" class="qa-pick" data-qa-date="none">No date</button>
+      </div>
+      <div class="flex items-center gap-2">
+        <input id="qa-date-input" type="date" aria-label="Due date" class="text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" value="${escapeHtml(p.due || '')}" />
+        <input id="qa-time-input" type="time" aria-label="Due time" class="text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" value="${escapeHtml(p.dueTime || '')}" />
+      </div>`;
+  } else if (qaPicker === 'project') {
+    box.innerHTML = `<div class="flex flex-wrap items-center gap-1">
+      <button type="button" class="qa-pick" data-qa-project="none" aria-pressed="${!p.projectId}">No project</button>
+      ${state.projects.map(proj => `
+        <button type="button" class="qa-pick" data-qa-project="${escapeHtml(proj.id)}" aria-pressed="${p.projectId === proj.id}">
+          <span style="color:${escapeHtml(proj.color)}">#</span>${escapeHtml(proj.name)}
+        </button>`).join('')}
+    </div>`;
+  } else if (qaPicker === 'label') {
+    box.innerHTML = state.labels.length ? `<div class="flex flex-wrap items-center gap-1">
+      ${state.labels.map(lbl => `
+        <button type="button" class="qa-pick" data-qa-label="${escapeHtml(lbl.id)}" aria-pressed="${p.labels.includes(lbl.id)}">
+          <span style="color:${escapeHtml(lbl.color)}">@</span>${escapeHtml(lbl.name)}
+        </button>`).join('')}
+    </div>` : '<span class="text-td-muted">No labels yet.</span>';
+  } else if (qaPicker === 'priority') {
+    box.innerHTML = `<div class="flex flex-wrap items-center gap-1">
+      ${[1, 2, 3, 4].map(pr => `
+        <button type="button" class="qa-pick" data-qa-priority="${pr}" aria-pressed="${p.priority === pr}">
+          <span style="color:${priorityColor(pr)}">&#9873;</span>P${pr}
+        </button>`).join('')}
+    </div>`;
+  } else if (qaPicker === 'repeat') {
+    box.innerHTML = `
+      <input id="qa-repeat-input" type="text" placeholder="e.g. every Monday" autocomplete="off"
+        class="w-full text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30"
+        value="${escapeHtml(p.recurrence ? recurrenceToText(p.recurrence) : '')}" />
+      <div class="text-[11px] text-td-muted mt-1">Leave empty for no repeat.</div>`;
+  }
+}
+
+function openQaPicker(kind) {
+  qaPicker = qaPicker === kind ? null : kind;
+  renderQaPicker();
+  updatePreview();
+}
+
+function refreshQa() {
+  updatePreview();
+  renderQaPicker();
+}
+
+$('#quick-add-preview').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-qa-picker]');
+  if (!chip) return;
+  e.preventDefault();
+  openQaPicker(chip.dataset.qaPicker);
+});
+
+$('#quick-add-picker').addEventListener('click', (e) => {
+  const dateBtn = e.target.closest('[data-qa-date]');
+  if (dateBtn) {
+    const kind = dateBtn.dataset.qaDate;
+    const d = new Date();
+    if (kind === 'today') qaOverrides.due = todayISO();
+    else if (kind === 'tomorrow') { d.setDate(d.getDate() + 1); qaOverrides.due = toISODate(d); }
+    else if (kind === 'next-week') { d.setDate(d.getDate() + 7); qaOverrides.due = toISODate(d); }
+    else { qaOverrides.due = null; qaOverrides.dueTime = null; }
+    refreshQa();
+    return;
+  }
+  const projBtn = e.target.closest('[data-qa-project]');
+  if (projBtn) {
+    const id = projBtn.dataset.qaProject;
+    qaOverrides.projectId = id === 'none' ? null : id;
+    refreshQa();
+    return;
+  }
+  const lblBtn = e.target.closest('[data-qa-label]');
+  if (lblBtn) {
+    const id = lblBtn.dataset.qaLabel;
+    const current = qaOverrides.labels !== undefined
+      ? qaOverrides.labels
+      : applyQaOverrides(parseQuickAdd(qaInput.value.trim())).labels;
+    qaOverrides.labels = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+    refreshQa();
+    return;
+  }
+  const prioBtn = e.target.closest('[data-qa-priority]');
+  if (prioBtn) {
+    qaOverrides.priority = Number(prioBtn.dataset.qaPriority);
+    refreshQa();
+  }
+});
+
+$('#quick-add-picker').addEventListener('change', (e) => {
+  if (e.target.id === 'qa-date-input') {
+    qaOverrides.due = e.target.value || null;
+    if (!e.target.value) qaOverrides.dueTime = null;
+    refreshQa();
+    return;
+  }
+  if (e.target.id === 'qa-time-input') {
+    qaOverrides.dueTime = e.target.value || null;
+    refreshQa();
+    return;
+  }
+  if (e.target.id === 'qa-repeat-input') {
+    const raw = e.target.value.trim();
+    qaOverrides.recurrence = raw ? (parseRecurrenceText(raw) || null) : null;
+    refreshQa();
+  }
+});
+
 function submitQuickAdd() {
   const text = qaInput.value.trim();
   if (!text) { closeQuickAdd(); return; }
-  const p = parseQuickAdd(text);
+  const p = applyQaOverrides(parseQuickAdd(text));
   if (!p.title) { closeQuickAdd(); return; }
   // Empty-state shortcuts can prefill context (e.g. Today adds a due date).
   if (!p.due && quickAddDefaults.due) p.due = quickAddDefaults.due;
@@ -2236,6 +2435,9 @@ function submitQuickAdd() {
   qaInput.value = '';
   qaInput.style.height = 'auto';
   qaPreview.innerHTML = '';
+  qaOverrides = {};
+  qaPicker = null;
+  renderQaPicker();
   qaInput.focus();
 }
 

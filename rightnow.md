@@ -40,8 +40,9 @@ no sync service.
       Next week/No date, Priority 1–4, Move to project, Edit and Delete.
 - [ ] **Drag a task onto a project or label in the sidebar** — SortableJS groups
       exist only inside the task list and the board.
-- [ ] **Clickable chips in quick add** — the preview chips (`Fri`, `P1`, `#Work`,
-      `@label`) are read-only; they should open the date / project / label pickers.
+- [x] **Clickable chips in quick add** — the preview chips (`Tomorrow`, `P1`, `#Work`,
+      `@label`) open inline pickers for date/time, repeat, priority, project and
+      labels; unset values show muted "Add date / project / label" chips.
 - [~] **"Move to project / label" action** — "Move to project" is available from the
       task context menu; "Move to section" still needs sections to exist.
 - [ ] **Sidebar drag-reorder** of projects and labels.

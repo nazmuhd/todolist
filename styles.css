@@ -316,6 +316,45 @@ h1, h2, h3 {
   border-radius: 2px;
 }
 
+/* ---------- Quick add chips and pickers ---------- */
+.qa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: #202020;
+  background: #f1f1f1;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.qa-chip:hover { background: #e9e9e9; border-color: #dcdcdc; }
+.qa-chip:focus-visible { outline: 2px solid #246fe0; outline-offset: 1px; }
+.qa-chip.active { background: #fff; border-color: #db4c3f; color: #db4c3f; }
+
+#quick-add-picker {
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+}
+
+.qa-pick {
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #202020;
+  background: #f6f6f6;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.qa-pick:hover { background: #ededed; }
+.qa-pick:focus-visible { outline: 2px solid #246fe0; outline-offset: 1px; }
+.qa-pick[aria-pressed="true"] { color: #fff; background: #db4c3f; border-color: #db4c3f; }
+
 /* ---------- Task context menu ---------- */
 .context-item {
   display: flex;
