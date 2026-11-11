@@ -234,7 +234,7 @@ function normalizeState(s) {
   const rawUi = s.ui && typeof s.ui === 'object' ? s.ui : {};
   let view = asText(rawUi.view) || 'inbox';
   const knownView =
-    view === 'inbox' || view === 'today' || view === 'upcoming' ||
+    view === 'inbox' || view === 'today' || view === 'upcoming' || view === 'calendar' || view === 'karma' ||
     view === 'completed' || view === 'no-date' || view === 'no-priority' ||
     (view.startsWith('project:') && projectIds.has(view.slice(8))) ||
     (view.startsWith('label:') && labelIds.has(view.slice(6))) ||
@@ -453,7 +453,7 @@ function completedTasks() {
 }
 /** Board layout is available for task lists, not grouped/archive views. */
 function supportsBoard(view = state.ui.view) {
-  return view !== 'upcoming' && view !== 'completed' && view !== 'calendar' && !(state.ui.search || '').trim();
+  return view !== 'upcoming' && view !== 'completed' && view !== 'calendar' && view !== 'karma' && !(state.ui.search || '').trim();
 }
 
 /* ============================================================
@@ -986,6 +986,90 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 /* ============================================================
+   KARMA (productivity stats)
+============================================================ */
+function prevDayISO(iso) {
+  const d = parseDate(iso);
+  d.setDate(d.getDate() - 1);
+  return toISODate(d);
+}
+
+function karmaSummary(days = 14) {
+  const byDay = new Map();
+  state.tasks.forEach(t => {
+    if (!t.completed || !t.completedAt) return;
+    const key = toISODate(new Date(t.completedAt));
+    byDay.set(key, (byDay.get(key) || 0) + 1);
+  });
+
+  const today = todayISO();
+  const weekStart = daysFromToday(-6);
+  let week = 0;
+  let total = 0;
+  byDay.forEach((n, key) => {
+    total += n;
+    if (key >= weekStart && key <= today) week += n;
+  });
+
+  // Current streak: consecutive days with a completion, ending today (or
+  // yesterday, so the streak does not break before the first task of the day).
+  let streak = 0;
+  let cursor = byDay.has(today) ? today : prevDayISO(today);
+  while (byDay.has(cursor)) {
+    streak++;
+    cursor = prevDayISO(cursor);
+  }
+
+  // Best streak: the longest run of consecutive days ever.
+  const sorted = [...byDay.keys()].sort();
+  let best = 0;
+  let run = 0;
+  let previous = null;
+  sorted.forEach(key => {
+    run = (previous && prevDayISO(key) === previous) ? run + 1 : 1;
+    if (run > best) best = run;
+    previous = key;
+  });
+
+  const series = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const iso = daysFromToday(-i);
+    series.push({
+      iso,
+      n: byDay.get(iso) || 0,
+      label: new Intl.DateTimeFormat('en', { weekday: 'narrow' }).format(parseDate(iso)),
+    });
+  }
+
+  return {
+    byDay, today: byDay.get(today) || 0, week, streak, best, total,
+    days: series,
+    max: Math.max(1, ...series.map(d => d.n)),
+  };
+}
+
+function renderKarma() {
+  const box = $('#karma-view');
+  const s = karmaSummary();
+  box.innerHTML = `
+    <div class="karma-cards">
+      <div class="karma-card"><div class="karma-num">${s.today}</div><div class="karma-label">Completed today</div></div>
+      <div class="karma-card"><div class="karma-num">${s.week}</div><div class="karma-label">Last 7 days</div></div>
+      <div class="karma-card"><div class="karma-num">${s.streak}</div><div class="karma-label">Day streak</div></div>
+      <div class="karma-card"><div class="karma-num">${s.best}</div><div class="karma-label">Best streak</div></div>
+      <div class="karma-card"><div class="karma-num">${s.total}</div><div class="karma-label">All time</div></div>
+    </div>
+    <div class="karma-heading">Last 14 days</div>
+    <div class="karma-chart">
+      ${s.days.map(d => `
+        <div class="karma-col" title="${escapeHtml(d.iso)}: ${d.n} completed">
+          <div class="karma-bar${d.n ? '' : ' empty'}" style="height:${Math.max(2, Math.round((d.n / s.max) * 100))}%"></div>
+          <span class="karma-day">${escapeHtml(d.label)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+/* ============================================================
    SETTINGS
 ============================================================ */
 const DEFAULT_SETTINGS = {
@@ -1141,6 +1225,10 @@ function getViewInfo() {
     title = 'Calendar'; icon = 'calendar-days';
     subtitle = '';
     filter = (t) => !!t.due;
+  } else if (v === 'karma') {
+    title = 'Karma'; icon = 'trophy';
+    subtitle = 'Your productivity at a glance';
+    filter = () => true;
   } else if (v === 'completed') {
     title = 'Completed'; icon = 'circle-check-big';
     subtitle = '';
@@ -1368,6 +1456,8 @@ function renderMain() {
   board.innerHTML = '';
   $('#calendar-view').classList.add('hidden');
   $('#calendar-view').innerHTML = '';
+  $('#karma-view').classList.add('hidden');
+  $('#karma-view').innerHTML = '';
   $('#empty-state').classList.add('hidden');
   $('#content-container').classList.remove('board-mode');
   $('#content-container').classList.remove('calendar-mode');
@@ -1382,6 +1472,12 @@ function renderMain() {
     $('#calendar-view').classList.remove('hidden');
     $('#content-container').classList.add('calendar-mode');
     renderCalendar();
+    return;
+  }
+  if (state.ui.view === 'karma' && !searchActive) {
+    list.classList.add('hidden');
+    $('#karma-view').classList.remove('hidden');
+    renderKarma();
     return;
   }
   if (state.ui.view === 'completed' && !searchActive) {

@@ -532,6 +532,71 @@ h1, h2, h3 {
   .empty-illustration { display: none !important; }
 }
 
+/* ---------- Karma ---------- */
+.karma-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.karma-card {
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+}
+
+.karma-num { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.karma-label { margin-top: 2px; font-size: 11px; color: #808080; }
+
+.karma-heading {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #808080;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.karma-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+  padding: 8px 4px 0;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+}
+
+.karma-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+}
+
+.karma-bar {
+  width: 100%;
+  max-width: 26px;
+  min-height: 2px;
+  background: #db4c3f;
+  border-radius: 3px 3px 0 0;
+}
+
+.karma-bar.empty { background: #f0f0f0; }
+.karma-day { font-size: 9px; color: #adadad; white-space: nowrap; }
+
+[data-theme="dark"] .karma-card,
+[data-theme="dark"] .karma-chart { background: #1c1c1c !important; border-color: #2f2f2f !important; }
+[data-theme="dark"] .karma-bar.empty { background: #2a2a2a !important; }
+[data-theme="dark"] .karma-day { color: #7a7a7a !important; }
+
 /* ---------- Dark theme ----------
    Tailwind compiles the palette to literals, so the dark theme remaps the
    utilities the app actually uses. Accent colours (priority, projects) stay

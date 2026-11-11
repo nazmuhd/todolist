@@ -57,7 +57,9 @@ with `[ ]`; `[~]` means partly done.
 
 - [x] **Dark mode** and a **settings panel** (theme, first day of the week,
       default priority, default reminder).
-- [ ] **Karma / productivity stats** — completions per day, streaks, charts.
+- [x] **Karma / productivity stats** — a Karma view with completions today, in the
+      last 7 days, the current and best streak, the all-time total and a
+      14-day bar chart.
 - [x] **Deep-linkable URLs** — `#/today?q=p1`; views are shareable and the
       browser back button works.
 - [x] **PWA / offline** — manifest, icon and a service worker; the libraries
