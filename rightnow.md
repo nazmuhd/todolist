@@ -75,8 +75,10 @@ with `[ ]`; `[~]` means partly done.
       `localStorage` cap is gone). `localStorage` remains only as a fallback
       for browsers without IndexedDB, and as the source of the one-time
       migration for older data.
-- [ ] **Closed-tab reminders** — the service worker is in place but does not
-      schedule notifications yet.
+- [x] **Closed-tab reminders** — the page writes the reminder schedule into
+      IndexedDB and the service worker re-arms its timers from it, so
+      reminders can fire after the tab is closed (best effort: browsers may stop
+      the worker at any time).
 
 ## 5. Small polish
 

@@ -332,6 +332,40 @@ function persistState() {
     console.error('Could not save data:', err);
     showToast('Could not save — browser storage may be full', 'error');
   });
+  syncReminderSchedule();
+}
+
+/* ------------------------------------------------------------
+   REMINDER SCHEDULE FOR THE SERVICE WORKER
+   The worker re-arms its timers from this list, so reminders can
+   fire after the tab is closed (best effort — browsers may stop the
+   worker at any time).
+------------------------------------------------------------ */
+function reminderSchedule() {
+  const items = [];
+  state.tasks.forEach(t => {
+    if (t.completed || !t.due) return;
+    taskReminders(t).forEach(r => {
+      const at = reminderFireDate(t, r.minutes);
+      if (!at) return;
+      items.push({
+        id: `${t.id}:${r.minutes}`,
+        taskId: t.id,
+        title: t.title,
+        at: at.getTime(),
+      });
+    });
+  });
+  return items;
+}
+
+function syncReminderSchedule() {
+  const items = reminderSchedule();
+  store.setDoc('reminders', items).catch(() => {});
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready
+    .then(reg => { if (reg.active) reg.active.postMessage({ type: 'reminders' }); })
+    .catch(() => {});
 }
 
 function saveState() {
@@ -5010,6 +5044,7 @@ async function init() {
   // Persist right away on first run, or right after a migration.
   if (loaded.storedVersion !== SCHEMA_VERSION) saveState();
 
+  syncReminderSchedule();
   startReminders();
   // Handy hook for tests and for anything that wants to wait for boot.
   window.__appReady = true;
