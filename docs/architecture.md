@@ -228,16 +228,87 @@ untouched and easy to compare against.
 
 ---
 
-## 10. How this helps the Supabase work
+## 10. The backend: Node + Express with pnpm
+
+**Decision:** Supabase provides the *services* (Postgres, Auth, Storage) and a
+**Node + Express API** (pnpm-managed) is the single door the app talks to.
+
+```
+todoist/
+├── src/                    ← the front-end (modules, no build step)
+├── server/                 ← the API and worker (pnpm)
+│   ├── package.json        ← "packageManager": "pnpm@9.x", engines: node >= 20
+│   ├── pnpm-lock.yaml
+│   ├── .npmrc              ← engine-strict=true, auto-install-peers=true
+│   ├── tsconfig.json
+│   ├── .env.example        ← DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+│   │                         VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, CORS_ORIGINS
+│   ├── src/
+│   │   ├── index.js        ← express app
+│   │   ├── server.js       ← http server + graceful shutdown
+│   │   ├── config.js       ← env parsing and validation
+│   │   ├── lib/            ← supabase admin client, pg pool, JWT verification, logger
+│   │   ├── middleware/     ← requireAuth, errorHandler, rateLimit
+│   │   ├── routes/         ← tasks, projects, labels, comments, attachments,
+│   │   │                     sync, reminders
+│   │   ├── services/       ← sync/revision logic, reminder computation, Web Push
+│   │   ├── jobs/           ← reminderWorker (the cron-like loop)
+│   │   └── db/             ← pool + migration runner
+│   └── tests/              ← node:test
+├── supabase/
+│   ├── migrations/         ← the ONE source of truth for SQL (numbered)
+│   ├── seed.sql
+│   └── functions/          ← optional Edge Functions
+└── docs/
+```
+
+**Rules that keep it simple:**
+
+- **The client talks only to the Express API**, never straight to PostgREST.
+  One origin, one auth path, one place for validation — and the Supabase
+  service-role key never reaches the browser.
+- **Auth is Supabase Auth.** The client signs in (magic link / OAuth) and sends
+  the access token as `Authorization: Bearer …`; the API verifies it against
+  Supabase's JWKS and attaches `req.user`.
+- **Attachments bypass the API for the bytes:** the client asks
+  `POST /attachments/sign` for a presigned upload URL, uploads straight to
+  Supabase Storage, then records the metadata.
+- **Sync is per record.** Each table has a `rev` and `updated_at`; the client
+  pulls `GET /sync/changes?since=<cursor>` and pushes
+  `POST /sync/changes` with `{id, rev, patch}`. A stale `rev` comes back as a
+  conflict *for that record only*.
+- **Reminders run server-side.** The worker finds due reminders and sends Web
+  Push (VAPID); the service worker in the browser stays as the best-effort
+  fallback while the tab is closed.
+- **pnpm only for `server/`.** The front-end keeps zero npm dependencies (the
+  libraries are vendored in `vendor/`), so the two halves stay independent.
+
+**Scripts in `server/package.json`**
+
+```json
+{
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test",
+    "migrate": "node src/db/migrate.js",
+    "seed": "node src/db/seed.js"
+  }
+}
+```
+
+---
+
+## 11. How this helps the backend work
 
 After the split, the backend lands in exactly three places:
 
 1. `supabase/migrations/*.sql` — the schema, numbered like the client's
-   `MIGRATIONS`.
+   `MIGRATIONS`, applied by `pnpm migrate` (the server) or the Supabase CLI.
 2. `storage.js` — a new `SupabaseStore` implementing the **existing**
    interface (`loadState`/`saveState`/`getDoc`/`setDoc`/`putBlob`/`getBlob`/
    `deleteBlob`/`onChange`). No feature code changes.
-3. `src/core/sync.js` — the sync loop (push/pull, per-record revisions,
+3. `src/core/sync.js` — the client-side sync loop (push/pull, revisions,
    conflicts), a new core concern with its own interface.
 
 Everything else — tasks, views, modals — stays untouched. That is the whole
@@ -245,15 +316,20 @@ point of doing this first.
 
 ---
 
-## 11. Open questions for you
+## 12. Open questions for you
 
-1. **`file://` vs a local server** — accept the server requirement (§7), or
-   keep double-click support with a tiny build step?
+1. **`file://` vs a local server** — accept the server requirement (§8), or
+   keep double-click support with a tiny build step? (With an API server in the
+   picture you need a server anyway, so this is now moot.)
 2. **Rename `todoist.html` → `index.html`?** Cleaner URLs, but it touches the
    manifest, the service worker and your deep links.
 3. **`storage.js` classic or module?** I recommend keeping it classic (§6).
 4. **Naming**: keep `app.js` as the entry point, or call it `main.js` and put
    the entry in `src/`?
+5. **Server language**: plain ESM JavaScript (no build, like the front-end) or
+   TypeScript (types for the API contract; one extra command)? I recommend
+   **TypeScript**, because a server is exactly where types pay off — but plain
+   JS keeps the "no build step anywhere" symmetry.
 
 ---
 
