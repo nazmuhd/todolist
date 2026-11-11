@@ -426,6 +426,85 @@ h1, h2, h3 {
   border-radius: 4px;
 }
 
+/* ---------- Dark theme ----------
+   Tailwind compiles the palette to literals, so the dark theme remaps the
+   utilities the app actually uses. Accent colours (priority, projects) stay
+   as they are on purpose: they must keep their meaning in both themes. */
+[data-theme="dark"] { color-scheme: dark; }
+
+[data-theme="dark"] body,
+[data-theme="dark"] .bg-td-bg { background-color: #161616 !important; color: #e6e6e6 !important; }
+
+[data-theme="dark"] .bg-white { background-color: #1c1c1c !important; }
+[data-theme="dark"] .bg-td-sidebar { background-color: #191919 !important; }
+[data-theme="dark"] .bg-gray-50 { background-color: #212121 !important; }
+[data-theme="dark"] .bg-gray-100 { background-color: #262626 !important; }
+[data-theme="dark"] .bg-red-50 { background-color: #2b1a19 !important; }
+
+[data-theme="dark"] .hover\:bg-gray-50:hover { background-color: #242424 !important; }
+[data-theme="dark"] .hover\:bg-gray-200\/60:hover { background-color: #2a2a2a !important; }
+
+[data-theme="dark"] .text-td-text { color: #e6e6e6 !important; }
+[data-theme="dark"] .text-td-muted { color: #969696 !important; }
+[data-theme="dark"] .text-td-red { color: #ef6a5e !important; }
+
+[data-theme="dark"] .border-td-border,
+[data-theme="dark"] .border-gray-100,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .divide-td-border { border-color: #2f2f2f !important; }
+
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background-color: #1f1f1f !important;
+  color: #e6e6e6 !important;
+  border-color: #333 !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder { color: #7a7a7a !important; }
+
+[data-theme="dark"] .flatpickr-calendar { background: #1c1c1c !important; color: #e6e6e6 !important; }
+[data-theme="dark"] .flatpickr-months .flatpickr-month,
+[data-theme="dark"] .flatpickr-current-month { background: #1c1c1c !important; color: #e6e6e6 !important; }
+[data-theme="dark"] .flatpickr-weekday { color: #9a9a9a !important; }
+[data-theme="dark"] .flatpickr-day { color: #dddddd !important; }
+[data-theme="dark"] .flatpickr-day:hover { background: #2a2a2a !important; }
+[data-theme="dark"] .flatpickr-day.today:hover { background: #3a2a29 !important; }
+[data-theme="dark"] .flatpickr-months .flatpickr-prev-month svg,
+[data-theme="dark"] .flatpickr-months .flatpickr-next-month svg { fill: #cfcfcf; }
+
+[data-theme="dark"] .cal-grid { background: #2f2f2f !important; border-color: #2f2f2f !important; }
+[data-theme="dark"] .cal-cell { background: #1c1c1c !important; }
+[data-theme="dark"] .cal-cell:hover { background: #212121 !important; }
+[data-theme="dark"] .cal-cell.other { background: #191919 !important; }
+[data-theme="dark"] .cal-dow,
+[data-theme="dark"] .cal-panel-head { background: #212121 !important; }
+[data-theme="dark"] .cal-panel { border-color: #2f2f2f !important; }
+[data-theme="dark"] .cal-task { background: #262626 !important; color: #e6e6e6 !important; }
+[data-theme="dark"] .cal-task:hover { background: #2f2f2f !important; }
+
+[data-theme="dark"] .qa-chip { background: #262626 !important; color: #e6e6e6 !important; }
+[data-theme="dark"] .qa-chip:hover { background: #2f2f2f !important; border-color: #3a3a3a !important; }
+[data-theme="dark"] .qa-pick { background: #242424 !important; color: #e6e6e6 !important; border-color: #333 !important; }
+[data-theme="dark"] .qa-pick:hover { background: #2e2e2e !important; }
+
+[data-theme="dark"] .context-item { color: #e6e6e6 !important; }
+[data-theme="dark"] .context-item:hover { background: #242424 !important; }
+[data-theme="dark"] .context-item.danger:hover { background: #2b1a19 !important; }
+[data-theme="dark"] .context-sep { background: #2f2f2f !important; }
+[data-theme="dark"] .context-label { color: #8a8a8a !important; }
+
+[data-theme="dark"] .layout-btn { background: #1c1c1c !important; color: #969696 !important; }
+[data-theme="dark"] .layout-btn:hover,
+[data-theme="dark"] .layout-btn-active { background: #2a2a2a !important; color: #e6e6e6 !important; }
+
+[data-theme="dark"] .day-group-header { color: #e6e6e6 !important; border-bottom-color: #2f2f2f !important; }
+[data-theme="dark"] .empty-illustration::before { background: #232323 !important; }
+[data-theme="dark"] .empty-illustration-card { background: #1c1c1c !important; }
+[data-theme="dark"] .due-preset { background: #242424 !important; color: #cfcfcf !important; border-color: #333 !important; }
+[data-theme="dark"] .due-preset:hover { background: #2e2e2e !important; color: #fff !important; }
+
 /* ---------- Calendar (month grid) ---------- */
 #content-container.calendar-mode { max-width: none; }
 

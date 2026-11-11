@@ -753,7 +753,8 @@ function renderCalendar() {
   const month = state.ui.calendarMonth || today.slice(0, 7);
   const [year, mon] = month.split('-').map(Number);
   const first = new Date(year, mon - 1, 1);
-  const offset = (first.getDay() + 6) % 7; // Monday-first grid
+  const weekStart = settings.startOfWeek === 'sun' ? 0 : 1;
+  const offset = (first.getDay() - weekStart + 7) % 7;
 
   const selected = (state.ui.calendarSelected || '').startsWith(month)
     ? state.ui.calendarSelected
@@ -790,7 +791,7 @@ function renderCalendar() {
 
     <div class="cal-scroll">
       <div class="cal-grid">
-        ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<div class="cal-dow">${d}</div>`).join('')}
+        ${(weekStart === 1 ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).map(d => `<div class="cal-dow">${d}</div>`).join('')}
         ${cells.map(c => `
           <div class="cal-cell${c.inMonth ? '' : ' other'}${c.iso === today ? ' today' : ''}${c.iso === selected ? ' selected' : ''}" data-cal-date="${c.iso}" role="button" tabindex="0" aria-label="${escapeHtml(calendarDayLabel(c.iso))}">
             <div class="cal-num">${c.num}</div>
@@ -864,6 +865,98 @@ $('#calendar-view').addEventListener('keydown', (e) => {
   saveState();
   render();
 });
+
+/* ============================================================
+   SETTINGS
+============================================================ */
+const SETTINGS_KEY = 'todoist-clone-settings';
+const DEFAULT_SETTINGS = {
+  theme: 'system',
+  startOfWeek: 'mon',
+  defaultPriority: null,
+  defaultReminder: null,
+};
+let settings = { ...DEFAULT_SETTINGS };
+
+const SETTINGS_DEFS = [
+  { key: 'theme', label: 'Theme', options: [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']] },
+  { key: 'startOfWeek', label: 'Week starts on', options: [['mon', 'Monday'], ['sun', 'Sunday']] },
+  { key: 'defaultPriority', label: 'Default priority', options: [[null, 'None'], [1, 'P1'], [2, 'P2'], [3, 'P3'], [4, 'P4']] },
+  {
+    key: 'defaultReminder',
+    label: 'Default reminder',
+    options: [[null, 'None'], [0, 'At due time'], [10, '10 min before'], [30, '30 min before'], [60, '1 hour before'], [120, '2 hours before'], [1440, '1 day before']],
+  },
+];
+
+function loadSettings() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    if (raw && typeof raw === 'object') {
+      settings = {
+        theme: ['light', 'dark', 'system'].includes(raw.theme) ? raw.theme : DEFAULT_SETTINGS.theme,
+        startOfWeek: ['mon', 'sun'].includes(raw.startOfWeek) ? raw.startOfWeek : DEFAULT_SETTINGS.startOfWeek,
+        defaultPriority: [1, 2, 3, 4].includes(raw.defaultPriority) ? raw.defaultPriority : null,
+        defaultReminder: raw.defaultReminder === null || raw.defaultReminder === undefined
+          ? null
+          : Number(raw.defaultReminder),
+      };
+    }
+  } catch {
+    settings = { ...DEFAULT_SETTINGS };
+  }
+}
+
+function persistSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
+}
+
+const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+
+function applyTheme() {
+  const theme = settings.theme === 'system' ? (darkMedia.matches ? 'dark' : 'light') : settings.theme;
+  document.documentElement.dataset.theme = theme;
+}
+
+if (darkMedia.addEventListener) darkMedia.addEventListener('change', applyTheme);
+else if (darkMedia.addListener) darkMedia.addListener(applyTheme); // older Safari
+
+const settingsModal = $('#settings-modal');
+
+function renderSettings() {
+  $('#settings-body').innerHTML = SETTINGS_DEFS.map(def => `
+    <div class="mb-4">
+      <div class="text-xs text-td-muted mb-1">${escapeHtml(def.label)}</div>
+      <div class="flex flex-wrap gap-1">
+        ${def.options.map(([value, label]) => {
+          const raw = value === null ? 'null' : String(value);
+          const active = String(settings[def.key] ?? 'null') === raw;
+          return `<button type="button" class="qa-pick" data-setting="${def.key}" data-value="${escapeHtml(raw)}" aria-pressed="${active}">${escapeHtml(label)}</button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+$('#settings-body').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-setting]');
+  if (!btn) return;
+  const key = btn.dataset.setting;
+  const raw = btn.dataset.value;
+  const def = SETTINGS_DEFS.find(d => d.key === key);
+  const option = def && def.options.find(([value]) => (value === null ? 'null' : String(value)) === raw);
+  if (!option) return;
+  settings[key] = option[0];
+  persistSettings();
+  applyTheme();
+  renderSettings();
+  render();
+});
+
+$('#settings-btn').onclick = () => {
+  renderSettings();
+  if (!settingsModal.open) settingsModal.showModal();
+};
+$('#settings-close').onclick = () => settingsModal.close();
 
 /* ============================================================
    SORTING
@@ -1875,6 +1968,12 @@ function nextOrder() {
 }
 
 function addTask(data) {
+  // Settings fill in what the caller did not specify.
+  const priority = data.priority && data.priority < 4 ? data.priority : (settings.defaultPriority || data.priority || 4);
+  const reminder = data.reminderMinutes === undefined || data.reminderMinutes === null
+    ? (settings.defaultReminder === null || settings.defaultReminder === undefined ? null : settings.defaultReminder)
+    : data.reminderMinutes;
+
   const task = {
     id: uid(),
     title: data.title || 'New task',
@@ -1883,11 +1982,11 @@ function addTask(data) {
     dueTime: cleanDueTime(data.dueTime),
     recurrence: cleanRecurrence(data.recurrence),
     reminderMinutes: cleanReminderMinutes(
-      data.reminderMinutes === undefined || data.reminderMinutes === null ? null : Number(data.reminderMinutes)
+      reminder === undefined || reminder === null ? null : Number(reminder)
     ),
     reminderFiredKey: null,
     durationMinutes: cleanDuration(data.durationMinutes),
-    priority: data.priority || 4,
+    priority,
     projectId: data.projectId || null,
     labels: data.labels || [],
     parentId: data.parentId || null,
@@ -3549,12 +3648,13 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  const dialogOpen = modal.open || projectModal.open || labelModal.open || dueModal.open || shortcutsModal.open;
+  const dialogOpen = modal.open || projectModal.open || labelModal.open || dueModal.open || shortcutsModal.open || settingsModal.open;
   if (e.key === 'Escape') {
     // Handle every case ourselves; otherwise the browser would also
     // close the dialog while we only meant to dismiss the popover.
     e.preventDefault();
     if (dueModal.open) dueModal.close();
+    else if (settingsModal.open) settingsModal.close();
     else if (shortcutsModal.open) shortcutsModal.close();
     else if (!rowMenu.classList.contains('hidden')) closeRowMenu();
     else if (!contextMenu.classList.contains('hidden')) closeContextMenu();
@@ -3734,6 +3834,8 @@ document.addEventListener('visibilitychange', () => {
    INIT
 ============================================================ */
 function init() {
+  loadSettings();
+  applyTheme();
   render();
   try { sidebarCollapsedPref = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch {}
   applySidebarState();
