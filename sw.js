@@ -1,8 +1,7 @@
 /* Offline support for the Todoist clone.
-   The app shell is cached on install; the CDN libraries (Tailwind, Lucide,
-   chrono, flatpickr, rrule, Sortable) are cached the first time they are
-   used, so the app keeps working offline after one visit. */
-const CACHE = 'todoist-clone-v1';
+   Everything the app needs is served from this origin (the libraries are
+   vendored locally), so the first visit is enough to work offline. */
+const CACHE = 'todoist-clone-v2';
 const SHELL = [
   './',
   './todoist.html',
@@ -10,6 +9,13 @@ const SHELL = [
   './styles.css',
   './manifest.webmanifest',
   './icon.svg',
+  './vendor/tailwind.js',
+  './vendor/lucide.min.js',
+  './vendor/chrono.bundle.js',
+  './vendor/flatpickr.min.js',
+  './vendor/flatpickr.min.css',
+  './vendor/rrule.min.js',
+  './vendor/sortable.min.js',
 ];
 
 self.addEventListener('install', (event) => {

@@ -15,8 +15,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<!-- Tailwind -->
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- Tailwind (self-hosted so the app works offline) -->
+<script src="vendor/tailwind.js"></script>
 <script>
   tailwind.config = {
     theme: {
@@ -45,20 +45,20 @@
 </script>
 
 <!-- SortableJS (drag reorder) -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="vendor/sortable.min.js"></script>
 
 <!-- Lucide icons -->
-<script src="https://cdn.jsdelivr.net/npm/lucide@0.408.0/dist/umd/lucide.min.js"></script>
+<script src="vendor/lucide.min.js"></script>
 
 <!-- chrono-node (natural language dates) -->
-<script src="https://cdn.jsdelivr.net/npm/chrono-node@2.5.0/dist/bundle.js"></script>
+<script src="vendor/chrono.bundle.js"></script>
 
 <!-- Flatpickr (inline calendar in the due-date dialog) -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<link rel="stylesheet" href="vendor/flatpickr.min.css" />
+<script src="vendor/flatpickr.min.js"></script>
 
 <!-- rrule (recurring tasks) -->
-<script src="https://cdn.jsdelivr.net/npm/rrule@2.8.1/dist/es5/rrule.min.js"></script>
+<script src="vendor/rrule.min.js"></script>
 
 <link rel="stylesheet" href="styles.css" />
 </head>
@@ -235,6 +235,25 @@
             <i data-lucide="plus" class="w-3.5 h-3.5"></i>Add a task
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Batch actions -->
+    <div id="batch-bar" class="hidden border-t border-td-border px-3 sm:px-6 py-2 flex-shrink-0">
+      <div class="max-w-3xl mx-auto flex items-center gap-2 text-xs flex-wrap">
+        <span id="batch-count" class="font-semibold text-td-text mr-1"></span>
+        <button type="button" id="batch-complete" class="batch-btn">Complete</button>
+        <div class="relative">
+          <button type="button" id="batch-priority" class="batch-btn">Priority</button>
+          <div id="batch-priority-menu" class="hidden absolute bottom-full mb-1 left-0 bg-white border border-td-border rounded shadow-lg z-20 w-28 py-1"></div>
+        </div>
+        <div class="relative">
+          <button type="button" id="batch-project" class="batch-btn">Project</button>
+          <div id="batch-project-menu" class="hidden absolute bottom-full mb-1 left-0 bg-white border border-td-border rounded shadow-lg z-20 w-40 py-1 max-h-60 overflow-y-auto"></div>
+        </div>
+        <button type="button" id="batch-delete" class="batch-btn danger">Delete</button>
+        <button type="button" id="batch-select-all" class="batch-btn">Select all</button>
+        <button type="button" id="batch-clear" class="batch-btn ml-auto">Clear</button>
       </div>
     </div>
 
