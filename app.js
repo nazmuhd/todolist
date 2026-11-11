@@ -11,7 +11,7 @@ const store = new TodoStore.LocalStore();
    Data lives in the browser for now (see storage.js). `version` is bumped whenever the
    shape changes; MIGRATIONS upgrades older payloads on load, so existing data is never thrown away.
 ============================================================ */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const PROJECT_COLORS = ['#246fe0', '#058527', '#db4c3f', '#eb8909', '#8a4dff', '#0f9d58'];
 const LABEL_COLORS = ['#db4c3f', '#eb8909', '#246fe0', '#058527', '#8a4dff'];
@@ -78,6 +78,14 @@ const MIGRATIONS = {
       }
       if (t.sectionId === undefined) t.sectionId = null;
       if (t.recurrenceEnd === undefined) t.recurrenceEnd = null;
+    });
+    return s;
+  },
+  // v4 -> v5 (attachments). Files live in IndexedDB; the task only keeps
+  // the metadata needed to find them again.
+  4: (s) => {
+    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
+      if (t && typeof t === 'object' && !Array.isArray(t.attachments)) t.attachments = [];
     });
     return s;
   },
@@ -207,6 +215,15 @@ function normalizeState(s) {
         .map(asText)
         .filter(d => DATE_RE.test(d)),
       recurrenceEnd: normalizeRecurrenceEnd(t.recurrenceEnd),
+      attachments: (Array.isArray(t.attachments) ? t.attachments : [])
+        .filter(a => a && typeof a === 'object' && asText(a.id))
+        .map(a => ({
+          id: asText(a.id),
+          name: asText(a.name) || 'file',
+          type: asText(a.type),
+          size: Number.isFinite(a.size) ? a.size : 0,
+          addedAt: typeof a.addedAt === 'number' ? a.addedAt : Date.now(),
+        })),
     });
   });
   // A parent must exist and can't be the task itself.
@@ -1777,6 +1794,7 @@ function renderTaskRow(t, isSub, opts = {}) {
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${parentBadge}${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
+            ${(t.attachments || []).length ? `<span class="flex items-center gap-1 text-td-muted"><i data-lucide="paperclip" class="w-3 h-3"></i>${t.attachments.length}</span>` : ''}
           </div>
           ${subs.length ? `<ul class="mt-1.5 space-y-0.5 pl-3 border-l-2 border-gray-100">
             ${subs.map(s => renderTaskRow(s, true)).join('')}
@@ -2459,11 +2477,107 @@ const priorityMenu = $('#priority-menu');
 const projectMenu = $('#project-menu');
 const labelMenu = $('#label-menu');
 
+/* ---------- Task modal: attachments ---------- */
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+// Blobs added in this dialog but not saved are cleaned up when it closes.
+const pendingAttachments = new Set();
+
+function formatFileSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderModalAttachments() {
+  const list = (modalDraft && Array.isArray(modalDraft.attachments)) ? modalDraft.attachments : [];
+  $('#modal-attachments').classList.toggle('hidden', !list.length && !editingTaskId);
+  $('#modal-attachment-list').innerHTML = list.map(a => `
+    <li class="flex items-center gap-2 text-xs">
+      <i data-lucide="paperclip" class="w-3 h-3 text-td-muted flex-shrink-0"></i>
+      <button type="button" class="flex-1 text-left truncate hover:underline" data-attachment-open="${escapeHtml(a.id)}" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</button>
+      <span class="text-td-muted flex-shrink-0">${formatFileSize(a.size)}</span>
+      <button type="button" class="text-td-muted hover:text-red-600 flex-shrink-0" data-attachment-remove="${escapeHtml(a.id)}" title="Remove attachment" aria-label="Remove attachment">
+        <i data-lucide="x" class="w-3 h-3"></i>
+      </button>
+    </li>`).join('');
+  lucide.createIcons();
+}
+
+$('#modal-attachment-add').onclick = () => $('#modal-attachment-input').click();
+
+$('#modal-attachment-input').addEventListener('change', async (e) => {
+  const files = [...(e.target.files || [])];
+  e.target.value = '';
+  if (!files.length || !modalDraft) return;
+
+  if (!Array.isArray(modalDraft.attachments)) modalDraft.attachments = [];
+  for (const file of files) {
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      showToast(`${file.name} is larger than 25 MB`, 'error');
+      continue;
+    }
+    const id = uid();
+    try {
+      await store.putBlob(id, file);
+    } catch (err) {
+      showToast(`Could not store ${file.name}`, 'error');
+      continue;
+    }
+    pendingAttachments.add(id);
+    modalDraft.attachments.push({
+      id,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      addedAt: Date.now(),
+    });
+  }
+  renderModalAttachments();
+});
+
+$('#modal-attachment-list').addEventListener('click', async (e) => {
+  const openBtn = e.target.closest('[data-attachment-open]');
+  if (openBtn) {
+    const id = openBtn.dataset.attachmentOpen;
+    try {
+      const blob = await store.getBlob(id);
+      if (!blob) { showToast('That file is no longer stored', 'error'); return; }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = (modalDraft.attachments.find(a => a.id === id) || {}).name || 'file';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      showToast('Could not open that file', 'error');
+    }
+    return;
+  }
+
+  const removeBtn = e.target.closest('[data-attachment-remove]');
+  if (!removeBtn) return;
+  const id = removeBtn.dataset.attachmentRemove;
+  modalDraft.attachments = (modalDraft.attachments || []).filter(a => a.id !== id);
+  pendingAttachments.add(id);
+  store.deleteBlob(id).catch(() => {});
+  renderModalAttachments();
+});
+
 function openTaskModal(id) {
   editingTaskId = id;
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
-  modalDraft = { ...t, labels: [...(t.labels || [])], comments: [...(t.comments || [])] };
+  // The collections are copied so editing the draft never touches the task
+  // until it is saved.
+  modalDraft = {
+    ...t,
+    labels: [...(t.labels || [])],
+    comments: [...(t.comments || [])],
+    attachments: [...(t.attachments || [])],
+  };
 
   $('#modal-title').value = t.title;
   $('#modal-desc').value = t.description || '';
@@ -2474,6 +2588,7 @@ function openTaskModal(id) {
   renderLabelMenu();
   renderModalComments();
   renderModalSections();
+  renderModalAttachments();
   modal.showModal();
   // Don't open the on-screen keyboard on phones: it would cover the dialog.
   if (!isMobileSidebar()) setTimeout(() => $('#modal-title').focus(), 50);
@@ -3116,6 +3231,9 @@ $$('.close-modal').forEach(b => b.onclick = () => modal.close());
 modal.addEventListener('close', () => {
   editingTaskId = null;
   modalDraft = null;
+  // Files added in the dialog but never saved are thrown away.
+  pendingAttachments.forEach(id => store.deleteBlob(id).catch(() => {}));
+  pendingAttachments.clear();
   if (dueModal.open) {
     dueEditorCommitted = true;
     dueModal.close();
@@ -3141,6 +3259,9 @@ $('#modal-save').onclick = () => {
   t.reminders = taskReminders(modalDraft).map(r => ({ id: r.id, minutes: r.minutes }));
   t.reminderMinutes = t.reminders.length ? t.reminders[0].minutes : null;
   t.comments = (modalDraft.comments || []).map(c => ({ ...c }));
+  t.attachments = (modalDraft.attachments || []).map(a => ({ ...a }));
+  // The files now belong to the task, so the close handler must not remove them.
+  pendingAttachments.clear();
   t.sectionId = modalDraft.sectionId || null;
   if (reminderKey(t) !== previousReminderKey) t.reminderFiredKey = null;
   if (t.reminderMinutes !== null) ensureNotificationPermission();
