@@ -306,12 +306,18 @@ todoist/
   at `/`, the API under `/api`.
 - **No auth.** The server is a single-user store; every row belongs to the
   instance. Accounts and `owner_id` columns arrive later.
-- **Whole-state sync.** A `documents` row named `state` holds the app state,
-  side documents (settings, filters, reminders) live next to it, and
-  attachments are `blobs` rows. Each row carries `rev` and `updated_at`; a
-  stale `baseRev` is a `409` for that document.
+- **Per-entity sync.** Projects, labels and tasks are separate `entities` rows,
+  each with its own `rev` and a global `seq`. `GET /api/sync?since=<cursor>`
+  returns everything after the cursor, and `POST /api/sync` pushes individual
+  records with the revision they were based on. A stale revision is a conflict
+  for that record only; the client retries with the server's revision. Deletes
+  are tombstones (`deleted = 1`), never hard deletes. Side documents (settings,
+  filters, reminders) and attachments are still `documents`/`blobs` rows.
+  `GET/PUT /api/state` remains as a whole-state compatibility endpoint over the
+  entity rows (exports/imports).
 - **The client stays local-first.** `ApiStore` extends `LocalStore`: writes go
-  to IndexedDB first, then sync best-effort. Offline use and the
+  to IndexedDB first, then sync best-effort. `core/sync.js` owns the
+  push/pull cycle and its local cursor/revision metadata. Offline use and the
   service-worker reminder index keep working unchanged.
 - **Migrations run on boot** and through `pnpm migrate`. The SQL lives only in
   `server/database/sqlite/migrations/`.
@@ -344,9 +350,10 @@ After the split, the backend lands in exactly three places:
 2. `frontend/src/storage.js` — `ApiStore` implements the **existing** interface
    (`loadState`/`saveState`/`getDoc`/`setDoc`/`putBlob`/`getBlob`/
    `deleteBlob`/`onChange`) on top of the local cache. No feature code changes.
-3. `frontend/src/core/sync.js` — the future per-entity sync loop (push/pull,
-   revisions, conflicts). The first iteration does whole-document
-   last-write-wins inside `ApiStore` instead.
+3. `frontend/src/core/sync.js` — the per-entity sync loop (push/pull,
+   per-record revisions, tombstones and conflict retries). It keeps its
+   bookkeeping (cursor, revisions, last snapshot) in local storage, never on
+   the server.
 
 Everything else — tasks, views, modals — stays untouched. That is the whole
 point of doing this first.

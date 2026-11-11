@@ -18,4 +18,5 @@ export const services = {
   updateModalChips: () => {},
   closeMetaMenus: () => {},
   syncHash: () => {},
+  scheduleSync: () => {},
 };

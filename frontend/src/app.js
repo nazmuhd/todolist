@@ -10,6 +10,7 @@ import { services } from './core/services.js';
 import { setRenderer } from './core/render.js';
 import { isKnownView, syncHash, navigateTo } from './core/router.js';
 import { startReminders } from './core/reminders.js';
+import { initSync, scheduleSync } from './core/sync.js';
 import { loadSavedFilters, initFilterEditor } from './features/filters.js';
 import { initSelection } from './features/selection.js';
 import { initCalendar } from './features/calendar.js';
@@ -75,6 +76,7 @@ services.openQuickAdd = openQuickAdd;
 services.navigateTo = navigateTo;
 services.openRowMenu = openRowMenu;
 services.syncHash = syncHash;
+services.scheduleSync = scheduleSync;
 
 /* ============================================================
    CROSS-TAB SYNC
@@ -150,6 +152,8 @@ async function init() {
 
   syncReminderSchedule();
   startReminders();
+  // Per-entity server sync runs after the first paint; it never blocks boot.
+  initSync().catch(() => {});
   // Handy hook for tests and for anything that wants to wait for boot.
   window.__appReady = true;
 }

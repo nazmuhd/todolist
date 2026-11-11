@@ -16,6 +16,7 @@ todoist/
 │   │   ├── ui/               chrome, menus, row menu
 │   │   └── views/            list · board · calendar · karma · sidebar
 │   └── public/               service worker, manifest, icon, vendor libraries
+├── e2e/                      real-server end-to-end test (Express + SQLite + browser)
 ├── server/                   the API (Node + Express, pnpm, TypeScript)
 │   ├── database/sqlite/      numbered SQL migrations
 │   ├── src/                  the express app, SQLite repository and routes
@@ -54,12 +55,16 @@ pnpm dev          # http://localhost:5173
 pnpm build        # production bundle in frontend/dist
 pnpm typecheck    # tsc --noEmit
 pnpm test         # headless smoke + offline tests (builds first)
+pnpm test:e2e     # real Express + SQLite + browser, per-entity sync
 ```
 
 The tests need a Chromium-based browser (Edge or Chrome). Set `BROWSER` to
 its executable if it is not in the usual location. `pnpm test:smoke` covers
 the main flows; `pnpm test:offline` loads the app once, switches the network
 off and verifies the reload still boots from the service-worker cache.
+`pnpm test:e2e` starts the real server against a throwaway SQLite file and
+checks that a task is pushed to `/api/sync`, pulled back by a second client
+and restored after a reload.
 
 A plain static server (`python -m http.server` inside `frontend/dist`) still
 works for the app alone: the API is unavailable there, so the app simply stays
@@ -69,7 +74,7 @@ local-only in that browser.
 
 The app works fully offline on its own — the API only adds persistence beyond
 this browser and, later, multi-device sync and push reminders. It is a
-**single-user SQLite store with no auth yet** (whole-state sync, side documents
+**single-user SQLite store with no auth yet** (per-entity sync, side documents
 and attachments). See `docs/architecture.md` for the design.
 
 ```bash

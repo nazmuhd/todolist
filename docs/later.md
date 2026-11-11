@@ -47,9 +47,10 @@ Deferred:
   and single-user.
 - [x] **Real database** — the app state, side documents and attachments persist
   in SQLite instead of only this browser's storage.
-- [ ] **Per-entity / multi-device sync** — the first backend syncs the whole
-  state document with last-write-wins. Fine-grained sync and conflict
-  resolution are still open.
+- [x] **Per-entity sync** — projects, labels and tasks sync as individual rows
+  with per-record revisions, a global cursor and tombstones for deletes.
+  Remaining: multi-device identity/auth (so several devices are distinct
+  users rather than one shared store).
 - [ ] **API pagination** for large task sets.
 - [x] **File attachments** — stored as BLOBs in SQLite and cached in IndexedDB.
 - [x] **Comments** — persisted inside the task state.

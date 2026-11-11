@@ -240,26 +240,23 @@ const CHANNEL = 'todoist-clone-store';
     }
   }
 
-  /** Local document that remembers which server revision we last saw. */
-  const STATE_META = 'todoist-clone-state-meta';
-
   /**
    * Local-first store backed by the API.
    *
-   * Every write lands in the local IndexedDB cache first, so the app keeps
-   * working offline and the service worker can still read the reminder index.
-   * Server calls are best-effort: a failed request never blocks a save, and
-   * the next boot pulls whatever the server has.
+   * Documents and attachments are cached in IndexedDB first and synced
+   * best-effort. The task/project/label data is synced per entity by
+   * core/sync.js; `loadState`/`saveState` intentionally stay local because
+   * that module owns the push/pull cycle (and its own metadata).
    *
-   * The API is a single-user document store for now:
-   *   GET/PUT /state, GET/PUT/DELETE /docs/:key, GET/PUT/DELETE /blobs/:key
+   *   GET/PUT /api/sync          per-entity changes
+   *   GET/PUT/DELETE /api/docs   side documents
+   *   GET/PUT/DELETE /api/blobs  attachments
    */
   class ApiStore extends LocalStore {
     constructor({ baseUrl = '/api', token = null, keys } = {}) {
       super(keys);
       this.baseUrl = baseUrl;
       this.token = token;
-      this.rev = 0;
     }
 
     headers(extra = {}) {
@@ -300,74 +297,13 @@ const CHANNEL = 'todoist-clone-store';
       }
     }
 
-    async rememberRev() {
-      try { await super.setDoc(STATE_META, { rev: this.rev }); } catch {}
+    /** Local-only documents (sync bookkeeping must not sync itself). */
+    async getLocalDoc(key) {
+      return super.getDoc(key);
     }
 
-    /** Serialises pushes so two quick saves cannot race their own baseRev. */
-    pushState(state) {
-      this._pushQueue = (this._pushQueue || Promise.resolve())
-        .then(() => this._pushStateNow(state))
-        .catch(() => {});
-      return this._pushQueue;
-    }
-
-    async _pushStateNow(state) {
-      let response = await this.send('/state', {
-        method: 'PUT',
-        json: { data: state, baseRev: this.rev },
-      });
-      if (!response) return;
-
-      if (response.status === 409) {
-        // Another tab wrote first. Rebase and keep the local edit: single-user
-        // last-write-wins is enough until per-entity sync arrives.
-        const current = await this.jsonBody(await this.send('/state'));
-        if (!current) return;
-        this.rev = current.rev;
-        response = await this.send('/state', {
-          method: 'PUT',
-          json: { data: state, baseRev: this.rev },
-        });
-      }
-
-      const body = await this.jsonBody(response);
-      if (body && typeof body.rev === 'number') {
-        this.rev = body.rev;
-        await this.rememberRev();
-      }
-    }
-
-    async loadState() {
-      const meta = await super.getDoc(STATE_META);
-      this.rev = meta && Number.isInteger(meta.rev) ? meta.rev : 0;
-
-      const local = await super.loadState();
-      const remote = await this.jsonBody(await this.send('/state'));
-
-      if (remote && remote.data) {
-        if (remote.rev > this.rev || !local) {
-          // The server is ahead (or this is a fresh device): adopt it.
-          this.rev = remote.rev;
-          await super.saveState(remote.data);
-          await this.rememberRev();
-          return remote.data;
-        }
-        if (this.rev > remote.rev && local) {
-          // We have unsynced offline edits: push them.
-          this.pushState(local);
-        }
-      } else if (local && this.rev === 0) {
-        // First run against an empty server: seed it.
-        this.pushState(local);
-      }
-
-      return local ?? null;
-    }
-
-    async saveState(state) {
-      await super.saveState(state);
-      await this.pushState(state);
+    async setLocalDoc(key, value) {
+      return super.setDoc(key, value);
     }
 
     async backupState(tag) {

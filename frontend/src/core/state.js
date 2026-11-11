@@ -10,6 +10,7 @@ import { reminderFireDate } from './dates.js';
 import { cleanDueTime, cleanDuration, cleanReminderMinutes, DATE_RE } from './dates.js';
 import { asText, cleanColor, clampPriority, PROJECT_COLORS, LABEL_COLORS } from './text.js';
 import { savedFilterIds } from './saved-filters.js';
+import { services } from './services.js';
 
 export function saveState() {
   // Any new change supersedes a pending undo, so a stale snapshot can
@@ -23,6 +24,8 @@ export function persistState() {
     console.error('Could not save data:', err);
     showToast('Could not save — browser storage may be full', 'error');
   });
+  // Local write first; the server sync is debounced and best-effort.
+  services.scheduleSync();
   syncReminderSchedule();
 }
 export function reminderSchedule() {

@@ -8,6 +8,7 @@ import { healthRouter } from './routes/health.ts';
 import { stateRouter } from './routes/state.ts';
 import { docsRouter } from './routes/docs.ts';
 import { blobsRouter } from './routes/blobs.ts';
+import { syncRouter } from './routes/sync.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 
 // The repository root: the app lives in frontend/.
@@ -44,6 +45,7 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   app.use('/health', healthRouter);
 
   // The API. There is no auth yet: this is a single-user store.
+  app.use('/api/sync', syncRouter);
   app.use('/api/state', stateRouter);
   app.use('/api/docs', docsRouter);
   app.use('/api/blobs', blobsRouter);

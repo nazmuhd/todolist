@@ -32,7 +32,11 @@ test('state starts empty', async () => {
   await withServer(async (base) => {
     const res = await fetch(`${base}/api/state`);
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { data: null, rev: 0, updatedAt: null });
+    assert.deepEqual(await res.json(), {
+      data: { projects: [], labels: [], tasks: [] },
+      rev: 0,
+      updatedAt: null,
+    });
   });
 });
 
@@ -47,7 +51,11 @@ test('state round-trips and bumps the revision', async () => {
     res = await fetch(`${base}/api/state`);
     body = await res.json() as { data: unknown; rev: number };
     assert.equal(res.status, 200);
-    assert.deepEqual((body as unknown as { data: unknown }).data, first);
+    assert.deepEqual((body as unknown as { data: unknown }).data, {
+      projects: [],
+      labels: [],
+      tasks: [{ id: 't1', title: 'Write plan' }],
+    });
 
     res = await fetch(`${base}/api/state`, json({ data: { tasks: [] }, baseRev: 1 }));
     assert.equal(res.status, 200);
@@ -125,6 +133,7 @@ test('blobs round-trip as bytes with their metadata', async () => {
 
 test('state backups keep a copy under the tag', async () => {
   await withServer(async (base) => {
+    await fetch(`${base}/api/state`, json({ data: { tasks: [{ id: 'backup-me' }] }, baseRev: 2 }));
     const res = await fetch(`${base}/api/state/backup/pre-import`, { method: 'POST' });
     assert.equal(res.status, 201);
     assert.deepEqual(await res.json(), { ok: true, tag: 'pre-import' });

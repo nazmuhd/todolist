@@ -11,6 +11,7 @@
     "build": "pnpm --filter todoist-clone-frontend build",
     "start": "pnpm --filter todoist-clone-server start",
     "test": "pnpm -r test",
+    "test:e2e": "node e2e/e2e.mjs",
     "typecheck": "pnpm -r typecheck",
     "migrate": "pnpm --filter todoist-clone-server migrate"
   }

@@ -63,7 +63,7 @@ function staticServer(port) {
   // A tiny in-memory stand-in for the API, so the UI tests stay independent
   // of the server (which has its own tests). Real API semantics are covered
   // in server/tests.
-  const api = { state: null, rev: 0, docs: new Map(), blobs: new Map() };
+  const api = { state: null, rev: 0, docs: new Map(), blobs: new Map(), sync: { seq: 0, rows: new Map() } };
 
   const readBody = (req) => new Promise((resolve) => {
     const chunks = [];
@@ -75,11 +75,65 @@ function staticServer(port) {
     res.end(JSON.stringify(value));
   };
 
-  async function handleApi(req, res, urlPath) {
+  async function handleApi(req, res, urlPath, rawUrl) {
     const parts = urlPath.split('/').filter(Boolean); // ['api', ...]
     const section = parts[1];
     const key = parts[2] || ''; // the URL was already decoded above
     const method = req.method || 'GET';
+
+    if (section === 'sync') {
+      if (method === 'GET') {
+        const since = Number(new URL(rawUrl, 'http://localhost').searchParams.get('since') || 0);
+        const changes = { projects: [], labels: [], tasks: [] };
+        for (const row of [...api.sync.rows.values()].sort((a, b) => a.seq - b.seq)) {
+          if (row.seq <= since) continue;
+          changes[row.entity].push({
+            id: row.id,
+            data: row.deleted ? null : row.data,
+            rev: row.rev,
+            deleted: row.deleted,
+          });
+        }
+        sendJson(res, 200, { changes, cursor: api.sync.seq });
+        return;
+      }
+      if (method === 'POST') {
+        const body = JSON.parse((await readBody(req)).toString() || '{}');
+        const applied = [];
+        const conflicts = [];
+        for (const entity of ['projects', 'labels', 'tasks']) {
+          for (const change of body.changes?.[entity] || []) {
+            const rowKey = `${entity}:${change.id}`;
+            const current = api.sync.rows.get(rowKey);
+            const currentRev = current ? current.rev : 0;
+            if ((change.baseRev ?? 0) !== currentRev) {
+              conflicts.push({
+                entity,
+                id: change.id,
+                rev: currentRev,
+                data: current && !current.deleted ? current.data : null,
+                deleted: Boolean(current?.deleted),
+              });
+              continue;
+            }
+            const rev = currentRev + 1;
+            const seq = api.sync.seq + 1;
+            api.sync.seq = seq;
+            api.sync.rows.set(rowKey, {
+              entity,
+              id: change.id,
+              data: change.deleted ? null : change.data,
+              rev,
+              seq,
+              deleted: Boolean(change.deleted),
+            });
+            applied.push({ entity, id: change.id, rev });
+          }
+        }
+        sendJson(res, 200, { applied, conflicts, cursor: api.sync.seq });
+        return;
+      }
+    }
 
     if (section === 'state') {
       if (parts[2] === 'backup') {
@@ -160,7 +214,7 @@ function staticServer(port) {
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent(req.url.split('?')[0]);
     if (p.startsWith('/api/')) {
-      handleApi(req, res, p).catch((err) => sendJson(res, 500, { error: String(err) }));
+      handleApi(req, res, p, req.url).catch((err) => sendJson(res, 500, { error: String(err) }));
       return;
     }
     if (p === '/') p = '/index.html';
