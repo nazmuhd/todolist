@@ -1374,6 +1374,41 @@ function renderSidebar() {
   });
 
   bindSidebarSortables();
+  bindSidebarDropTargets();
+}
+
+/** Lets a task be dragged onto a project or label in the sidebar. */
+function bindSidebarDropTargets() {
+  $$('#projects-list > div, #labels-list > div').forEach(row => {
+    if (row._dropTarget) { row._dropTarget.destroy(); row._dropTarget = null; }
+    const isProject = !!row.closest('#projects-list');
+    row._dropTarget = new Sortable(row, {
+      group: { name: 'td-tasks', pull: false, put: true },
+      sort: false,
+      animation: 150,
+      onAdd: (evt) => {
+        const id = evt.item && evt.item.dataset ? evt.item.dataset.taskId : null;
+        const task = state.tasks.find(t => t.id === id);
+        if (!task) return;
+        const targetId = row.dataset.entryId;
+        const snapshot = snapshotData();
+        if (isProject) {
+          if (task.projectId === targetId) return;
+          task.projectId = targetId;
+          task.sectionId = null; // sections belong to the previous project
+          saveState();
+          render();
+          offerUndo(`Moved to ${projectName(targetId)}`, snapshot);
+        } else {
+          if ((task.labels || []).includes(targetId)) return;
+          task.labels = [...(task.labels || []), targetId];
+          saveState();
+          render();
+          offerUndo(`Label @${labelName(targetId)} added`, snapshot);
+        }
+      },
+    });
+  });
 }
 
 /** Lets projects and labels be dragged into a new order. */
@@ -2490,6 +2525,10 @@ function bindTaskEvents(sortable = true) {
     animation: 150,
     handle: '.task-row',
     filter: 'button',
+    // Tasks can also be dropped on a project or label in the sidebar.
+    group: { name: 'td-tasks', pull: true, put: true },
+    delay: 150,
+    delayOnTouchOnly: true,
     onEnd: () => {
       const ids = $$('#task-list > li').map(li => li.dataset.taskId);
       ids.forEach((id, i) => {

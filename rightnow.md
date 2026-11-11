@@ -44,12 +44,11 @@ with `[ ]`; `[~]` means partly done.
 - [x] **Right-click context menu and reschedule shortcuts** — complete,
       Today/Tomorrow/Next week/No date, Priority 1–4, Move to project, edit,
       delete; works on list rows and board cards.
-- [ ] **Drag a task onto a project or label in the sidebar**.
+- [x] **Drag a task onto a project or label in the sidebar**.
 - [x] **Clickable chips in quick add** — date, repeat, priority, project and
       label chips open inline pickers.
-- [~] **"Move to project / label" action** — available from the context menu
-      and the batch bar, and labels can be toggled from the context menu; the
-      remaining part is dragging a task onto a sidebar project or label.
+- [x] **"Move to project / label" action** — from the context menu, the batch
+      bar, or by dragging a task onto a project or label in the sidebar.
 - [x] **Sidebar drag-reorder** of projects and labels.
 - [x] **Undo for edits, plus redo** (Ctrl/Cmd+Shift+Z).
 
