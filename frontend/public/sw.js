@@ -1,7 +1,7 @@
 /* Offline support for the Todoist clone.
    Everything the app needs is served from this origin (the libraries are
    vendored locally), so the first visit is enough to work offline. */
-const CACHE = 'todoist-clone-v3';
+const CACHE = 'todoist-clone-v4';
 const SHELL = [
   './',
   './index.html',
@@ -9,10 +9,32 @@ const SHELL = [
   './icon.svg',
 ];
 
+/* Cache every same-origin script, stylesheet and icon the shell references
+   (the hashed bundle and the vendored libraries). The install runs after the
+   first page load, so without this those files would only be cached on the
+   second visit. */
+async function precachePageAssets(cache) {
+  try {
+    const response = await fetch('./index.html', { cache: 'reload' });
+    if (!response.ok) return;
+    const html = await response.text();
+    const urls = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
+      .map(m => m[1])
+      .filter(u => u && !u.startsWith('#') && !u.startsWith('//') && !/^[a-z]+:/i.test(u))
+      .filter((u, i, all) => all.indexOf(u) === i);
+    await Promise.all(urls.map(u => cache.add(u).catch(() => {})));
+  } catch {
+    /* Offline precache is best-effort; fetch falls back to the cache. */
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then(cache => cache.addAll(SHELL).catch(() => {}))
+      .then(async (cache) => {
+        await cache.addAll(SHELL).catch(() => {});
+        await precachePageAssets(cache);
+      })
       .then(() => self.skipWaiting())
   );
 });

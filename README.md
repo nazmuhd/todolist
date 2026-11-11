@@ -6,23 +6,22 @@ offline.
 
 ```
 todoist/
-├── todoist.html        the app shell
-├── app.js              the app (ES module entry point)
-├── storage.js          the storage adapter: localStorage + IndexedDB
-├── styles.css
-├── sw.js               service worker (offline)
-├── manifest.webmanifest
-├── vendor/             self-hosted libraries
-├── src/                the app, split into modules
-│   ├── core/           app.js (shared singletons) · dates.js (date helpers)
-│   ├── features/       views and dialogs
-│   └── views/          list · board · sidebar
-├── server/             the API (Node + Express, pnpm, TypeScript)
-│   ├── database/supabase/   migrations, seed, schema
-│   ├── src/            the express app
+├── frontend/                 the app (Vite, native ES modules)
+│   ├── index.html            the app shell
+│   ├── src/
+│   │   ├── app.js            entry point and wiring
+│   │   ├── storage.js        the storage adapter: localStorage + IndexedDB
+│   │   ├── core/             state, store, router, services, dates, reminders
+│   │   ├── features/         dialogs and feature logic (task modal, quick add, …)
+│   │   ├── ui/               chrome, menus, row menu
+│   │   └── views/            list · board · calendar · karma · sidebar
+│   └── public/               service worker, manifest, icon, vendor libraries
+├── server/                   the API (Node + Express, pnpm, TypeScript)
+│   ├── database/supabase/    migrations, seed, schema
+│   ├── src/                  the express app
 │   └── tests/
-├── docs/               architecture plan and notes
-└── start.bat           boots the server (app + API)
+├── docs/                     architecture plan and notes
+└── start.bat                 boots the server (app + API)
 ```
 
 ## Running it
@@ -45,9 +44,25 @@ pnpm install
 pnpm dev          # http://localhost:4000 — app + API
 ```
 
-The API lives under `/api`; the app is served from the repository root.
-A plain static server (`python -m http.server`) still works for the app alone,
-but then the API is a different origin.
+The API lives under `/api`; the app is built from `frontend/` and served from
+`frontend/dist` in production. To work on the app alone with hot reloading:
+
+```bash
+cd frontend
+pnpm install
+pnpm dev          # http://localhost:5173
+pnpm build        # production bundle in frontend/dist
+pnpm typecheck    # tsc --noEmit
+pnpm test         # headless smoke + offline tests (builds first)
+```
+
+The tests need a Chromium-based browser (Edge or Chrome). Set `BROWSER` to
+its executable if it is not in the usual location. `pnpm test:smoke` covers
+the main flows; `pnpm test:offline` loads the app once, switches the network
+off and verifies the reload still boots from the service-worker cache.
+
+A plain static server (`python -m http.server` inside `frontend/dist`) still
+works for the app alone, but then the API is a different origin.
 
 ## The API (optional)
 

@@ -253,7 +253,7 @@ Steps 5 and 6 needed a cycle breaker before they could be done at all: the
 views need the task dialog and the quick add, and the core needs the views to
 repaint. `core/render.js` and `core/services.js` hold those two registries
 (§4), so the imports keep pointing one way.
-| 8 | Update `sw.js` (cache list), `manifest.webmanifest` (`start_url`), add `start.bat` / README notes | offline check: reload with the network off |
+| 8 | Update `sw.js` (cache list), `manifest.webmanifest` (`start_url`), add `start.bat` / README notes | **done** — offline check: first visit, network off, reload; app, styles, vendor libraries and icons all load (8/8 headless Edge checks) |
 
 Notes on the order: **core first** (everything depends on it), then the
 features with the most tests, then views, then the chrome. The trickiest
@@ -270,7 +270,7 @@ untouched and easy to compare against.
 | Circular imports | Strict layering (§4); `core/app.js` owns the shared singletons |
 | The old file uses globals everywhere | Step 2 introduces the shared module *first*, so the rest is mechanical |
 | `file://` breaks | §7 — a local server is required (the service worker already needed one); `start.bat` provided |
-| The service worker serves a stale bundle | Step 8 bumps the cache name (`todoist-clone-v2` → `v3`) and the cache list is updated with every new file |
+| The service worker serves a stale bundle | Step 8 bumps the cache name (`todoist-clone-v3` → `v4`); the worker precaches the shell's hashed bundle and vendored scripts on install, and fetches network-first afterwards |
 | A behaviour slips through the split | The existing headless suites are re-run after every step; nothing is deleted until its replacement passes |
 | Half-finished state on disk | Every step is a separate commit, so any step can be reverted on its own |
 
@@ -397,7 +397,7 @@ point of doing this first.
 | 5 — extract `features/context-menu, filters, settings` | **done** (`features/context-menu.js`, `features/filters.js`, `features/settings.js`; project/label dialogs in `features/projects.js`, backup in `features/backup.js`) |
 | 6 — extract `views/*`, `features/calendar, karma` | **done** (`views/list.js`, `views/board.js`, `views/sidebar.js`, `features/calendar.js`, `features/karma.js`) |
 | 7 — extract `ui/*`; `app.js` becomes the entry point | **done** (`ui/chrome.js`, `ui/menus.js`, `ui/row-menu.js`; `app.js` is now ~170 lines of wiring) |
-| 8 — offline check (the service worker now serves network-first) | |
+| 8 — offline check (the service worker now serves network-first) | **done** (`start_url` points at the app shell; the worker precaches the bundle and vendor scripts on install; permanent `frontend/tests/` harness: 24 smoke + 8 offline checks) |
 
 Decisions taken: **Vite + TypeScript** (gradual: `allowJs` first), **pnpm
 workspaces** (one root install), `frontend/` and `server/` as the two halves, the
@@ -412,10 +412,12 @@ with `await import("/app.js")`.
 
 The app now has no monolith: `frontend/src/app.js` is the entry point, and
 everything else lives under `core/`, `features/`, `views/` and `ui/`. The
-extraction was verified with a headless Edge pass covering project/label
-creation, quick add, the task dialog, the due editor, the context menu,
-completion + undo, every view, board layout, settings, the shortcut overlay,
-export and the sidebar drawer.
+extraction is covered by a permanent headless-browser suite
+(`frontend/tests/`, run with `pnpm test`): a 24-check smoke pass over
+project/label creation, quick add, the task dialog, the due editor, the
+context menu, completion + undo, every view, board layout, settings, the
+shortcut overlay, export and the sidebar drawer, plus an 8-check offline pass
+that reloads with the network off.
 
 ### The cycles the split ran into
 
@@ -436,4 +438,5 @@ meant resolving them, so that is fixed here too.
 
 ---
 
-*Steps 2–7 are complete; step 8 (the offline check) is still open.*
+*Steps 2–8 are complete. The frontend is modular and verified offline; backend
+integration is the remaining work (§10–§11).*

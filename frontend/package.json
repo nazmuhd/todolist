@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node tests/smoke.mjs && node tests/offline.mjs",
+    "test:smoke": "pnpm build && node tests/smoke.mjs",
+    "test:offline": "pnpm build && node tests/offline.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

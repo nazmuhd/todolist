@@ -8,17 +8,17 @@ out, with the background-worker and database work called out separately.
 
 ## 1. Background workers / scheduling
 
-Phase 3 reminders only run **while a tab is open** (a `setInterval` + a check
-when the tab becomes visible). That is the honest limitation.
+In-page reminders run on a `setInterval` plus a check when the tab becomes
+visible. The service worker also arms best-effort timers after the tab closes,
+but only push makes delivery reliable.
 
 Deferred:
 
-- [ ] **Service worker for reminders when the tab is closed** (the service worker now
-  exists and caches the app; it does not schedule notifications yet)
-  - Needs a service worker plus persisted reminder state.
-  - A service worker cannot read `localStorage`, so this also requires moving
-    task data (or at least a reminder index) to **IndexedDB**.
-  - Push requires a server and VAPID keys.
+- [~] **Service worker for reminders when the tab is closed** — implemented as a
+  best-effort local timer: the page writes the schedule to IndexedDB and the
+  service worker re-arms it with `setTimeout` and `showNotification`.
+  - Browsers may stop the worker at any time, so delivery is not reliable.
+  - Push requires a server and VAPID keys (below).
 - [ ] **Web Push notifications** (real background delivery, phone/desktop)
   - Requires backend subscription storage and permission re-request flows.
 - [ ] **Notification actions** — Complete / Snooze directly from the notification.
@@ -27,8 +27,7 @@ Deferred:
 - [ ] **Background sync / offline queue** for edits made offline.
 - [ ] **Web Worker** for heavy search/indexing if the task list gets large
   (not needed at current scale).
-- [ ] **Snooze / multiple reminders per task** — Phase 3 has one reminder offset
-  per task.
+- [~] **Multiple reminders per task** — done; **snooze** is still open.
 
 If closed-tab reminders are wanted *without* a server, the minimum viable path is:
 service worker + IndexedDB + a scheduled notification check (best-effort only).
