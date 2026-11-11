@@ -53,9 +53,8 @@ todoist/
 ├── docs/                     ← notes, not shipped
 │   ├── architecture.md       ← this file
 │   ├── features.md
-│   ├── later.md
-│   ├── rightnow.md
-│   └── font.md
+│   ├── gaps.md
+│   └── deferred.md
 │
 ├── .env.example
 └── .gitignore

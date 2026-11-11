@@ -1,7 +1,7 @@
-# Later — deliberately deferred
+# Deferred — work not in the current build
 
 What did **not** ship with the current build. The shipped checklist is
-`features.md`; the active gap ledger is `rightnow.md` (sections 1–3). This file
+`features.md`; the active gap ledger is `gaps.md` (sections 1–3). This file
 keeps the older "later" material, refreshed against the code: anything already
 implemented is marked done so it is not picked up again by mistake.
 
@@ -62,7 +62,7 @@ writes sync to a single-user SQLite backend.
 
 ## 3. Product features still missing
 
-Active or later gaps from `rightnow.md`; none block single-user use.
+Active or later gaps from `gaps.md`; none block single-user use.
 
 ### Task model
 - [ ] Deadlines separate from due dates.
@@ -128,7 +128,7 @@ Active or later gaps from `rightnow.md`; none block single-user use.
 
 ## 4–9. Later
 
-These mirror `rightnow.md` §4–9 and are not current work.
+These mirror `gaps.md` §4–9 and are not current work.
 
 ### 4. Productivity and history ⏳
 Karma levels/goals/reports, project activity log, vacation mode, persistent undo
@@ -159,6 +159,6 @@ migrations/backups, non-Windows hosting notes (Node 24 for `node:sqlite`).
 
 ## Suggested order when this is picked up
 
-1. Finish `rightnow.md` §1–3 (task model, views, notifications).
+1. Finish `gaps.md` §1–3 (task model, views, notifications).
 2. Re-evaluate §4+ only when the single-user surface feels complete.
 3. §7 only if multi-user or sharing becomes a goal.

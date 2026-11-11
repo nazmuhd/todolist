@@ -1,4 +1,4 @@
-# Right now — current gaps
+# Gaps — current backlog
 
 Audit of the code as it stands. `features.md` is the shipped checklist; this
 file is the gap ledger. Sections **1–3 are the active backlog**; sections

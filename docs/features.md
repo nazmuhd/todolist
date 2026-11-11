@@ -1,7 +1,7 @@
 # Features
 
 Status of the Todoist-parity checklist for this clone. **Refreshed against the
-code.** The remaining gaps are tracked in `rightnow.md`; sections 1–3 there are
+code.** The remaining gaps are tracked in `gaps.md`; sections 1–3 there are
 the active work, sections 4–9 are deliberately deferred.
 
 Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
@@ -104,7 +104,7 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 
 ## Deliberately deferred
 
-Tracked with detail in `rightnow.md` §4–9:
+Tracked with detail in `gaps.md` §4–9:
 
 - Productivity goals/reports, activity history, vacation mode
 - Todoist import, calendar/email integrations, Todoist-compatible API

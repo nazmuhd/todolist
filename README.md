@@ -125,5 +125,5 @@ curl -X POST "http://localhost:4000/api/blobs/cleanup?olderThanHours=24"
 
 - `docs/architecture.md` — the module layout, the split plan and the backend design
 - `docs/features.md` — feature status
-- `docs/rightnow.md` — what is left, and what was deliberately declined
-- `docs/later.md` — the work that needs a backend
+- `docs/gaps.md` — the active gaps (sections 1–3) and later work (sections 4–9)
+- `docs/deferred.md` — deliberately deferred work, with shipped items marked done
