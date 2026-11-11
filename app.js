@@ -1,3 +1,23 @@
+import { settings } from './src/core/app.js';
+import {
+  parseDate,
+  toISODate,
+  todayISO,
+  daysFromToday,
+  prevDayISO,
+  nextWeekdayISO,
+  formatDateShort,
+  formatDue,
+  formatDuration,
+  isTaskOverdue,
+  dueSortValue,
+  reminderFireDate,
+  cleanDueTime,
+  cleanDuration,
+  cleanReminderMinutes,
+  DATE_RE
+} from './src/core/dates.js';
+
 /* ============================================================
    STORAGE
    All persistence goes through the adapter in storage.js. Moving to
@@ -106,8 +126,6 @@ const MIGRATIONS = {
   },
 };
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 const asText = (v) => (typeof v === 'string' ? v : '');
 const cleanColor = (c, fallback) => (typeof c === 'string' && COLOR_RE.test(c) ? c : fallback);
@@ -126,12 +144,6 @@ function cleanRecurrence(v) {
   return body;
 }
 
-const cleanDueTime = (v) => (typeof v === 'string' && TIME_RE.test(v) ? v : null);
-const cleanReminderMinutes = (v) =>
-  (Number.isInteger(v) && v >= 0 && v <= 10080 ? v : null);
-const cleanDuration = (v) =>
-  (Number.isInteger(v) && v > 0 && v <= 10080 ? v : null);
-
 /** { count: n } or { until: 'YYYY-MM-DD' } — how a repeat stops. */
 function normalizeRecurrenceEnd(v) {
   if (!v || typeof v !== 'object') return null;
@@ -140,14 +152,6 @@ function normalizeRecurrenceEnd(v) {
   return null;
 }
 
-/** "90" -> "1h 30m"; null/0 -> "". */
-function formatDuration(minutes) {
-  if (!Number.isInteger(minutes) || minutes <= 0) return '';
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (!h) return `${m}m`;
-  return m ? `${h}h ${m}m` : `${h}h`;
-}
 function durationBadge(t) {
   const text = formatDuration(t && t.durationMinutes);
   if (!text) return '';
@@ -401,96 +405,6 @@ function saveState() {
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-/** Local YYYY-MM-DD (toISOString() would shift the date in UTC+N). */
-function toISODate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-function todayISO() {
-  return toISODate(new Date());
-}
-function parseDate(iso) {
-  if (!iso) return null;
-  const [y,m,d] = iso.split('-').map(Number);
-  return new Date(y, m-1, d);
-}
-/** Parses "HH:mm" into [h, m]; falls back to midnight. */
-function parseTime(hhmm) {
-  if (!TIME_RE.test(hhmm || '')) return [0, 0];
-  const [h, m] = hhmm.split(':').map(Number);
-  return [h, m];
-}
-/**
- * Formats a date the way the user asked for: the browser's order, US
- * (Nov 12, 2026), day-first (12 Nov 2026) or ISO (2026-11-12).
- */
-function formatDateShort(d, { year = false } = {}) {
-  const style = settings.dateFormat || 'system';
-  if (style === 'iso') return toISODate(d);
-  const locale = style === 'dmy' ? 'en-GB' : style === 'mdy' ? 'en-US' : undefined;
-  const opts = { day: 'numeric', month: 'short' };
-  if (year) opts.year = 'numeric';
-  return new Intl.DateTimeFormat(locale, opts).format(d);
-}
-
-/** Formats a time as 12-hour, 24-hour or the system default. */
-function formatTime(hhmm) {
-  if (!TIME_RE.test(hhmm || '')) return '';
-  const [h, m] = parseTime(hhmm);
-  const style = settings.timeFormat || 'system';
-  if (style === '24h') return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  if (style === '12h') {
-    const suffix = h >= 12 ? 'PM' : 'AM';
-    const hour12 = h % 12 === 0 ? 12 : h % 12;
-    return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
-  }
-  return new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' }).format(new Date(2000, 0, 1, h, m));
-}
-function formatDue(iso, time) {
-  if (!iso) return '';
-  const d = parseDate(iso);
-  const today = parseDate(todayISO());
-  const diff = Math.round((d - today) / 86400000);
-  let label;
-  if (diff === 0) label = 'Today';
-  else if (diff === 1) label = 'Tomorrow';
-  else if (diff === -1) label = 'Yesterday';
-  else if (diff > 1 && diff <= 6) label = new Intl.DateTimeFormat('en', { weekday: 'short' }).format(d);
-  else label = formatDateShort(d);
-  const t = formatTime(time);
-  return t ? `${label} ${t}` : label;
-}
-/** The due instant, using midnight for all-day tasks. */
-function taskDueDate(t) {
-  if (!t || !t.due) return null;
-  const d = parseDate(t.due);
-  const [h, m] = parseTime(t.dueTime);
-  d.setHours(h, m, 0, 0);
-  return d;
-}
-/** All-day reminders are treated as 9am local, like Todoist's default. */
-function taskReminderDate(t) {
-  const d = taskDueDate(t);
-  if (!d) return null;
-  if (!t.dueTime) d.setHours(9, 0, 0, 0);
-  return d;
-}
-/** A task today is only overdue once its time has passed (all-day: after midnight). */
-function isTaskOverdue(t) {
-  if (!t || !t.due) return false;
-  if (t.completed) return false;
-  const today = todayISO();
-  if (t.due < today) return true;
-  if (t.due > today) return false;
-  if (!t.dueTime) return false;
-  return Date.now() > taskDueDate(t).getTime();
-}
-function dueSortValue(t) {
-  if (!t || !t.due) return Number.MAX_SAFE_INTEGER;
-  return new Date(`${t.due}T${t.dueTime || '00:00'}`).getTime();
-}
 function priorityColor(p) {
   return { 1: '#db4c3f', 2: '#eb8909', 3: '#246fe0', 4: '#999999' }[p] || '#999999';
 }
@@ -664,12 +578,6 @@ function reminderKey(t) {
   const offsets = taskReminders(t).map(r => r.minutes).sort((a, b) => a - b).join(',');
   return `${t.due}|${t.dueTime || ''}|${offsets}`;
 }
-function reminderFireDate(t, minutes) {
-  const d = taskReminderDate(t);
-  if (!d) return null;
-  d.setMinutes(d.getMinutes() - (minutes || 0));
-  return d;
-}
 function ensureNotificationPermission() {
   if (!('Notification' in window)) return;
   if (window.Notification.permission !== 'default') return;
@@ -727,20 +635,6 @@ function checkReminders(now = Date.now()) {
    "has:date", quoted phrases, and ! for negation.
 ============================================================ */
 const QUERY_WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-function daysFromToday(n) {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return toISODate(d);
-}
-
-function nextWeekdayISO(name) {
-  const target = QUERY_WEEKDAYS.indexOf(name);
-  const d = new Date();
-  const diff = (target - d.getDay() + 7) % 7 || 7;
-  d.setDate(d.getDate() + diff);
-  return toISODate(d);
-}
 
 const QUERY_DATE_TERMS = {
   overdue: t => isTaskOverdue(t),
@@ -1081,11 +975,6 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 /* ============================================================
    KARMA (productivity stats)
 ============================================================ */
-function prevDayISO(iso) {
-  const d = parseDate(iso);
-  d.setDate(d.getDate() - 1);
-  return toISODate(d);
-}
 
 function karmaSummary(days = 14) {
   const byDay = new Map();
@@ -1173,7 +1062,6 @@ const DEFAULT_SETTINGS = {
   defaultPriority: null,
   defaultReminder: null,
 };
-let settings = { ...DEFAULT_SETTINGS };
 
 const SETTINGS_DEFS = [
   { key: 'theme', label: 'Theme', options: [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']] },
@@ -1191,10 +1079,10 @@ const SETTINGS_DEFS = [
 async function loadSettings() {
   const raw = await store.getDoc(store.keys.settings);
   if (!raw || typeof raw !== 'object') {
-    settings = { ...DEFAULT_SETTINGS };
+    Object.assign(settings, DEFAULT_SETTINGS);
     return;
   }
-  settings = {
+  Object.assign(settings, {
     theme: ['light', 'dark', 'system'].includes(raw.theme) ? raw.theme : DEFAULT_SETTINGS.theme,
     startOfWeek: ['mon', 'sun'].includes(raw.startOfWeek) ? raw.startOfWeek : DEFAULT_SETTINGS.startOfWeek,
     dateFormat: ['system', 'mdy', 'dmy', 'iso'].includes(raw.dateFormat) ? raw.dateFormat : DEFAULT_SETTINGS.dateFormat,
@@ -1203,7 +1091,7 @@ async function loadSettings() {
     defaultReminder: raw.defaultReminder === null || raw.defaultReminder === undefined
       ? null
       : Number(raw.defaultReminder),
-  };
+  });
 }
 
 function persistSettings() {
@@ -5176,3 +5064,10 @@ async function init() {
   window.__appReady = true;
 }
 init();
+
+/* ============================================================
+   TEST SURFACE
+   The headless harness imports this module to drive the app, so the
+   pieces it needs are exported (live bindings, so `state` stays live).
+============================================================ */
+export { state, settings, formatDue, parseQuickAdd, addTask, completionDayLabel, saveState };

@@ -1,11 +1,12 @@
 # Supabase
 
-Everything Supabase-related for this project.
+Everything Supabase-related for this project. It lives under
+`server/database/` because the schema belongs to the backend.
 
 ## Layout
 
 ```
-supabase/
+server/database/supabase/
 ├── migrations/     ← the single source of truth for the SQL schema
 │   └── 0001_schema.sql
 └── README.md

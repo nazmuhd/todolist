@@ -1,13 +1,15 @@
 /* Offline support for the Todoist clone.
    Everything the app needs is served from this origin (the libraries are
    vendored locally), so the first visit is enough to work offline. */
-const CACHE = 'todoist-clone-v2';
+const CACHE = 'todoist-clone-v3';
 const SHELL = [
   './',
   './todoist.html',
   './app.js',
   './storage.js',
   './styles.css',
+  './src/core/app.js',
+  './src/core/dates.js',
   './manifest.webmanifest',
   './icon.svg',
   './vendor/tailwind.js',
@@ -125,17 +127,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Everything else: cache first, then refresh the cache in the background.
+  // Everything else: network first, so a new build is picked up at once,
+  // with the cache as the offline fallback.
   event.respondWith(
-    caches.match(request).then(cached => {
-      const network = fetch(request).then(response => {
+    fetch(request)
+      .then((response) => {
         if (response && response.status === 200 && response.type === 'basic') {
           const copy = response.clone();
           caches.open(CACHE).then(cache => cache.put(request, copy));
         }
         return response;
-      }).catch(() => cached);
-      return cached || network;
-    })
+      })
+      .catch(() => caches.match(request).then(cached => cached || Response.error()))
   );
 });

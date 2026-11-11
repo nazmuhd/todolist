@@ -72,9 +72,12 @@ todoist/
 │       ├── empty-states.js   ← per-view empty states
 │       └── menus.js          ← shared viewport-positioned popover helper
 │
-├── supabase/                 ← (next phase) migrations, functions, README
-│   ├── migrations/
-│   └── functions/
+├── server/                 ← the API and worker (pnpm)
+│   ├── database/
+│   │   └── supabase/       ← migrations, functions, README
+│   │       ├── migrations/ ← numbered SQL, applied in order
+│   │       └── functions/  ← Edge Functions (reminders, push)
+│   └── src/                ← the express app (see §10)
 │
 ├── docs/                     ← notes, not shipped
 │   ├── architecture.md       ← this file
@@ -303,7 +306,7 @@ todoist/
 
 After the split, the backend lands in exactly three places:
 
-1. `supabase/migrations/*.sql` — the schema, numbered like the client's
+1. `server/database/supabase/migrations/*.sql` — the schema, numbered like the client's
    `MIGRATIONS`, applied by `pnpm migrate` (the server) or the Supabase CLI.
 2. `storage.js` — a new `SupabaseStore` implementing the **existing**
    interface (`loadState`/`saveState`/`getDoc`/`setDoc`/`putBlob`/`getBlob`/
@@ -339,18 +342,23 @@ point of doing this first.
 |---|---|
 | 1 — docs moved to `docs/`, `.gitignore`, `start.bat` | **done** |
 | — `server/` skeleton (Express + TypeScript, pnpm) with `/health`, auth middleware, migration runner | **done** |
-| — `supabase/migrations/0001_schema.sql` — tables, `rev`/`updated_at` triggers, RLS enabled | **done** |
-| 2 — `src/` skeleton + `core/app.js` singletons | next |
-| 3 — extract `core/*` | |
+| — `server/database/supabase/migrations/0001_schema.sql` — tables, `rev`/`updated_at` triggers, RLS enabled | **done** |
+| 2 — `src/` skeleton + `core/app.js` singletons | **done** (`core/app.js`, `core/dates.js`) |
+| 3 — extract the rest of `core/*` (state, tasks, undo, toasts) | next |
 | 4 — extract `features/quickadd, due-editor, task-modal` | |
 | 5 — extract `features/context-menu, filters, settings` | |
 | 6 — extract `views/*`, `features/calendar, karma` | |
-| 7 — extract `ui/*`, delete the monolith, `app.js` becomes the entry point | |
-| 8 — update `sw.js` cache list, manifest `start_url`, offline check | |
+| 7 — extract `ui/*` | |
+| 8 — offline check (the service worker now serves network-first) | |
 
 Decisions taken: **TypeScript** for the server; `storage.js` stays a classic
 script; `todoist.html` keeps its name; `app.js` stays the front-end entry
 point.
+
+**The app now needs a server** (ES modules and the service worker do not work
+from `file://`). `start.bat` starts the static app and the API together.
+`app.js` exports a small test surface so the headless harness can drive it
+with `await import("/app.js")`.
 
 ---
 

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { getPool, closePool } from './pool.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = resolve(here, '../../../supabase/migrations');
+const migrationsDir = resolve(here, '../../database/supabase/migrations');
 
 /**
  * Applies every migration in supabase/migrations in filename order, skipping
