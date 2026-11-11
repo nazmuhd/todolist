@@ -27,7 +27,8 @@ with `[ ]`; `[~]` means partly done.
 ## 2. Task detail
 
 - [x] **Sub-task nesting deeper than one level**.
-- [ ] **Attachments** — needs IndexedDB blobs plus a file picker.
+- [x] **Attachments** — files are stored as IndexedDB blobs and the task keeps
+      only the metadata. Add, open and remove them from the task dialog.
 - [x] **Comments / activity log** — per-task comments in the task dialog.
 - [x] **Recurrence UI gaps** — a repeat can now end after N times or on a date
       (COUNT / UNTIL). Still missing: exceptions ("skip this occurrence"),
@@ -61,17 +62,18 @@ with `[ ]`; `[~]` means partly done.
       browser back button works.
 - [x] **PWA / offline** — manifest, icon and a service worker; the libraries
       are vendored locally, so one visit is enough to work offline.
-- [~] **Accessibility pass** — native dialogs trap focus, keyboard shortcuts
-      exist, task rows are selectable by keyboard. Still missing: arrow-key
-      navigation of the task list, screen-reader announcements on complete.
+- [x] **Accessibility pass** — native dialogs trap focus, task titles are focusable
+      with arrow-key/Home/End navigation (Enter edits, Space completes), and
+      every toast is repeated in a polite live region for screen readers.
 - [x] **Export formats** — JSON, CSV, Markdown and ICS.
 - [x] **Print stylesheet** — the sidebar, header, quick-add and row actions
       are hidden on paper; the task list prints cleanly.
 - [ ] **i18n** — all strings and date formats are hardcoded US-English.
-- [~] **Storage hardening** — everything goes through the storage adapter and
-      blobs already live in IndexedDB, but the **state document** is still in
-      `localStorage` (~5 MB cap). Moving it is now a small change inside
-      `LocalStore` only, because the interface is already asynchronous.
+- [x] **Storage hardening** — everything goes through the storage adapter, and
+      both the documents and the blobs now live in IndexedDB (the ~5 MB
+      `localStorage` cap is gone). `localStorage` remains only as a fallback
+      for browsers without IndexedDB, and as the source of the one-time
+      migration for older data.
 - [ ] **Closed-tab reminders** — the service worker is in place but does not
       schedule notifications yet.
 

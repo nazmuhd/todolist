@@ -1669,7 +1669,7 @@ function renderBoardCard(t) {
           style="border-color:${priorityColor(t.priority)}" title="Complete task">
         </button>
         <div class="flex-1 min-w-0">
-          <div class="task-title cursor-pointer text-sm font-medium">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
+          <div class="task-title cursor-pointer text-sm font-medium" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
@@ -1790,7 +1790,7 @@ function renderTaskRow(t, isSub, opts = {}) {
           ${t.completed ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : ''}
         </button>
         <div class="task-content flex-1 min-w-0">
-          <div class="task-title cursor-pointer text-sm ${completedClass}">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
+          <div class="task-title cursor-pointer text-sm ${completedClass}" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${parentBadge}${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
@@ -2316,6 +2316,19 @@ function bindTaskEvents(sortable = true) {
         return;
       }
       openInlineTitle(id);
+    };
+    // Keyboard equivalent: Enter edits, Space completes.
+    el.onkeydown = (e) => {
+      const id = el.closest('[data-task-id]').dataset.taskId;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        openInlineTitle(id);
+        return;
+      }
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (state.tasks.some(t => t.id === id)) toggleComplete(id);
+      }
     };
   });
   $$('.task-row').forEach(row => {
@@ -4123,7 +4136,23 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
  * Shows a transient message. `actionLabel` adds a button (used for
  * "Undo"); `onTimeout` runs when the toast expires on its own.
  */
+/* ============================================================
+   SCREEN READER ANNOUNCEMENTS
+   Toasts are visual only, so the same message is repeated in a
+   polite live region for assistive technology.
+============================================================ */
+const srStatus = $('#sr-status');
+let srTimer = null;
+
+function announce(message) {
+  if (!message || !srStatus) return;
+  srStatus.textContent = '';
+  clearTimeout(srTimer);
+  srTimer = setTimeout(() => { srStatus.textContent = message; }, 60);
+}
+
 function showToast(message, type = 'info', { actionLabel, onAction, duration = 2600, onTimeout } = {}) {
+  announce(message);
   const container = document.getElementById('toast-container');
   if (!container) { console.log(message); return null; }
 
@@ -4518,6 +4547,27 @@ store.onChange(async (key) => {
   } else {
     showToast('Synced from another tab');
   }
+});
+
+/* ============================================================
+   KEYBOARD NAVIGATION OF THE TASK LIST
+   Up/Down move between task titles, Home/End jump to the ends.
+============================================================ */
+document.addEventListener('keydown', (e) => {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+  const active = document.activeElement;
+  if (!active || !active.classList.contains('task-title')) return;
+  const titles = $$('#task-list .task-title');
+  const index = titles.indexOf(active);
+  if (index < 0) return;
+  e.preventDefault();
+
+  let next = null;
+  if (e.key === 'ArrowDown') next = titles[index + 1];
+  else if (e.key === 'ArrowUp') next = titles[index - 1];
+  else if (e.key === 'Home') next = titles[0];
+  else if (e.key === 'End') next = titles[titles.length - 1];
+  if (next) next.focus();
 });
 
 /* ============================================================
