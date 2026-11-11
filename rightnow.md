@@ -4,81 +4,84 @@ Audit of the current code (not just `features.md`, which is now stale).
 Everything listed here can be shipped client-side only: no server, no auth,
 no sync service.
 
+**Status: most of the list is now implemented.** What is left is marked
+with `[ ]`; `[~]` means partly done.
+
 ---
 
 ## 1. Views & filtering
 
-- [ ] **Calendar (month grid) view** — only a date-picker exists; there is no
-      month overview showing which tasks land on which day.
-- [ ] **Filter query language** — search is a plain substring match. No
-      `&`, `|`, `!`, `overdue`, `p1`, `@work`, `7 days` syntax.
-- [ ] **Custom / saved filters** — only the five built-in smart lists exist
-      (Inbox, Today, Upcoming, Completed, No date, No priority).
-- [ ] **Per-view filters and sorting** — no "only P1" filter, no sort by
-      date / name / priority. Order is manual (drag) only.
-- [ ] **Sections inside projects** — a project is a flat list of tasks, so
-      "To Do / In Progress" grouping is not possible.
+- [x] **Calendar (month grid) view** — a month grid with today highlighted, a
+      selected-day panel, month navigation and an Add task button.
+- [x] **Filter query language** — the search box understands `p1..p4`,
+      `#project`, `@label`, `overdue`/`today`/`tomorrow`/`week`/`month`,
+      relative ranges (`7 days`), `has:`/`no:` date|project|label|priority,
+      quoted phrases, `!` (not), `&` (and), `|` (or) and parentheses.
+- [x] **Custom / saved filters** — save the current search as a named filter
+      from the sidebar ("My filters"), with counts, rename and delete.
+- [x] **Per-view sorting** — manual, due date, priority, name, date added.
+- [ ] **Sections inside projects** — sections exist (schema v4) and the project
+      view groups tasks under them, but there is no "move to section" drag or
+      a section filter yet.
 
 ## 2. Task detail
 
-- [ ] **Sub-task nesting deeper than one level** — `renderTaskRow()` renders
-      children only when `!isSub`, so depth is capped at a single level.
-- [ ] **Attachments** — can be local-only via IndexedDB blobs; no server needed.
-- [ ] **Comments / activity log** — needs a per-task history array, stored locally.
-- [ ] **Recurrence UI gaps** — the RRULE format supports `COUNT` / `UNTIL` but the
-      picker does not expose them; no exceptions ("skip this occurrence"), no
-      separate start date, one reminder offset only (no snooze, no multiple reminders).
-- [ ] **Timezone support** — every date/time is the browser's local zone;
-      no timezone picker, no travel-time awareness.
+- [x] **Sub-task nesting deeper than one level**.
+- [ ] **Attachments** — needs IndexedDB blobs plus a file picker.
+- [x] **Comments / activity log** — per-task comments in the task dialog.
+- [x] **Recurrence UI gaps** — a repeat can now end after N times or on a date
+      (COUNT / UNTIL). Still missing: exceptions ("skip this occurrence"),
+      a separate start date, snooze.
+- [x] **Multiple reminders** — the due-date dialog takes a list of reminders.
+- [ ] **Timezone support** — every date/time is the browser's local zone.
 
 ## 3. Interaction
 
-- [ ] **Bulk select / batch actions** — no multi-select, shift-click, select all,
-      or batch complete / delete / move.
-- [x] **Right-click context menu and reschedule shortcuts** — right-clicking a task
-      (list row or board card) opens a menu with Complete/Reopen, Today/Tomorrow/
-      Next week/No date, Priority 1–4, Move to project, Edit and Delete.
-- [ ] **Drag a task onto a project or label in the sidebar** — SortableJS groups
-      exist only inside the task list and the board.
-- [x] **Clickable chips in quick add** — the preview chips (`Tomorrow`, `P1`, `#Work`,
-      `@label`) open inline pickers for date/time, repeat, priority, project and
-      labels; unset values show muted "Add date / project / label" chips.
-- [~] **"Move to project / label" action** — "Move to project" is available from the
-      task context menu; "Move to section" still needs sections to exist.
-- [ ] **Sidebar drag-reorder** of projects and labels.
-- [ ] **Undo for edits, plus redo** — undo currently covers destructive actions only.
+- [x] **Bulk select / batch actions** — Ctrl/Cmd-click selects, Shift-click
+      selects a range, and the batch bar completes, reprioritises, moves or
+      deletes the selection (undoable as a whole).
+- [x] **Right-click context menu and reschedule shortcuts** — complete,
+      Today/Tomorrow/Next week/No date, Priority 1–4, Move to project, edit,
+      delete; works on list rows and board cards.
+- [ ] **Drag a task onto a project or label in the sidebar**.
+- [x] **Clickable chips in quick add** — date, repeat, priority, project and
+      label chips open inline pickers.
+- [~] **"Move to project / label" action** — available from the context menu
+      and the batch bar; "move to label" is still missing.
+- [x] **Sidebar drag-reorder** of projects and labels.
+- [x] **Undo for edits, plus redo** (Ctrl/Cmd+Shift+Z).
 
 ## 4. Shell, settings, polish
 
-- [ ] **Dark mode** and a **settings panel** (theme, start of week, default
-      priority, default reminder, sort preferences).
+- [x] **Dark mode** and a **settings panel** (theme, first day of the week,
+      default priority, default reminder).
 - [ ] **Karma / productivity stats** — completions per day, streaks, charts.
-- [ ] **Deep-linkable URLs** — the current view lives in `localStorage`; there is no
-      `#view=…`, no browser back/forward handling, and no shareable links.
-- [ ] **PWA** — no `manifest.json`, no icons, no service worker, so the app cannot
-      be installed and does not work offline.
-- [ ] **Accessibility pass** — keyboard navigation of the task list, focus
-      management for the custom popovers, screen-reader announcements on
-      complete / undo, `aria-label`s on the row icon buttons.
-- [ ] **Export formats** — ICS / Markdown / CSV, plus a print stylesheet.
+- [x] **Deep-linkable URLs** — `#/today?q=p1`; views are shareable and the
+      browser back button works.
+- [x] **PWA / offline** — manifest, icon and a service worker; the libraries
+      are vendored locally, so one visit is enough to work offline.
+- [~] **Accessibility pass** — native dialogs trap focus, keyboard shortcuts
+      exist, task rows are selectable by keyboard. Still missing: arrow-key
+      navigation of the task list, screen-reader announcements on complete.
+- [x] **Export formats** — JSON, CSV, Markdown and ICS.
+- [ ] **Print stylesheet**.
 - [ ] **i18n** — all strings and date formats are hardcoded US-English.
-- [ ] **Storage hardening** — everything lives in `localStorage` (~5 MB cap,
-      synchronous writes); IndexedDB would remove that ceiling.
-- [ ] **Closed-tab reminders** — achievable *without* a server via a service worker
-      plus Notification Triggers (best-effort only).
+- [ ] **Storage hardening** — everything still lives in `localStorage`
+      (~5 MB cap); IndexedDB would remove that ceiling.
+- [ ] **Closed-tab reminders** — the service worker is in place but does not
+      schedule notifications yet.
 
 ## 5. Small polish
 
 - [x] Search results highlight the matching text.
-- [x] `?` opens a keyboard-shortcut overlay (replaces the old toast).
+- [x] `?` opens a keyboard-shortcut overlay.
 - [x] Mobile task rows keep their actions visible; the board shows a
       "Scroll for more" hint while columns are off-screen.
 - [x] The Today view lists overdue work in its own group.
-- [ ] No "this occurrence" vs "entire series" editing for repeating tasks.
-- [ ] Priority colours are not colour-blind safe; overdue / due-soon states rely
-      partly on colour alone.
+- [ ] "This occurrence" vs "entire series" editing for repeating tasks.
+- [ ] Priority colours are not colour-blind safe.
 - [ ] Empty states are generic — no per-view illustration or copy.
-- [ ] No skeleton/loading states (local only, but the UI can still feel instant-empty).
+- [ ] No skeleton/loading states.
 
 ---
 
@@ -98,12 +101,12 @@ implemented** but still listed as missing:
 
 ## Suggested order
 
-1. Custom filters + query language (biggest everyday win, ~1 sitting).
-2. Calendar (month grid) view (the other big missing Todoist surface).
-3. Accessibility pass + shortcut help overlay (cheap, high value).
-4. Dark mode + settings panel.
-5. Bulk select / batch actions, then the right-click context menu.
-6. Storage hardening (IndexedDB) before attachments arrive.
+1. Attachments + IndexedDB (also lifts the storage ceiling).
+2. Karma / productivity stats.
+3. Accessibility pass (arrow-key list navigation, screen-reader announcements).
+4. i18n and a print stylesheet.
+5. Drag a task onto a sidebar project, and "move to label".
 
-None of these require a backend; the current `localStorage` schema (v3) stays
+None of these require a backend; the current `localStorage` schema (v4) stays
 valid for all of them.
+
