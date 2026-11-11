@@ -422,9 +422,30 @@ function parseTime(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   return [h, m];
 }
+/**
+ * Formats a date the way the user asked for: the browser's order, US
+ * (Nov 12, 2026), day-first (12 Nov 2026) or ISO (2026-11-12).
+ */
+function formatDateShort(d, { year = false } = {}) {
+  const style = settings.dateFormat || 'system';
+  if (style === 'iso') return toISODate(d);
+  const locale = style === 'dmy' ? 'en-GB' : style === 'mdy' ? 'en-US' : undefined;
+  const opts = { day: 'numeric', month: 'short' };
+  if (year) opts.year = 'numeric';
+  return new Intl.DateTimeFormat(locale, opts).format(d);
+}
+
+/** Formats a time as 12-hour, 24-hour or the system default. */
 function formatTime(hhmm) {
   if (!TIME_RE.test(hhmm || '')) return '';
   const [h, m] = parseTime(hhmm);
+  const style = settings.timeFormat || 'system';
+  if (style === '24h') return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  if (style === '12h') {
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
+  }
   return new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' }).format(new Date(2000, 0, 1, h, m));
 }
 function formatDue(iso, time) {
@@ -437,7 +458,7 @@ function formatDue(iso, time) {
   else if (diff === 1) label = 'Tomorrow';
   else if (diff === -1) label = 'Yesterday';
   else if (diff > 1 && diff <= 6) label = new Intl.DateTimeFormat('en', { weekday: 'short' }).format(d);
-  else label = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(d);
+  else label = formatDateShort(d);
   const t = formatTime(time);
   return t ? `${label} ${t}` : label;
 }
@@ -882,7 +903,9 @@ function calendarMonthLabel(month) {
 }
 
 function calendarDayLabel(iso) {
-  return new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(parseDate(iso));
+  const d = parseDate(iso);
+  const weekday = new Intl.DateTimeFormat('en', { weekday: 'long' }).format(d);
+  return `${weekday}, ${formatDateShort(d, { year: true })}`;
 }
 
 function renderCalendar() {
@@ -1145,6 +1168,8 @@ function renderKarma() {
 const DEFAULT_SETTINGS = {
   theme: 'system',
   startOfWeek: 'mon',
+  dateFormat: 'system',
+  timeFormat: 'system',
   defaultPriority: null,
   defaultReminder: null,
 };
@@ -1153,6 +1178,8 @@ let settings = { ...DEFAULT_SETTINGS };
 const SETTINGS_DEFS = [
   { key: 'theme', label: 'Theme', options: [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']] },
   { key: 'startOfWeek', label: 'Week starts on', options: [['mon', 'Monday'], ['sun', 'Sunday']] },
+  { key: 'dateFormat', label: 'Date format', options: [['system', 'System'], ['mdy', 'Nov 12, 2026'], ['dmy', '12 Nov 2026'], ['iso', '2026-11-12']] },
+  { key: 'timeFormat', label: 'Time format', options: [['system', 'System'], ['12h', '12-hour'], ['24h', '24-hour']] },
   { key: 'defaultPriority', label: 'Default priority', options: [[null, 'None'], [1, 'P1'], [2, 'P2'], [3, 'P3'], [4, 'P4']] },
   {
     key: 'defaultReminder',
@@ -1170,6 +1197,8 @@ async function loadSettings() {
   settings = {
     theme: ['light', 'dark', 'system'].includes(raw.theme) ? raw.theme : DEFAULT_SETTINGS.theme,
     startOfWeek: ['mon', 'sun'].includes(raw.startOfWeek) ? raw.startOfWeek : DEFAULT_SETTINGS.startOfWeek,
+    dateFormat: ['system', 'mdy', 'dmy', 'iso'].includes(raw.dateFormat) ? raw.dateFormat : DEFAULT_SETTINGS.dateFormat,
+    timeFormat: ['system', '12h', '24h'].includes(raw.timeFormat) ? raw.timeFormat : DEFAULT_SETTINGS.timeFormat,
     defaultPriority: [1, 2, 3, 4].includes(raw.defaultPriority) ? raw.defaultPriority : null,
     defaultReminder: raw.defaultReminder === null || raw.defaultReminder === undefined
       ? null
@@ -1798,9 +1827,9 @@ function completionDayLabel(key) {
   const diff = Math.round((today - day) / 86400000);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Yesterday';
-  const opts = { weekday: 'long', month: 'short', day: 'numeric' };
-  if (day.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
-  return new Intl.DateTimeFormat('en', opts).format(day);
+  const weekday = new Intl.DateTimeFormat('en', { weekday: 'long' }).format(day);
+  const label = formatDateShort(day, { year: day.getFullYear() !== today.getFullYear() });
+  return `${weekday}, ${label}`;
 }
 
 /** Completed: newest first, one section per completion day, subtasks included. */

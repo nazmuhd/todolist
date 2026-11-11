@@ -55,7 +55,7 @@ with `[ ]`; `[~]` means partly done.
 ## 4. Shell, settings, polish
 
 - [x] **Dark mode** and a **settings panel** (theme, first day of the week,
-      default priority, default reminder).
+      default priority, default reminder, date order and 12h/24h time).
 - [x] **Karma / productivity stats** — a Karma view with completions today, in the
       last 7 days, the current and best streak, the all-time total and a
       14-day bar chart.
@@ -70,7 +70,8 @@ with `[ ]`; `[~]` means partly done.
 - [x] **Print stylesheet** — the sidebar, header, quick-add and row actions
       are hidden on paper; the task list prints cleanly.
 - [ ] **i18n — unplanned.** The app is English-only by design; a full string
-      table would cost more in readability than it returns.
+      table would cost more in readability than it returns. What *was* worth
+      having — a date-order and 12h/24h preference — is now a setting.
 - [x] **Storage hardening** — everything goes through the storage adapter, and
       both the documents and the blobs now live in IndexedDB (the ~5 MB
       `localStorage` cap is gone). `localStorage` remains only as a fallback
@@ -114,10 +115,8 @@ items were **already implemented** but had still been listed as missing:
 
 ## Suggested order
 
-1. A separate start date for recurring tasks (distinct from the due date).
-2. Skeleton / loading states.
-
-Drag-to-sidebar, closed-tab reminders and the recurrence work are done.
+Nothing outstanding. Every remaining line is a deliberate "unplanned"
+decision rather than an open gap.
 
 None of these require a backend; the current storage schema (v5) stays valid
 for all of them.
