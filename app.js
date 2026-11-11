@@ -11,7 +11,7 @@ const store = new TodoStore.LocalStore();
    Data lives in the browser for now (see storage.js). `version` is bumped whenever the
    shape changes; MIGRATIONS upgrades older payloads on load, so existing data is never thrown away.
 ============================================================ */
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const PROJECT_COLORS = ['#246fe0', '#058527', '#db4c3f', '#eb8909', '#8a4dff', '#0f9d58'];
 const LABEL_COLORS = ['#db4c3f', '#eb8909', '#246fe0', '#058527', '#8a4dff'];
@@ -86,6 +86,14 @@ const MIGRATIONS = {
   4: (s) => {
     (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
       if (t && typeof t === 'object' && !Array.isArray(t.attachments)) t.attachments = [];
+    });
+    return s;
+  },
+  // v5 -> v6 (per-occurrence exceptions). Existing tasks simply gain an
+  // empty list of skipped dates.
+  5: (s) => {
+    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
+      if (t && typeof t === 'object' && !Array.isArray(t.exceptions)) t.exceptions = [];
     });
     return s;
   },
@@ -215,6 +223,10 @@ function normalizeState(s) {
         .map(asText)
         .filter(d => DATE_RE.test(d)),
       recurrenceEnd: normalizeRecurrenceEnd(t.recurrenceEnd),
+      exceptions: (Array.isArray(t.exceptions) ? t.exceptions : [])
+        .map(e => (typeof e === 'string' ? { date: e, action: 'skip' } : e))
+        .filter(e => e && typeof e === 'object' && DATE_RE.test(asText(e.date)))
+        .map(e => ({ date: asText(e.date), action: asText(e.action) || 'skip' })),
       attachments: (Array.isArray(t.attachments) ? t.attachments : [])
         .filter(a => a && typeof a === 'object' && asText(a.id))
         .map(a => ({
@@ -571,6 +583,12 @@ function recurrenceToText(body) {
 }
 
 /** Next occurrence strictly after the task's current due date. */
+/** True when a specific occurrence of a repeating task was skipped. */
+function isSkippedOccurrence(t, iso) {
+  if (!t || !Array.isArray(t.exceptions)) return false;
+  return t.exceptions.some(e => e.date === iso && e.action !== 'done');
+}
+
 function nextRecurrenceISO(t) {
   if (!t || !t.due || !t.recurrence) return null;
   const lib = window.rrule;
@@ -579,8 +597,16 @@ function nextRecurrenceISO(t) {
     const [y, m, d] = t.due.split('-').map(Number);
     const dtstart = new Date(y, m - 1, d, 12, 0, 0, 0);
     const rule = new lib.RRule({ ...lib.RRule.parseString(t.recurrence), dtstart });
-    const next = rule.after(dtstart, false);
-    return next ? toISODate(next) : null;
+    // Walk forward until an occurrence that has not been skipped.
+    let cursor = dtstart;
+    for (let i = 0; i < 60; i++) {
+      const next = rule.after(cursor, false);
+      if (!next) return null;
+      const iso = toISODate(next);
+      if (!isSkippedOccurrence(t, iso)) return iso;
+      cursor = next;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -2079,6 +2105,14 @@ function openContextMenu(taskId, x, y) {
   item('complete', t.completed ? 'Reopen task' : 'Complete task', t.completed ? 'rotate-ccw' : 'circle-check');
   sep();
 
+  if (t.recurrence) {
+    item('skip-occurrence', 'Skip this occurrence', 'calendar-off');
+  }
+  if (t.due) {
+    item('snooze', 'Snooze until tomorrow', 'moon');
+  }
+  if (t.recurrence || t.due) sep();
+
   header('Reschedule');
   item('due-today', 'Today', 'calendar');
   item('due-tomorrow', 'Tomorrow', 'calendar');
@@ -2137,6 +2171,8 @@ function runContextAction(action, id) {
   if (!t) return;
 
   if (action === 'complete') { toggleComplete(id); return; }
+  if (action === 'skip-occurrence') { const t = state.tasks.find(x => x.id === id); if (t) skipOccurrence(t); return; }
+  if (action === 'snooze') { const t = state.tasks.find(x => x.id === id); if (t) snoozeTask(t); return; }
   if (action === 'edit') { openTaskModal(id); return; }
   if (action === 'delete') { deleteTask(id); return; }
 
@@ -2613,6 +2649,41 @@ function addTask(data) {
   saveState();
   render();
   return task;
+}
+
+/** Skips one occurrence of a repeating task and rolls it to the next one. */
+function skipOccurrence(task) {
+  if (!task || !task.recurrence || !task.due) return false;
+  const snapshot = snapshotData();
+  const skipped = Array.isArray(task.exceptions) ? [...task.exceptions] : [];
+  if (!skipped.some(e => e.date === task.due)) {
+    skipped.push({ date: task.due, action: 'skip' });
+  }
+  task.exceptions = skipped;
+  const next = nextRecurrenceISO(task);
+  if (next) {
+    task.due = next;
+    task.reminderFiredKey = null;
+  }
+  saveState();
+  render();
+  offerUndo('Occurrence skipped', snapshot);
+  return true;
+}
+
+/** Moves a task to tomorrow, as an all-day task. */
+function snoozeTask(task) {
+  if (!task || !task.due) return false;
+  const snapshot = snapshotData();
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  task.due = toISODate(d);
+  task.dueTime = null;
+  task.reminderFiredKey = null;
+  saveState();
+  render();
+  offerUndo('Snoozed until tomorrow', snapshot);
+  return true;
 }
 
 function toggleComplete(id) {

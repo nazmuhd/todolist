@@ -30,9 +30,9 @@ with `[ ]`; `[~]` means partly done.
 - [x] **Attachments** — files are stored as IndexedDB blobs and the task keeps
       only the metadata. Add, open and remove them from the task dialog.
 - [x] **Comments / activity log** — per-task comments in the task dialog.
-- [x] **Recurrence UI gaps** — a repeat can now end after N times or on a date
-      (COUNT / UNTIL). Still missing: exceptions ("skip this occurrence"),
-      a separate start date, snooze.
+- [x] **Recurrence UI gaps** — a repeat can end after N times or on a date
+      (COUNT / UNTIL), single occurrences can be skipped, and tasks can be
+      snoozed until tomorrow. Still open: a separate start date.
 - [x] **Multiple reminders** — the due-date dialog takes a list of reminders.
 - [ ] **Timezone support** — every date/time is the browser's local zone.
 
@@ -87,7 +87,9 @@ with `[ ]`; `[~]` means partly done.
 - [x] Mobile task rows keep their actions visible; the board shows a
       "Scroll for more" hint while columns are off-screen.
 - [x] The Today view lists overdue work in its own group.
-- [ ] "This occurrence" vs "entire series" editing for repeating tasks.
+- [x] "This occurrence" vs "entire series" — a repeating task can have single
+      occurrences skipped ("Skip this occurrence"), and the next occurrence
+      calculation skips the dates you have skipped.
 - [x] Priority levels carry a **shape** as well as a colour (square, dot,
       ring) so they are readable without colour vision.
 - [x] Empty states are per view, each with its own copy and artwork.
