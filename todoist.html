@@ -88,6 +88,10 @@
           <i data-lucide="calendar" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
           <span class="sidebar-hide">Upcoming</span>
         </a>
+        <a href="#" data-view="calendar" title="Calendar" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+          <i data-lucide="calendar-days" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+          <span class="sidebar-hide">Calendar</span>
+        </a>
         <a href="#" data-view="completed" title="Completed" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
           <i data-lucide="circle-check-big" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
           <span class="sidebar-hide">Completed</span>
@@ -209,6 +213,7 @@
         <div id="view-subtitle" class="text-xs text-td-muted mb-3"></div>
         <ul id="task-list" class="space-y-0"></ul>
         <div id="board-view" class="hidden"></div>
+        <div id="calendar-view" class="hidden"></div>
         <div id="empty-state" class="hidden text-center py-16 text-td-muted">
           <div class="empty-illustration mx-auto mb-4" aria-hidden="true">
             <span class="empty-dot empty-dot-1"></span>
