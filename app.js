@@ -4009,7 +4009,7 @@ function openFilterEditor(id) {
   editingFilterId = id;
   const row = $('#filter-save-row');
   const input = $('#filter-name-input');
-  row.classList.remove('hidden');
+  row.removeAttribute('hidden');
   input.value = f.name;
   input.dataset.query = f.query;
   input.focus();
@@ -4048,7 +4048,7 @@ function saveFilterFromRow() {
   persistSavedFilters();
   input.value = '';
   delete input.dataset.query;
-  $('#filter-save-row').classList.add('hidden');
+  $('#filter-save-row').setAttribute('hidden', '');
   if (!editing) {
     state.ui.search = '';
     $('#search-input').value = '';
@@ -4063,7 +4063,7 @@ $('#add-filter-btn').onclick = () => {
   const input = $('#filter-name-input');
   input.value = '';
   delete input.dataset.query;
-  $('#filter-save-row').classList.remove('hidden');
+  $('#filter-save-row').removeAttribute('hidden');
   input.focus();
   if (!(state.ui.search || '').trim()) {
     showToast('Type a search first, then save it as a filter', 'error');

@@ -556,6 +556,11 @@ h1, h2, h3 {
   .empty-illustration { display: none !important; }
 }
 
+/* The filter save row is toggled with the `hidden` attribute, so it needs a
+   display rule of its own (and no conflicting `hidden`/`flex` utilities). */
+#filter-save-row { display: flex; }
+#filter-save-row[hidden] { display: none; }
+
 /* ---------- Karma ---------- */
 .karma-cards {
   display: grid;
