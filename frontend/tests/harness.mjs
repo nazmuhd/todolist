@@ -83,10 +83,15 @@ function staticServer(port) {
 
     if (section === 'sync') {
       if (method === 'GET') {
-        const since = Number(new URL(rawUrl, 'http://localhost').searchParams.get('since') || 0);
+        const params = new URL(rawUrl, 'http://localhost').searchParams;
+        const since = Number(params.get('since') || 0);
+        const limit = Number(params.get('limit') || 0);
+        const rows = [...api.sync.rows.values()]
+          .filter((row) => row.seq > since)
+          .sort((a, b) => a.seq - b.seq);
+        const page = limit > 0 ? rows.slice(0, limit) : rows;
         const changes = { projects: [], labels: [], tasks: [] };
-        for (const row of [...api.sync.rows.values()].sort((a, b) => a.seq - b.seq)) {
-          if (row.seq <= since) continue;
+        for (const row of page) {
           changes[row.entity].push({
             id: row.id,
             data: row.deleted ? null : row.data,
@@ -94,7 +99,12 @@ function staticServer(port) {
             deleted: row.deleted,
           });
         }
-        sendJson(res, 200, { changes, cursor: api.sync.seq });
+        const cursor = page.length ? page[page.length - 1].seq : since;
+        sendJson(res, 200, {
+          changes,
+          cursor,
+          hasMore: limit > 0 && rows.length > limit,
+        });
         return;
       }
       if (method === 'POST') {

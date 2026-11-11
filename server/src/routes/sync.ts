@@ -9,7 +9,19 @@ syncRouter.get('/', (req, res) => {
     res.status(400).json({ error: 'invalid_since' });
     return;
   }
-  res.json(changesSince(since));
+
+  // `limit` is optional: without it the whole feed comes back (compatibility).
+  const rawLimit = req.query.limit;
+  let limit: number | undefined;
+  if (rawLimit !== undefined) {
+    limit = Number(rawLimit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 1000) {
+      res.status(400).json({ error: 'invalid_limit' });
+      return;
+    }
+  }
+
+  res.json(changesSince(since, limit));
 });
 
 syncRouter.post('/', (req, res) => {

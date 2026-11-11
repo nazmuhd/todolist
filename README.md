@@ -88,6 +88,11 @@ SQLite comes from Node's built-in `node:sqlite` (Node 24), so there is no native
 module to build. The database file and its `-wal`/`-shm` siblings are created
 on first boot and should not be committed.
 
+The sync feed is pageable for large datasets:
+`GET /api/sync?since=<cursor>&limit=100` returns `hasMore` and a `cursor` to
+resume from. The app does this automatically; the response bodies stay bounded
+while the local model still holds the full set.
+
 ### Push reminders
 
 Generate VAPID keys and put them in `server/.env`:

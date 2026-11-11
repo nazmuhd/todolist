@@ -167,13 +167,33 @@ export function getCursor(): number {
   return getSequence();
 }
 
-export function changesSince(since: number): { changes: Changes; cursor: number } {
-  const rows = getDb().prepare(`
-    select entity, id, data, rev, seq, deleted
-      from entities
-     where seq > ?
-     order by seq
-  `).all(since) as unknown as EntityRow[];
+/**
+ * Changes after `since`, oldest first. `limit` caps one page; when it does,
+ * `hasMore` is true and `cursor` is the last sequence included, so the next
+ * request can resume with `since=cursor`.
+ */
+export function changesSince(
+  since: number,
+  limit?: number,
+): { changes: Changes; cursor: number; hasMore: boolean } {
+  const hasLimit = Number.isInteger(limit) && (limit as number) > 0;
+  const rows = (hasLimit
+    ? getDb().prepare(`
+        select entity, id, data, rev, seq, deleted
+          from entities
+         where seq > ?
+         order by seq
+         limit ?
+      `).all(since, (limit as number) + 1)
+    : getDb().prepare(`
+        select entity, id, data, rev, seq, deleted
+          from entities
+         where seq > ?
+         order by seq
+      `).all(since)) as unknown as EntityRow[];
+
+  const hasMore = hasLimit && rows.length > (limit as number);
+  if (hasMore) rows.length = limit as number;
 
   const changes: Changes = { projects: [], labels: [], tasks: [] };
   for (const row of rows) {
@@ -185,7 +205,9 @@ export function changesSince(since: number): { changes: Changes; cursor: number 
       deleted: Boolean(row.deleted),
     });
   }
-  return { changes, cursor: getSequence() };
+
+  const cursor = rows.length ? rows[rows.length - 1]!.seq : since;
+  return { changes, cursor, hasMore };
 }
 
 /**

@@ -41,6 +41,7 @@ test('an empty sync feed starts at cursor 0', async () => {
     assert.deepEqual(await res.json(), {
       changes: { projects: [], labels: [], tasks: [] },
       cursor: 0,
+      hasMore: false,
     });
   });
 });

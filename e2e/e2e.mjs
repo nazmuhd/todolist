@@ -216,6 +216,15 @@ try {
   })).json();
   check('a second client can push many records', bulkResult.applied?.length === 120, JSON.stringify({ applied: bulkResult.applied?.length, conflicts: bulkResult.conflicts?.length }));
 
+  // The feed itself pages: 50 rows at a time, resuming from its cursor.
+  const firstPage = await (await fetch(`http://127.0.0.1:${PORT}/api/sync?since=0&limit=50`)).json();
+  const firstCount = (firstPage.changes?.projects?.length || 0)
+    + (firstPage.changes?.labels?.length || 0)
+    + (firstPage.changes?.tasks?.length || 0);
+  check('the sync feed returns a bounded page', firstCount === 50 && firstPage.hasMore === true, JSON.stringify({ firstCount, cursor: firstPage.cursor }));
+  const secondPage = await (await fetch(`http://127.0.0.1:${PORT}/api/sync?since=${firstPage.cursor}&limit=50`)).json();
+  check('the next page resumes after the cursor', secondPage.cursor > firstPage.cursor, `cursor=${secondPage.cursor}`);
+
   await evalJs(`window.dispatchEvent(new Event('online'))`);
   await waitFor(`document.querySelectorAll('#task-list li[data-task-id]').length === 100`, 'first page of tasks');
   check('large lists render a first page of 100', true);

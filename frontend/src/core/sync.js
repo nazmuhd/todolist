@@ -22,6 +22,8 @@ const META_KEY = 'todoist-clone-sync-meta';
 const ENTITIES = ['projects', 'labels', 'tasks'];
 const DEBOUNCE_MS = 400;
 const MAX_PUSH_ATTEMPTS = 3;
+const SYNC_PAGE_SIZE = 100;
+const MAX_PULL_PAGES = 1000;
 
 let cursor = 0;
 let revs = { projects: {}, labels: {}, tasks: {} };
@@ -183,11 +185,19 @@ async function pushChanges() {
 }
 
 async function pullChanges() {
-  const body = await request(`/sync?since=${cursor}`);
-  if (!body) return false;
+  let changed = false;
+  let pages = 0;
 
-  const changed = applyFeed(body.changes || {});
-  cursor = Number.isInteger(body.cursor) ? body.cursor : cursor;
+  while (pages < MAX_PULL_PAGES) {
+    const body = await request(`/sync?since=${cursor}&limit=${SYNC_PAGE_SIZE}`);
+    if (!body) return false;
+
+    if (applyFeed(body.changes || {})) changed = true;
+    if (Number.isInteger(body.cursor)) cursor = body.cursor;
+    pages += 1;
+
+    if (!body.hasMore) break;
+  }
 
   if (changed) {
     try { await store.saveState(state); } catch {}
@@ -198,13 +208,23 @@ async function pullChanges() {
 
 /** First sync on this browser: adopt a non-empty server, or seed an empty one. */
 async function initialSync() {
-  const feed = await request('/sync?since=0');
+  let feed = await request(`/sync?since=0&limit=${SYNC_PAGE_SIZE}`);
   if (!feed) return false;
 
   if (feed.cursor > 0) {
     revs = emptyRevs();
     applyFeed(feed.changes || {}, { replace: true });
     cursor = feed.cursor;
+
+    let pages = 1;
+    while (feed.hasMore && pages < MAX_PULL_PAGES) {
+      feed = await request(`/sync?since=${cursor}&limit=${SYNC_PAGE_SIZE}`);
+      if (!feed) return false;
+      applyFeed(feed.changes || {});
+      if (Number.isInteger(feed.cursor)) cursor = feed.cursor;
+      pages += 1;
+    }
+
     try { await store.saveState(state); } catch {}
     requestRender();
   } else if (!(await pushChanges())) {

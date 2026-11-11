@@ -52,8 +52,9 @@ Deferred:
   Remaining: multi-device identity/auth (so several devices are distinct
   users rather than one shared store).
 - [x] **API pagination** — the list and Completed views render 100 tasks at a
-  time with a "Show more" control. The sync feed still transfers all changes
-  (local-first needs the full set), so this is a rendering concern.
+  time with a "Show more" control, and `GET /api/sync` accepts
+  `since`/`limit` with `hasMore` so responses are bounded. The client pages
+  until it is caught up; the local model still holds everything.
 - [x] **File attachments** — stored as BLOBs in SQLite and cached in IndexedDB.
 - [x] **Comments** — persisted inside the task state.
 - [ ] **Sharing / collaboration** (assignees, shared projects).

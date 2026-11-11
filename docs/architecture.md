@@ -326,8 +326,12 @@ todoist/
   timers stay as offline fallbacks. Without VAPID keys the worker does not
   start.
 - **Large lists are paged in the UI.** The list and Completed views show 100
-  rows with a "Show more" control. The sync feed itself is not paginated:
-  local-first requires the full change set.
+  rows with a "Show more" control.
+- **The sync feed is pageable.** `GET /api/sync?since=N&limit=L` returns at
+  most `L` records and `hasMore`; `cursor` is the last sequence included, so
+  the client resumes from it until caught up. Without `limit` the whole feed
+  comes back (compatibility). The client still stores the full set locally —
+  pagination bounds each HTTP response, not the local model.
 - **Attachment cleanup is explicit.** `POST /api/blobs/cleanup` deletes blobs
   no live task references, ignoring recent ones so an in-progress upload is
   safe.
