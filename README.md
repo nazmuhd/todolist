@@ -6,7 +6,7 @@ offline.
 
 ```
 todoist/
-├── todoist.html        the app
+├── todoist.html        the app shell
 ├── app.js              the app (ES module entry point)
 ├── storage.js          the storage adapter: localStorage + IndexedDB
 ├── styles.css
@@ -22,30 +22,38 @@ todoist/
 │   ├── src/            the express app
 │   └── tests/
 ├── docs/               architecture plan and notes
-└── start.bat           boots the app and the API together
+└── start.bat           boots the server (app + API)
 ```
 
 ## Running it
 
-The app is served over HTTP (ES modules and the service worker both refuse to
-run from `file://`).
+**One process serves everything.** The Express server hosts the API *and* the
+static app, so the app and the API share an origin (no CORS to configure) and
+the service worker behaves normally.
 
 ```bat
 start.bat
 ```
 
-or by hand:
+then open **http://localhost:4000**.
+
+By hand:
 
 ```bash
-python -m http.server 8000     # the app  → http://localhost:8000
-cd server && pnpm install && pnpm dev   # the API → http://localhost:4000
+cd server
+pnpm install
+pnpm dev          # http://localhost:4000 — app + API
 ```
+
+The API lives under `/api`; the app is served from the repository root.
+A plain static server (`python -m http.server`) still works for the app alone,
+but then the API is a different origin.
 
 ## The API (optional)
 
-The app works fully offline on its own. The API in `server/` adds
-multi-device sync, shared projects and reliable push reminders — see
-`docs/architecture.md` for the design.
+The app works fully offline on its own — the API only adds multi-device sync,
+shared projects and reliable push reminders. See `docs/architecture.md` for the
+design.
 
 ```bash
 cd server

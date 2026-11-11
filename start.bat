@@ -1,19 +1,17 @@
 @echo off
-rem Starts the static app and the API together.
-rem   static app : http://localhost:8000
-rem   API        : http://localhost:4000
+rem Starts the app and the API from one process.
 rem
-rem The app needs a local server: ES modules and the service worker both
-rem refuse to run from file://.
+rem   app + API : http://localhost:4000
+rem
+rem The server serves the static app and the API from the same origin, so
+rem there is no CORS to configure and the service worker works as usual.
 
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0server"
 
-start "todoist-app"  cmd /c "python -m http.server 8000"
-start "todoist-api"  cmd /c "cd server && pnpm dev"
+if not exist node_modules (
+  echo Installing dependencies...
+  pnpm install
+)
 
-echo.
-echo   App:  http://localhost:8000
-echo   API:  http://localhost:4000
-echo.
-endlocal
+pnpm dev

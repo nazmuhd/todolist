@@ -269,7 +269,9 @@ todoist/
 
 - **The client talks only to the Express API**, never straight to PostgREST.
   One origin, one auth path, one place for validation — and the Supabase
-  service-role key never reaches the browser.
+  service-role key never reaches the browser. The API also serves the static
+  app, so there is one process and one port (`http://localhost:4000`): the
+  app at `/`, the API under `/api`.
 - **Auth is Supabase Auth.** The client signs in (magic link / OAuth) and sends
   the access token as `Authorization: Bearer …`; the API verifies it against
   Supabase's JWKS and attaches `req.user`.
