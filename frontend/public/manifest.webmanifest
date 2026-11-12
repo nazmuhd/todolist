@@ -1,7 +1,7 @@
 {
-  "name": "Todoist Clone",
-  "short_name": "Todoist",
-  "description": "A local-first Todoist clone: tasks, projects, labels, recurring tasks, reminders and a calendar.",
+  "name": "Todolist",
+  "short_name": "Todolist",
+  "description": "A local-first Todolist app: tasks, projects, labels, recurring tasks, reminders and a calendar.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -1,4 +1,4 @@
-/* Offline support for the Todoist clone.
+/* Offline support for the Todolist app.
    Everything the app needs is served from this origin (the libraries are
    vendored locally), so the first visit is enough to work offline. */
 const CACHE = 'todoist-clone-v6';

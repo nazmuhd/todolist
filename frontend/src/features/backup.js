@@ -26,7 +26,7 @@ function downloadFile(name, content, type) {
 
 function exportData() {
   const payload = {
-    app: 'todoist-clone',
+    app: 'todolist',
     schemaVersion: SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     data: {
@@ -37,7 +37,7 @@ function exportData() {
     },
   };
 
-  downloadFile(`todoist-backup-${todayISO()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+  downloadFile(`todolist-backup-${todayISO()}.json`, JSON.stringify(payload, null, 2), 'application/json');
   showToast(`Exported ${plural(state.tasks.length, 'task')}`, 'success');
 }
 
@@ -75,7 +75,7 @@ function csvText() {
 }
 
 function exportCsv() {
-  downloadFile(`todoist-${todayISO()}.csv`, csvText(), 'text/csv;charset=utf-8');
+  downloadFile(`todolist-${todayISO()}.csv`, csvText(), 'text/csv;charset=utf-8');
 }
 
 function markdownText() {
@@ -105,7 +105,7 @@ function markdownText() {
 }
 
 function exportMarkdown() {
-  downloadFile(`todoist-${todayISO()}.md`, markdownText(), 'text/markdown;charset=utf-8');
+  downloadFile(`todolist-${todayISO()}.md`, markdownText(), 'text/markdown;charset=utf-8');
 }
 
 function icsEscape(text) {
@@ -121,13 +121,13 @@ function icsText() {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Todoist Clone//EN',
+    'PRODID:-//Todolist//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
   ];
   state.tasks.filter(t => t.due && !t.completed).forEach(t => {
     lines.push('BEGIN:VEVENT');
-    lines.push(`UID:${t.id}@todoist-clone`);
+    lines.push(`UID:${t.id}@todolist`);
     lines.push(`DTSTAMP:${stamp(new Date())}T000000`);
     if (t.dueTime) {
       lines.push(`DTSTART:${t.due.replace(/-/g, '')}T${t.dueTime.replace(':', '')}00`);
@@ -148,7 +148,7 @@ function icsText() {
 }
 
 function exportIcs() {
-  downloadFile(`todoist-${todayISO()}.ics`, icsText(), 'text/calendar;charset=utf-8');
+  downloadFile(`todolist-${todayISO()}.ics`, icsText(), 'text/calendar;charset=utf-8');
 }
 
 const exportModal = $('#export-modal');

@@ -1,6 +1,6 @@
-# Todoist Clone
+# Todolist
 
-A local-first Todoist clone: tasks, projects, labels, recurring tasks,
+A local-first todo app: tasks, projects, labels, recurring tasks,
 reminders, a calendar, karma stats, filters, dark mode — and it works
 offline.
 
@@ -139,6 +139,10 @@ curl -X POST "http://localhost:4000/api/blobs/cleanup?olderThanHours=24"
 backup**; projects, sections, labels, sub-tasks, notes, reminders, priorities,
 due dates and completed items are converted. Your current data is copied to a
 pre-import recovery slot first.
+
+Exports are named `todolist-*.json` / `.csv` / `.md` / `.ics`. Older backups
+named `todoist-*` still import: the format is detected from the file's
+contents, not its name.
 
 Undo/redo history is kept in IndexedDB (the latest action, for 24 hours), so
 Ctrl+Z / Ctrl+Shift+Z still work after a reload.

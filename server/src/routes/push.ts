@@ -71,7 +71,7 @@ pushRouter.post('/test', async (_req, res) => {
     return;
   }
   const result = await sendPush({
-    title: 'Todoist clone',
+    title: 'Todolist',
     body: 'Push notifications are working.',
   });
   res.json(result);
