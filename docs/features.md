@@ -104,6 +104,7 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 | ✅ | Documents and blobs in IndexedDB (no 5 MB localStorage cap) | `storage.js` |
 | ✅ | Single-user SQLite backend (`node:sqlite`) | `server/` |
 | ✅ | Per-entity sync with per-record revisions and tombstones | `/api/sync`, `core/sync.js` |
+| ✅ | Sync resumes automatically when the network returns | `core/sync.js` |
 | ✅ | Paged sync responses (`since` / `limit` / `hasMore`) | `/api/sync` |
 | ✅ | Server-side reminders and Web Push subscriptions | `services/reminders.ts`, `/api/push` |
 | ✅ | Orphan attachment cleanup after a guard period | `POST /api/blobs/cleanup` |

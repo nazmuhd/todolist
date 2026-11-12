@@ -15,7 +15,7 @@
  * on the server.
  */
 import { store } from './store.js';
-import { state, setState } from './state.js';
+import { state, setState, defaultState } from './state.js';
 import { requestRender } from './render.js';
 
 const META_KEY = 'todoist-clone-sync-meta';
@@ -122,9 +122,63 @@ function applyFeed(changes, { replace = false } = {}) {
   return true;
 }
 
-function collectChanges() {
+/**
+ * True when this browser holds work the server has not seen yet.
+ *
+ * A device that only has the default projects and labels is "fresh" and may
+ * adopt the server's state wholesale. A device with a task of its own may
+ * not: that task was never pushed, so replacing the state would lose it.
+ */
+function hasLocalWork() {
+  if ((state.tasks || []).length > 0) return true;
+
+  const defaults = defaultState();
+  const sameList = (list, seed) => {
+    if (!Array.isArray(list) || list.length !== seed.length) return false;
+    return seed.every((item) => {
+      const found = list.find(x => x && x.id === item.id);
+      return !!found && found.name === item.name && found.color === item.color;
+    });
+  };
+
+  return !sameList(state.projects, defaults.projects) || !sameList(state.labels, defaults.labels);
+}
+
+/**
+ * The server's view of every record, used as the baseline to diff the local
+ * state against when there is no snapshot (the sync metadata was lost, or
+ * the first sync never finished). Tombstoned records are left out: they no
+ * longer exist on the server.
+ */
+function baselineFromPages(pages) {
+  const baseline = { projects: {}, labels: {}, tasks: {} };
+  for (const page of pages) {
+    for (const entity of ENTITIES) {
+      for (const row of page.changes?.[entity] || []) {
+        if (row.deleted || row.data == null) continue;
+        baseline[entity][row.id] = JSON.stringify(row.data);
+      }
+    }
+  }
+  return baseline;
+}
+
+/** The revision each server record is on, used as the base for a push. */
+function revsFromPages(pages) {
+  const out = emptyRevs();
+  for (const page of pages) {
+    for (const entity of ENTITIES) {
+      for (const row of page.changes?.[entity] || []) {
+        out[entity][row.id] = row.rev;
+      }
+    }
+  }
+  return out;
+}
+
+function collectChanges(baseline, { allowDeletes = true } = {}) {
   const current = currentMaps();
-  const previous = snapshot || { projects: {}, labels: {}, tasks: {} };
+  const previous = baseline || snapshot || { projects: {}, labels: {}, tasks: {} };
   const changes = {};
   let count = 0;
 
@@ -143,10 +197,12 @@ function collectChanges() {
       }
     }
 
-    for (const id of Object.keys(before)) {
-      if (!(id in current[entity])) {
-        list.push({ id, deleted: true, baseRev: revs[entity][id] ?? 0 });
-        count += 1;
+    if (allowDeletes) {
+      for (const id of Object.keys(before)) {
+        if (!(id in current[entity])) {
+          list.push({ id, deleted: true, baseRev: revs[entity][id] ?? 0 });
+          count += 1;
+        }
       }
     }
 
@@ -157,8 +213,8 @@ function collectChanges() {
 }
 
 /** Pushes dirty records, retrying per-record conflicts with the server rev. */
-async function pushChanges() {
-  let pending = collectChanges();
+async function pushChanges(baseline, options) {
+  let pending = collectChanges(baseline, options);
 
   for (let attempt = 0; attempt < MAX_PUSH_ATTEMPTS && pending.count; attempt += 1) {
     const body = await request('/sync', { method: 'POST', json: { changes: pending.changes } });
@@ -212,17 +268,40 @@ async function initialSync() {
   if (!feed) return false;
 
   if (feed.cursor > 0) {
-    revs = emptyRevs();
-    applyFeed(feed.changes || {}, { replace: true });
-    cursor = feed.cursor;
-
-    let pages = 1;
-    while (feed.hasMore && pages < MAX_PULL_PAGES) {
-      feed = await request(`/sync?since=${cursor}&limit=${SYNC_PAGE_SIZE}`);
+    // Collect every page of the server's records first: they are the
+    // baseline the local state is compared against.
+    const pages = [feed];
+    let last = feed.cursor;
+    let more = feed.hasMore;
+    let pageCount = 1;
+    while (more && pageCount < MAX_PULL_PAGES) {
+      feed = await request(`/sync?since=${last}&limit=${SYNC_PAGE_SIZE}`);
       if (!feed) return false;
-      applyFeed(feed.changes || {});
-      if (Number.isInteger(feed.cursor)) cursor = feed.cursor;
-      pages += 1;
+      pages.push(feed);
+      if (Number.isInteger(feed.cursor)) last = feed.cursor;
+      more = feed.hasMore;
+      pageCount += 1;
+    }
+
+    revs = revsFromPages(pages);
+
+    if (hasLocalWork()) {
+      // This device holds work the server has not seen (a task created
+      // while offline, or before the first sync ever finished). Push it
+      // against the server's own records, then re-read the server, so
+      // nothing local is dropped: the work is kept and uploaded.
+      //
+      // Deletions are not pushed here: this device may simply not know
+      // about a record, and deleting it on the server would lose it for
+      // every other device too.
+      const baseline = baselineFromPages(pages);
+      if (!(await pushChanges(baseline, { allowDeletes: false }))) return false;
+      cursor = 0; // re-read everything, so our own push comes back too
+    } else {
+      // A device with nothing of its own may take the server's data as is.
+      applyFeed(pages[0].changes || {}, { replace: true });
+      for (let i = 1; i < pages.length; i += 1) applyFeed(pages[i].changes || {});
+      cursor = last;
     }
 
     try { await store.saveState(state); } catch {}
