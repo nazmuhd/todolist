@@ -18,6 +18,11 @@ import { services } from './services.js';
 let stateSavedHook = null;
 export function setStateSavedHook(fn) { stateSavedHook = fn; }
 
+// The same trick for the location watcher: it needs to know when a task
+// gained or lost a location reminder, but state.js cannot import it.
+let stateChangedHook = null;
+export function setStateChangedHook(fn) { stateChangedHook = fn; }
+
 export function saveState() {
   clearPendingUndo();
   if (stateSavedHook) stateSavedHook();
@@ -32,6 +37,7 @@ export function persistState() {
   // Local write first; the server sync is debounced and best-effort.
   services.scheduleSync();
   syncReminderSchedule();
+  if (stateChangedHook) stateChangedHook();
 }
 export function reminderSchedule() {
   const items = [];
@@ -274,7 +280,7 @@ export function normalizeState(s) {
   let view = asText(rawUi.view) || 'inbox';
   const knownView =
     view === 'inbox' || view === 'today' || view === 'upcoming' || view === 'calendar' || view === 'karma' ||
-    view === 'completed' || view === 'no-date' || view === 'no-priority' ||
+    view === 'activity' || view === 'completed' || view === 'no-date' || view === 'no-priority' ||
     (view.startsWith('project:') && projectIds.has(view.slice(8))) ||
     (view.startsWith('label:') && labelIds.has(view.slice(6))) ||
     (view.startsWith('filter:') && savedFilterIds().includes(view.slice(7)));
@@ -332,7 +338,7 @@ export function normalizeState(s) {
       view,
       activeId: asText(rawUi.activeId) || null,
       search: asText(rawUi.search),
-      layout: rawUi.layout === 'board' ? 'board' : 'list',
+      layout: ['board', 'table'].includes(rawUi.layout) ? rawUi.layout : 'list',
       sort: ['manual', 'date', 'priority', 'name', 'added'].includes(rawUi.sort) ? rawUi.sort : 'manual',
       sortByView: (() => {
         const valid = ['manual', 'date', 'priority', 'name', 'added'];

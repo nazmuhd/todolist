@@ -145,7 +145,7 @@ $('#sidebar-backdrop').onclick = closeMobileSidebar;
 $('#view-layout').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-layout]');
   if (!btn) return;
-  const layout = btn.dataset.layout === 'board' ? 'board' : 'list';
+  const layout = ['board', 'table'].includes(btn.dataset.layout) ? btn.dataset.layout : 'list';
   if (state.ui.layout === layout) return;
   state.ui.layout = layout;
   saveState();

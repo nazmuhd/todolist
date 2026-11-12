@@ -106,6 +106,10 @@
           <i data-lucide="trophy" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
           <span class="sidebar-hide">Karma</span>
         </a>
+        <a href="#" data-view="activity" title="Activity history" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+          <i data-lucide="history" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+          <span class="sidebar-hide">Activity</span>
+        </a>
       </div>
 
       <!-- Quick filters -->
@@ -215,6 +219,9 @@
           <button type="button" data-layout="board" class="layout-btn" title="Board view" aria-label="Board view" aria-pressed="false">
             <i data-lucide="columns-3" class="w-4 h-4"></i>
           </button>
+          <button type="button" data-layout="table" class="layout-btn" title="Table view" aria-label="Table view" aria-pressed="false">
+            <i data-lucide="table" class="w-4 h-4"></i>
+          </button>
         </div>
         <div class="relative">
           <button type="button" id="sort-menu-btn" class="layout-btn" style="border:1px solid #e5e5e5;border-radius:4px" title="Sort tasks" aria-label="Sort tasks" aria-haspopup="true">
@@ -244,6 +251,12 @@
         <div id="board-view" class="hidden"></div>
         <div id="calendar-view" class="hidden"></div>
         <div id="karma-view" class="hidden"></div>
+        <div id="activity-view" class="hidden">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-xs text-td-muted">A log of everything that happened to your tasks.</p>
+            <button type="button" id="activity-clear" class="text-xs text-td-muted hover:text-red-600 px-2 py-1 rounded" title="Clear the activity history">Clear history</button>
+          </div>
+        </div>
         <div id="empty-state" class="hidden text-center py-16 text-td-muted">
           <div class="empty-illustration mx-auto mb-4" aria-hidden="true">
             <span class="empty-dot empty-dot-1"></span>

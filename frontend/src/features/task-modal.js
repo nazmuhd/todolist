@@ -16,6 +16,7 @@ import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { showToast } from '../core/toasts.js';
 import { reminderKey, ensureNotificationPermission } from '../core/reminders.js';
+import { recordActivity } from '../core/activity.js';
 import { positionMetaMenu } from '../ui/menus.js';
 import { commitDueEdits, recurrenceEndFromBody, closeDueEditor, isDueEditorOpen } from './due-editor.js';
 import { saveTaskTemplate } from './templates.js';
@@ -445,6 +446,14 @@ $('#modal-save').onclick = () => {
   const t = state.tasks.find(x => x.id === editingTaskId);
   if (!t) return;
   const previousReminderKey = reminderKey(t);
+  // The activity log records what actually changed, so the old values are
+  // kept for the comparison.
+  const before = {
+    title: t.title,
+    due: t.due,
+    projectId: t.projectId,
+    comments: (t.comments || []).length,
+  };
   t.title = $('#modal-title').value.trim() || 'Untitled';
   t.description = $('#modal-desc').value.trim();
   t.due = modalDraft.due;
@@ -456,7 +465,14 @@ $('#modal-save').onclick = () => {
   t.recurrenceMode = modalDraft.recurrenceMode || 'scheduled';
   t.timeZone = modalDraft.timeZone || null;
   t.startDate = modalDraft.startDate || null;
-  t.reminders = taskReminders(modalDraft).map(r => (r.at ? { id: r.id, at: r.at } : { id: r.id, minutes: r.minutes }));
+  // Keep every kind of reminder: a time, an offset, or a place.
+  t.reminders = taskReminders(modalDraft).map(r => {
+    if (r.at) return { id: r.id, at: r.at };
+    if (Number.isFinite(r.lat) && Number.isFinite(r.lon)) {
+      return { id: r.id, lat: r.lat, lon: r.lon, radius: r.radius, name: r.name || '' };
+    }
+    return { id: r.id, minutes: r.minutes };
+  });
   t.reminderMinutes = t.reminders.find(r => Number.isInteger(r.minutes))?.minutes ?? null;
   t.comments = (modalDraft.comments || []).map(c => ({ ...c }));
   t.attachments = (modalDraft.attachments || []).map(a => ({ ...a }));
@@ -471,8 +487,23 @@ $('#modal-save').onclick = () => {
   t.labels = modalDraft.labels;
   saveState();
   requestRender();
+  recordTaskEdit(t, before);
   modal.close();
 };
+
+/** Records what changed in the task modal, as one activity event. */
+function recordTaskEdit(t, before) {
+  const changes = [];
+  if (t.title !== before.title) changes.push(`renamed to "${t.title}"`);
+  if (t.due !== before.due) changes.push(t.due ? `due date set to ${t.due}` : 'due date removed');
+  if (t.projectId !== before.projectId) {
+    changes.push(t.projectId ? `moved to ${projectName(t.projectId)}` : 'removed from project');
+  }
+  const comments = (t.comments || []).length;
+  if (comments > before.comments) changes.push('comment added');
+  if (!changes.length) return;
+  recordActivity(t.due !== before.due ? 'rescheduled' : 'edited', t, changes.join(', '));
+}
 
 $('#modal-save-template').onclick = () => {
   if (!draft()) return;

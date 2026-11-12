@@ -157,6 +157,9 @@ positions popovers and imports nothing, so features can use it safely.
 | `core/tasks.js` | `addTask`, `toggleComplete`, `removeTask`, `deleteTask`, `subtasksOf`, `nextOrder`, `cleanRecurrence`, `parseRecurrenceText`, `recurrenceToText`, `nextRecurrenceISO`, `firstRecurrenceISO`, `skipOccurrence`, `snoozeTask` |
 | `core/text.js` | `escapeHtml`, `highlightHtml`, `asText`, `cleanColor`, `clampPriority`, the colour palettes |
 | `core/undo.js` | `snapshotData`, `offerUndo`, `undoPending`, `redoPending`, `loadUndoHistory`, `clearUndoHistory` (history is a local-only `undo-history` doc) |
+| `core/activity.js` | `recordActivity`, `activityEvents`, `activityForTask`, `loadActivity`, `clearActivity` (the log is a local-only `activity-history` doc) |
+| `core/location.js` | `distanceMeters`, `currentPosition`, `checkLocationReminders`, `startLocationWatch`, `syncLocationWatch` (location reminders, while a tab is open) |
+| `core/backups.js` | `listBackups`, `takeBackup`, `restoreBackup`, `backupLabel` (the server's automatic backups) |
 | `core/toasts.js` | `showToast`, `announce`, the `#sr-status` live region |
 | `core/render.js` | the renderer registry that breaks the core → views cycle |
 | `core/services.js` | the app-level callback registry that breaks the views → app cycle |
@@ -178,6 +181,8 @@ positions popovers and imports nothing, so features can use it safely.
 | `features/empty-states.js` | `EMPTY_STATES`, `currentEmptyState`, `showEmptyState` |
 | `views/list.js` | `renderMain`, `renderUpcoming`, `renderCompleted`, `renderToday`, `renderProjectSectionsView`, `getViewInfo`, `sortTasks` |
 | `views/board.js` | `renderBoard`, `renderBoardCard`, board drag groups |
+| `views/table.js` | `renderTable` — the table layout, one row per task |
+| `views/activity.js` | `renderActivity`, `initActivityView` — the activity history view |
 | `views/sidebar.js` | `renderSidebar`, project/label rows, drag-reorder, drop targets |
 | `ui/chrome.js` | the header, layout + sort menus, shortcut overlay, keyboard shortcuts, sidebar drawer |
 | `ui/menus.js` | `positionMetaMenu`, `positionContextMenu`, `positionBelowTrigger` |

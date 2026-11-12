@@ -708,6 +708,9 @@ h1, h2, h3 {
 /* ---------- Calendar (month grid) ---------- */
 #content-container.calendar-mode { max-width: none; }
 
+/* The table has several columns, so it needs more room than a list. */
+#content-container.table-mode { max-width: 72rem; }
+
 .cal-toolbar {
   display: flex;
   align-items: center;

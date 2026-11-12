@@ -233,6 +233,36 @@ try {
   await waitFor(`document.querySelectorAll('#task-list li[data-task-id]').length > 100`, 'second page of tasks');
   check('show more reveals the next page', true);
 
+  // Automatic backups: the server keeps a rolling set of snapshots.
+  const backups = await (await fetch(`http://127.0.0.1:${PORT}/api/state/backups`)).json();
+  check('the server keeps automatic backups', Array.isArray(backups.backups) && backups.backups.length >= 1,
+    JSON.stringify(backups.backups?.length));
+  check('the backup rows carry a timestamp', Boolean(backups.backups?.[0]?.created_at),
+    JSON.stringify(backups.backups?.[0]));
+
+  // Taking one on demand adds another.
+  const beforeCount = backups.backups.length;
+  const taken = await (await fetch(`http://127.0.0.1:${PORT}/api/state/backups`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({}),
+  })).json();
+  check('a backup can be taken on demand', Array.isArray(taken.backups) && taken.backups.length >= beforeCount,
+    JSON.stringify(taken.backups?.length));
+
+  // Restoring a backup brings the data back.
+  const backupToRestore = taken.backups?.[taken.backups.length - 1];
+  if (backupToRestore) {
+    await fetch(`http://127.0.0.1:${PORT}/api/state/backups/${backupToRestore.id}/restore`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const after = await (await fetch(`http://127.0.0.1:${PORT}/api/sync?since=0`)).json();
+    const titles2 = (after.changes?.tasks || []).map((row) => row.data?.title);
+    check('a backup can be restored', titles2.includes('Persist me to SQLite'), JSON.stringify(titles2.slice(0, 5)));
+  }
+
   const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   check('no console errors', realErrors.length === 0, realErrors.join(' | '));
 

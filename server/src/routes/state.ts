@@ -4,6 +4,10 @@ import {
   exportEntities,
   getCursor,
   replaceEntities,
+  listBackups,
+  readBackup,
+  maybeBackup,
+  pruneBackups,
   ENTITY_NAMES,
   type EntityName,
 } from '../db/repository.ts';
@@ -54,4 +58,56 @@ stateRouter.post('/backup/:tag', (req, res) => {
     return;
   }
   res.status(201).json({ ok: true, tag });
+});
+
+/* ---------- automatic backups ---------- */
+
+/** The automatic backups, newest first. */
+stateRouter.get('/backups', (_req, res) => {
+  res.json({ backups: listBackups() });
+});
+
+/** Takes an automatic backup now (the scheduler does this on its own). */
+stateRouter.post('/backups', (req, res) => {
+  const body = req.body as { intervalMinutes?: unknown; keep?: unknown } | undefined;
+  // An interval of 0 means "a backup is always due".
+  const rawInterval = Number(body?.intervalMinutes);
+  const intervalMinutes = Number.isFinite(rawInterval) && rawInterval >= 0 ? rawInterval : 60;
+  const keep = Number(body?.keep) > 0 ? Number(body?.keep) : 24;
+  const written = maybeBackup(intervalMinutes * 60_000, keep);
+  res.json({ ok: true, written, backups: listBackups() });
+});
+
+/** Removes the automatic backups beyond the newest `keep`. */
+stateRouter.delete('/backups', (req, res) => {
+  const keep = Number(req.query.keep) > 0 ? Number(req.query.keep) : 24;
+  const removed = pruneBackups(keep);
+  res.json({ ok: true, removed, backups: listBackups() });
+});
+
+/** Restores a backup, replacing the live entities with it. */
+stateRouter.post('/backups/:id/restore', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: 'invalid_id' });
+    return;
+  }
+  const value = readBackup(id);
+  if (!value) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  let snapshot: Partial<Record<EntityName, unknown[]>>;
+  try {
+    snapshot = JSON.parse(value) as Partial<Record<EntityName, unknown[]>>;
+  } catch {
+    res.status(400).json({ error: 'invalid_backup' });
+    return;
+  }
+  const result = replaceEntities(snapshot, 0, true);
+  if (!result.ok) {
+    res.status(409).json({ error: 'conflict', rev: result.cursor });
+    return;
+  }
+  res.json({ ok: true, rev: result.cursor });
 });

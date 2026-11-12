@@ -7,6 +7,7 @@ import { state, saveState } from '../core/state.js';
 import { toggleComplete, skipOccurrence, snoozeTask, snoozeReminder, deleteTask, priorityColor, projectName, labelName, taskReminders } from '../core/tasks.js';
 import { toISODate, todayISO, formatDue } from '../core/dates.js';
 import { snapshotData, offerUndo } from '../core/undo.js';
+import { recordActivity } from '../core/activity.js';
 import { showToast } from '../core/toasts.js';
 import { escapeHtml } from '../core/text.js';
 import { requestRender } from '../core/render.js';
@@ -154,6 +155,7 @@ export function runContextAction(action, id) {
     t.labels = next;
     saveState();
     requestRender();
+    recordActivity('edited', t, next.length ? `label @${labelName(labelId)} added` : 'label removed');
     offerUndo(next.length ? `Label @${labelName(labelId)} added` : 'Label removed', snapshot);
     return;
   }
@@ -169,6 +171,7 @@ export function runContextAction(action, id) {
     t.sectionId = null;
     saveState();
     requestRender();
+    recordActivity('moved', t, next ? `moved to ${projectName(next)}` : 'removed from project');
     offerUndo(next ? `Moved to ${projectName(next)}` : 'Removed from project', snapshot);
     return;
   }
@@ -183,6 +186,7 @@ export function runContextAction(action, id) {
     t.sectionId = next;
     saveState();
     requestRender();
+    recordActivity('moved', t, next ? `moved to section ${project.sections.find(s => s.id === next).name}` : 'removed from section');
     offerUndo(next ? `Moved to ${project.sections.find(s => s.id === next).name}` : 'Section removed', snapshot);
     return;
   }

@@ -7,6 +7,7 @@ import { requestRender } from './render.js';
 import { settings, uid, cleanRecurrence } from './app.js';
 import { parseDate, toISODate, todayISO, isTaskOverdue, cleanDueTime, cleanDuration, cleanReminderMinutes, cleanDateTime, cleanTimeZone, formatDue, DATE_RE, toLocalDateTime } from './dates.js';
 import { snapshotData, offerUndo } from './undo.js';
+import { recordActivity } from './activity.js';
 
 /* The phrases people actually type, checked before rrule's own parser:
    it reads a bare "weekly" as a month/day. */
@@ -88,6 +89,7 @@ export function addTask(data) {
   state.tasks.push(task);
   saveState();
   requestRender();
+  recordActivity('created', task, task.projectId ? `in ${projectName(task.projectId)}` : '');
   return task;
 }
 
@@ -119,6 +121,7 @@ export function toggleComplete(id) {
       });
       saveState();
       requestRender();
+      recordActivity('recurring', t, `rolled forward to ${formatDue(t.due, t.dueTime)}`);
       offerUndo(`Task moved to ${formatDue(t.due, t.dueTime)}`, snapshot);
       return;
     }
@@ -135,6 +138,7 @@ export function toggleComplete(id) {
   }
   saveState();
   requestRender();
+  recordActivity(t.completed ? 'completed' : 'reopened', t);
   offerUndo(t.completed ? 'Task completed' : 'Task reopened', snapshot);
 }
 
@@ -146,6 +150,7 @@ export function removeTask(id) {
   state.tasks = state.tasks.filter(x => x.id !== id && x.parentId !== id);
   saveState();
   requestRender();
+  recordActivity('deleted', t);
   offerUndo('Task deleted', snapshot);
   return true;
 }
@@ -279,6 +284,7 @@ export function skipOccurrence(task) {
   }
   saveState();
   requestRender();
+  recordActivity('skipped', task, `skipped ${task.due}`);
   offerUndo('Occurrence skipped', snapshot);
   return true;
 }
@@ -294,6 +300,7 @@ export function snoozeTask(task) {
   task.reminderFiredKey = null;
   saveState();
   requestRender();
+  recordActivity('rescheduled', task, `snoozed to ${formatDue(task.due, task.dueTime)}`);
   offerUndo('Snoozed until tomorrow', snapshot);
   return true;
 }
@@ -331,11 +338,23 @@ export function taskReminders(t) {
   return [];
 }
 
-/** A reminder is either an offset (`minutes`) or a wall-clock time (`at`). */
+/**
+ * A reminder is an offset (`minutes`), a wall-clock time (`at`), or a
+ * place (`lat`/`lon` with a radius in metres).
+ */
 export function normalizeReminder(r) {
   if (!r || typeof r !== 'object') return null;
   const at = cleanDateTime(r.at);
   if (at) return { id: r.id || 'r', at };
+  if (Number.isFinite(r.lat) && Number.isFinite(r.lon)) {
+    return {
+      id: r.id || 'r',
+      lat: r.lat,
+      lon: r.lon,
+      radius: Number.isFinite(r.radius) && r.radius > 0 ? r.radius : 150,
+      name: typeof r.name === 'string' ? r.name : '',
+    };
+  }
   const minutes = cleanReminderMinutes(r.minutes);
   if (minutes !== null) return { id: r.id || 'r', minutes };
   return null;

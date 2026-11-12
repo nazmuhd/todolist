@@ -8,7 +8,6 @@ Projects, saved filters and attachments are not capped in number; each
 attachment must be 25 MB or smaller. There are no AI features: nothing is
 sent to a model provider, and the app needs no API key to work. The full
 list of limits is in `docs/gaps.md`.
-
 ```
 todoist/
 ├── frontend/                 the app (Vite, native ES modules)
@@ -127,6 +126,20 @@ QUIET_HOURS_END=07:00
 ```
 
 A window may cross midnight; leave both blank (or equal) to disable it.
+
+### Automatic backups
+
+The server snapshots the data every hour and keeps the last 24. **Settings →
+Automatic backups** lists them and restores one on request. To change the
+schedule:
+
+```
+BACKUP_INTERVAL_MINUTES=60
+BACKUP_KEEP=24
+```
+
+The backups live in the server's SQLite file, so they need the server to be
+running. Without it, **Sidebar → Export** writes a backup file instead.
 
 ### Attachment cleanup
 

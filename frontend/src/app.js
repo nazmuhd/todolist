@@ -11,6 +11,8 @@ import { setRenderer } from './core/render.js';
 import { isKnownView, syncHash, navigateTo, taskIdFromHash } from './core/router.js';
 import { actionFromHash, handleNotificationAction, initNotificationActions } from './core/notification-actions.js';
 import { startReminders } from './core/reminders.js';
+import { syncLocationWatch } from './core/location.js';
+import { loadActivity } from './core/activity.js';
 import { loadUndoHistory, clearUndoHistory, initUndo } from './core/undo.js';
 import { initSync, scheduleSync } from './core/sync.js';
 import { loadSavedFilters, initFilterEditor } from './features/filters.js';
@@ -20,6 +22,7 @@ import { initTemplates } from './features/templates.js';
 import { renderMain, renderSortMenu, supportsBoard, initListView, completionDayLabel } from './views/list.js';
 import { renderSidebar } from './views/sidebar.js';
 import { initBoard } from './views/board.js';
+import { initActivityView } from './views/activity.js';
 import { renderStorageBadge } from './features/backup.js';
 import { loadSettings, applyTheme } from './features/settings.js';
 import { openTaskModal, closeTaskModal } from './features/task-modal.js';
@@ -137,6 +140,7 @@ async function init() {
   setState(loaded.state);
 
   await loadUndoHistory();
+  await loadActivity();
   await loadSettings();
   applyTheme();
   await initChrome({ renderSortMenu, supportsBoard, renderMain });
@@ -176,6 +180,9 @@ async function init() {
 
   syncReminderSchedule();
   startReminders();
+  // Location reminders fire while a tab is open and the browser shares a
+  // position. The watcher is only armed when a task actually has one.
+  syncLocationWatch();
   // Per-entity server sync runs after the first paint; it never blocks boot.
   initSync().catch(() => {});
   // Handy hook for tests and for anything that wants to wait for boot.
@@ -187,6 +194,7 @@ initSelection();
 initCalendar();
 initTemplates();
 initBoard();
+initActivityView();
 initFilterEditor();
 initListView(() => renderMain());
 

@@ -217,9 +217,15 @@ export function localTimeZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
 }
 
-/** The instant a reminder fires (absolute or relative to the due date). */
+/**
+ * The instant a reminder fires (absolute or relative to the due date).
+ *
+ * A location reminder has no instant: it fires when you are near a place,
+ * so it has no time and is skipped here.
+ */
 export function reminderAt(t, reminder) {
   if (!t || !reminder) return null;
+  if (Number.isFinite(reminder.lat) && Number.isFinite(reminder.lon)) return null;
   if (cleanDateTime(reminder.at)) return zonedDateTimeToDate(reminder.at, t.timeZone || null);
   if (Number.isInteger(reminder.minutes)) return reminderFireDate(t, reminder.minutes);
   return null;
@@ -228,6 +234,10 @@ export function reminderAt(t, reminder) {
 /** Human-readable reminder text, e.g. "Nov 12, 09:00" or "30 minutes before". */
 export function formatReminder(t, reminder) {
   if (!reminder) return '';
+  if (Number.isFinite(reminder.lat) && Number.isFinite(reminder.lon)) {
+    const radius = Number.isFinite(reminder.radius) && reminder.radius > 0 ? reminder.radius : 150;
+    return reminder.name ? `When near ${reminder.name}` : `Within ${radius} m`;
+  }
   if (cleanDateTime(reminder.at)) {
     const d = zonedDateTimeToDate(reminder.at, t && t.timeZone);
     if (!d) return reminder.at;

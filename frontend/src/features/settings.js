@@ -6,6 +6,7 @@ import { store } from '../core/store.js';
 import { escapeHtml } from '../core/text.js';
 import { requestRender } from '../core/render.js';
 import { pushSupported, pushPermission, isPushEnabled, enablePush, disablePush, listPushDevices, removePushDevice } from '../core/push.js';
+import { listBackups, takeBackup, restoreBackup, backupLabel } from '../core/backups.js';
 
 const DEFAULT_SETTINGS = {
   theme: 'system',
@@ -104,6 +105,46 @@ function pushSection() {
     </div>`;
 }
 
+/** The automatic backups the server holds. */
+let backupRows = [];
+let backupsLoaded = false;
+
+function backupRow(row) {
+  return `
+    <div class="flex items-center gap-2 text-xs py-1" data-backup-row="${row.id}">
+      <i data-lucide="archive" class="w-3.5 h-3.5 text-td-muted flex-shrink-0"></i>
+      <span class="flex-1 truncate" title="${escapeHtml(backupLabel(row))}">${escapeHtml(backupLabel(row))}</span>
+      <button type="button" class="text-td-muted hover:text-td-text px-1 py-0.5 rounded" data-backup-restore="${row.id}" title="Restore this backup">Restore</button>
+    </div>`;
+}
+
+/**
+ * The backups section. The server takes a backup on its own every hour and
+ * keeps the last 24; this shows them and lets one be restored.
+ */
+function backupSection() {
+  if (!backupsLoaded) return '';
+  return `
+    <div class="mb-2 border-t border-td-border pt-4">
+      <div class="text-xs text-td-muted mb-1">Automatic backups</div>
+      <p class="text-xs text-td-muted mb-2">The server snapshots your data every hour and keeps the last 24. Restore one to go back to it.</p>
+      <button type="button" class="qa-pick" data-backup-now>Back up now</button>
+      ${backupRows.length ? `
+        <div class="mt-3">
+          <div class="text-xs text-td-muted mb-1">Backups</div>
+          ${backupRows.slice(0, 10).map(backupRow).join('')}
+          ${backupRows.length > 10 ? `<div class="text-[11px] text-td-muted mt-1">and ${backupRows.length - 10} more</div>` : ''}
+        </div>` : `
+        <div class="text-[11px] text-td-muted mt-2">No backups yet.</div>`}
+    </div>`;
+}
+
+async function refreshBackups() {
+  backupRows = await listBackups();
+  backupsLoaded = true;
+  if (settingsModal.open) renderSettings();
+}
+
 function renderSettings() {
   $('#settings-body').innerHTML = SETTINGS_DEFS.map(def => `
     <div class="mb-4">
@@ -115,10 +156,39 @@ function renderSettings() {
           return `<button type="button" class="qa-pick" data-setting="${def.key}" data-value="${escapeHtml(raw)}" aria-pressed="${active}">${escapeHtml(label)}</button>`;
         }).join('')}
       </div>
-    </div>`).join('') + pushSection();
+    </div>`).join('') + backupSection() + pushSection();
 }
 
 $('#settings-body').addEventListener('click', async (e) => {
+  // Restore one of the automatic backups.
+  const restoreBtn = e.target.closest('[data-backup-restore]');
+  if (restoreBtn) {
+    const id = Number(restoreBtn.dataset.backupRestore);
+    if (!confirm('Restore this backup? Your current data will be replaced.')) return;
+    restoreBtn.disabled = true;
+    const ok = await restoreBackup(id);
+    if (ok) {
+      showToast('Backup restored', 'success');
+      // The live data changed under us, so it is pulled again.
+      window.location.reload();
+    }
+    return;
+  }
+
+  // Take a backup right now.
+  if (e.target.closest('[data-backup-now]')) {
+    const btn = e.target.closest('[data-backup-now]');
+    btn.disabled = true;
+    const rows = await takeBackup();
+    if (rows) {
+      backupRows = rows;
+      backupsLoaded = true;
+      showToast('Backup taken', 'success');
+    }
+    renderSettings();
+    return;
+  }
+
   const removeBtn = e.target.closest('[data-device-remove]');
   if (removeBtn) {
     const device = pushDevices[Number(removeBtn.dataset.deviceRemove)];
@@ -166,6 +236,7 @@ $('#settings-btn').onclick = () => {
     }
   });
   refreshPushDevices();
+  refreshBackups();
 };
 $('#settings-close').onclick = () => settingsModal.close();
 

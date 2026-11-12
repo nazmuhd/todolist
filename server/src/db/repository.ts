@@ -295,10 +295,13 @@ export function exportEntities(): Record<EntityName, unknown[]> {
 export function replaceEntities(
   snapshot: Partial<Record<EntityName, unknown[]>>,
   baseRev: number,
+  force = false,
 ): { ok: true; cursor: number } | { ok: false; conflict: true; cursor: number } {
   const db = getDb();
   const cursor = getSequence();
-  if (baseRev !== cursor) return { ok: false, conflict: true, cursor };
+  // A restore is an explicit instruction, so it does not need a matching
+  // revision.
+  if (!force && baseRev !== cursor) return { ok: false, conflict: true, cursor };
 
   db.exec('BEGIN IMMEDIATE');
   try {
@@ -357,6 +360,70 @@ export function backupEntities(tag: string): boolean {
   getDb().prepare('insert into state_backups (tag, value) values (?, ?)')
     .run(tag, JSON.stringify(snapshot));
   return true;
+}
+
+/* ---------- automatic backups ---------- */
+
+export interface BackupRow {
+  id: number;
+  tag: string;
+  created_at: string;
+  size: number;
+}
+
+/** The automatic backups, newest first. */
+export function listBackups(limit = 50): BackupRow[] {
+  return getDb().prepare(`
+    select id, tag, created_at, length(value) as size
+      from state_backups
+     where tag like 'auto-%'
+     order by created_at desc, id desc
+     limit ?
+  `).all(limit) as unknown as BackupRow[];
+}
+
+/** The newest automatic backup, if there is one. */
+export function latestBackup(): BackupRow | undefined {
+  return getDb().prepare(`
+    select id, tag, created_at, length(value) as size
+      from state_backups
+     where tag like 'auto-%'
+     order by created_at desc, id desc
+     limit 1
+  `).get() as BackupRow | undefined;
+}
+
+/** Removes the automatic backups beyond the newest `keep`. */
+export function pruneBackups(keep: number): number {
+  const rows = getDb().prepare(`
+    select id from state_backups where tag like 'auto-%' order by created_at desc, id desc
+  `).all() as { id: number }[];
+  if (rows.length <= keep) return 0;
+  const doomed = rows.slice(keep).map(r => r.id);
+  const stmt = getDb().prepare('delete from state_backups where id = ?');
+  doomed.forEach(id => stmt.run(id));
+  return doomed.length;
+}
+
+/**
+ * Takes an automatic backup if the last one is older than `intervalMs`.
+ * Returns true when a new backup was written.
+ */
+export function maybeBackup(intervalMs: number, keep: number): boolean {
+  const latest = latestBackup();
+  if (latest) {
+    const age = Date.now() - Date.parse(latest.created_at);
+    if (Number.isFinite(age) && age < intervalMs) return false;
+  }
+  const written = backupEntities(`auto-${new Date().toISOString()}`);
+  if (written) pruneBackups(keep);
+  return written;
+}
+
+/** The stored value of a backup, for restoring it. */
+export function readBackup(id: number): string | undefined {
+  const row = getDb().prepare('select value from state_backups where id = ?').get(id) as { value: string } | undefined;
+  return row?.value;
 }
 
 /* ---------- push subscriptions ---------- */

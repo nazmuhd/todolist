@@ -16,7 +16,11 @@ import { services } from './services.js';
 export function reminderKey(t) {
   if (!t) return '';
   const parts = taskReminders(t)
-    .map(r => (r.at ? `at:${r.at}` : `m:${r.minutes}`))
+    .map(r => {
+      if (r.at) return `at:${r.at}`;
+      if (Number.isFinite(r.lat) && Number.isFinite(r.lon)) return `loc:${r.id}:${r.lat},${r.lon}`;
+      return `m:${r.minutes}`;
+    })
     .sort()
     .join(',');
   if (!parts) return '';

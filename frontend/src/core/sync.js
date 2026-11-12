@@ -81,7 +81,12 @@ async function request(path, options) {
   return store.jsonBody ? store.jsonBody(response) : null;
 }
 
-/** Applies a server feed locally; `replace` is used for a fresh device. */
+/**
+ * Applies a server feed locally; `replace` is used for a fresh device.
+ *
+ * Returns the records it wrote, so the caller can fold them into the
+ * snapshot: the server is the authority on those.
+ */
 function applyFeed(changes, { replace = false } = {}) {
   const next = replace
     ? { projects: [], labels: [], tasks: [] }
@@ -92,6 +97,7 @@ function applyFeed(changes, { replace = false } = {}) {
       };
 
   let changed = replace;
+  const applied = [];
 
   for (const entity of ENTITIES) {
     const list = next[entity];
@@ -103,23 +109,49 @@ function applyFeed(changes, { replace = false } = {}) {
           list.splice(index, 1);
           changed = true;
         }
+        applied.push({ entity, id: row.id, json: null });
       } else if (row.data == null) {
         continue;
       } else if (index === -1) {
         list.push(row.data);
         changed = true;
+        applied.push({ entity, id: row.id, json: JSON.stringify(row.data) });
       } else if (JSON.stringify(list[index]) !== JSON.stringify(row.data)) {
         list[index] = row.data;
         changed = true;
+        applied.push({ entity, id: row.id, json: JSON.stringify(row.data) });
       }
 
       revs[entity][row.id] = row.rev;
     }
   }
 
-  if (!changed) return false;
+  if (!changed) return { changed: false, applied };
   setState({ ...state, projects: next.projects, labels: next.labels, tasks: next.tasks });
-  return true;
+  return { changed: true, applied };
+}
+
+/**
+ * Builds the snapshot of what the server now holds.
+ *
+ * It starts from the maps as they were when the push ran and then folds in
+ * the records the pull delivered. Anything the user created *after* the push
+ * is deliberately left out, so the next sync still sees it as a change
+ * instead of silently dropping it.
+ */
+function buildSnapshot(pushed, applied) {
+  const snapshot = {
+    projects: { ...(pushed?.projects || {}) },
+    labels: { ...(pushed?.labels || {}) },
+    tasks: { ...(pushed?.tasks || {}) },
+  };
+  for (const record of applied || []) {
+    const bucket = snapshot[record.entity];
+    if (!bucket) continue;
+    if (record.json === null) delete bucket[record.id];
+    else bucket[record.id] = record.json;
+  }
+  return snapshot;
 }
 
 /**
@@ -242,13 +274,16 @@ async function pushChanges(baseline, options) {
 
 async function pullChanges() {
   let changed = false;
+  const applied = [];
   let pages = 0;
 
   while (pages < MAX_PULL_PAGES) {
     const body = await request(`/sync?since=${cursor}&limit=${SYNC_PAGE_SIZE}`);
-    if (!body) return false;
+    if (!body) return { ok: false, applied };
 
-    if (applyFeed(body.changes || {})) changed = true;
+    const result = applyFeed(body.changes || {});
+    if (result.changed) changed = true;
+    applied.push(...result.applied);
     if (Number.isInteger(body.cursor)) cursor = body.cursor;
     pages += 1;
 
@@ -259,13 +294,17 @@ async function pullChanges() {
     try { await store.saveState(state); } catch {}
     requestRender();
   }
-  return true;
+  return { ok: true, applied };
 }
 
 /** First sync on this browser: adopt a non-empty server, or seed an empty one. */
 async function initialSync() {
   let feed = await request(`/sync?since=0&limit=${SYNC_PAGE_SIZE}`);
   if (!feed) return false;
+
+  // The maps as they are now, before anything is pushed or pulled.
+  const local = currentMaps();
+  let applied = [];
 
   if (feed.cursor > 0) {
     // Collect every page of the server's records first: they are the
@@ -299,8 +338,8 @@ async function initialSync() {
       cursor = 0; // re-read everything, so our own push comes back too
     } else {
       // A device with nothing of its own may take the server's data as is.
-      applyFeed(pages[0].changes || {}, { replace: true });
-      for (let i = 1; i < pages.length; i += 1) applyFeed(pages[i].changes || {});
+      applied.push(...applyFeed(pages[0].changes || {}, { replace: true }).applied);
+      for (let i = 1; i < pages.length; i += 1) applied.push(...applyFeed(pages[i].changes || {}).applied);
       cursor = last;
     }
 
@@ -311,8 +350,13 @@ async function initialSync() {
   }
 
   // Pull once more so the cursor covers our own writes and any concurrent ones.
-  if (!(await pullChanges())) return false;
-  snapshot = currentMaps();
+  const pull = await pullChanges();
+  if (!pull.ok) return false;
+  applied.push(...pull.applied);
+
+  // The snapshot is what the server holds. Anything created after the push
+  // is left out on purpose, so the next sync still sends it.
+  snapshot = buildSnapshot(local, applied);
   await saveMeta();
   return true;
 }
@@ -326,10 +370,15 @@ export async function syncNow() {
     await loadMeta();
     if (!snapshot) return initialSync();
 
-    if (!(await pushChanges())) return false;
-    if (!(await pullChanges())) return false;
+    // The maps as they are before the push, so a task created while the
+    // push is in flight is not mistaken for one the server already has.
+    const local = currentMaps();
 
-    snapshot = currentMaps();
+    if (!(await pushChanges())) return false;
+    const pull = await pullChanges();
+    if (!pull.ok) return false;
+
+    snapshot = buildSnapshot(local, pull.applied);
     await saveMeta();
     return true;
   })()

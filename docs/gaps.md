@@ -6,31 +6,33 @@ limits. The shipped checklist lives in `features.md`.
 
 ## Known limits
 
-- **Location reminders** — arrival/leaving needs a native app with geofencing;
-  a web app cannot do this reliably. Custom reminders are fully supported
-  (relative to the due date, or at a specific date and time).
+- **Location reminders** — a web app cannot geofence in the background, so
+  these fire while a tab is open and the browser shares a position. Arriving
+  or leaving a place with the app closed needs a native app. Custom
+  reminders (relative to the due date, or at a specific date and time) are
+  fully supported.
 - **Email notifications** — needs an SMTP provider. Web Push already delivers
   reminders with the app closed.
 - **Accounts, sharing and assignees** — out of scope by design. The server is a
   single-user local store.
 - **Attachment size** — the number of files per task is unlimited, but each
   file must be 25 MB or smaller.
-- **Layouts** — the task list has a **List** and a **Board** layout. The
-  **Calendar** is a separate sidebar view (month, week, day), not a third
-  layout. There is no table layout.
+- **Layouts** — the task list has a **List**, a **Board** and a **Table**
+  layout. The **Calendar** is a separate sidebar view (month, week, day).
 
 ## Not built
 
 - **AI features** — there is no AI anywhere in the app: no task assist, no
   email assist, and no meeting-notes ("ramble") capture. Nothing is sent to
   a model provider, and the app needs no API key or account to work.
-- **Activity history** — the Karma view counts completions per day, streaks
-  and totals from the tasks themselves. It is not an audit log: there is no
-  record of edits, and a deleted task leaves no trace.
-- **Automatic backups** — nothing is backed up on a schedule. A safety copy is
-  kept when the saved data turns out to be unreadable, and again before an
-  import. Your data otherwise lives in the browser's IndexedDB and, if you run
-  the server, in the SQLite file.
+- **Activity history** — every change is logged (created, completed, moved,
+  edited, deleted) and the log survives reloads. It records what happened,
+  not the contents of an edit: there is no field-by-field diff, and the log
+  is local to this browser rather than synced.
+- **Automatic backups** — the server snapshots the data every hour and keeps
+  the last 24, and you can restore one from Settings. The backups live on
+  the server, so they need the server to be running; without it, the export
+  button writes a backup file instead.
 
 ## Interoperability
 

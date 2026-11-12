@@ -13,6 +13,7 @@ import { escapeHtml, highlightHtml } from '../core/text.js';
 import { renderMarkdownInline } from '../core/markdown.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
+import { recordActivity } from '../core/activity.js';
 import { selectTask, renderSelection } from './selection.js';
 
 /**
@@ -182,6 +183,7 @@ export function openInlineTitle(taskId) {
     if (title && title !== task.title) {
       task.title = title;
       saveState();
+      recordActivity('edited', task, `renamed to "${title}"`);
     }
     requestRender();
   };

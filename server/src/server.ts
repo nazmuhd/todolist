@@ -2,6 +2,7 @@ import { createApp, frontendRoot } from './index.ts';
 import { config } from './config.ts';
 import { migrate } from './db/migrate.ts';
 import { startReminderWorker } from './services/reminders.ts';
+import { startBackupWorker } from './services/backups.ts';
 
 const app = createApp({ serveApp: config.isProduction });
 
@@ -23,9 +24,11 @@ const server = app.listen(config.PORT, () => {
   console.log(`todoist-clone-server listening on http://localhost:${config.PORT}`);
   if (!config.isProduction) console.log('  development mode: Vite middleware (HMR enabled)');
   console.log(`  database: ${config.DATABASE_PATH}`);
+  console.log(`  automatic backups: every ${config.BACKUP_INTERVAL_MINUTES} min, keeping ${config.BACKUP_KEEP}`);
   if (!config.hasPush) console.log('  push notifications disabled (no VAPID keys)');
   else console.log('  push notifications enabled; reminder worker running');
   startReminderWorker();
+  startBackupWorker();
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

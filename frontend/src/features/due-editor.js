@@ -11,6 +11,8 @@ import { taskReminders, parseRecurrence, recurrenceToText } from '../core/tasks.
 import { escapeHtml } from '../core/text.js';
 import { services } from '../core/services.js';
 import { ensureNotificationPermission } from '../core/reminders.js';
+import { currentPosition } from '../core/location.js';
+import { showToast } from '../core/toasts.js';
 
 const dueModal = $('#due-modal');
 const dueNlInput = $('#due-nl');
@@ -52,6 +54,11 @@ function defaultReminderAt(r) {
 function reminderWithKind(r, kind) {
   const id = r.id || uid();
   if (kind === 'absolute') return { id, at: defaultReminderAt(r) };
+  if (kind === 'location') {
+    // A location reminder starts at the user's own position, so it is
+    // already armed the moment it is saved.
+    return { id, lat: 0, lon: 0, radius: 150, name: '' };
+  }
   return { id, minutes: Number.isInteger(r.minutes) ? r.minutes : 30 };
 }
 
@@ -130,18 +137,35 @@ function renderDueReminders() {
   const list = taskReminders(draft());
   dueRemindersBox.innerHTML = list.length ? list.map(r => {
     const absolute = Boolean(r.at);
+    const location = Number.isFinite(r.lat) && Number.isFinite(r.lon);
     return `
     <div class="rounded border border-td-border p-1.5 space-y-1" data-reminder-id="${escapeHtml(r.id)}">
       <div class="flex items-center gap-1">
         <select class="flex-1 min-w-0 text-xs bg-transparent focus:outline-none" data-reminder-kind aria-label="Reminder type">
-          <option value="relative" ${absolute ? '' : 'selected'}>Relative to due</option>
+          <option value="relative" ${absolute || location ? '' : 'selected'}>Relative to due</option>
           <option value="absolute" ${absolute ? 'selected' : ''}>At a specific time</option>
+          <option value="location" ${location ? 'selected' : ''}>When I'm nearby</option>
         </select>
         <button type="button" class="text-td-muted hover:text-red-600 p-1" data-reminder-remove title="Remove reminder" aria-label="Remove reminder">
           <i data-lucide="x" class="w-3.5 h-3.5"></i>
         </button>
       </div>
-      ${absolute ? `
+      ${location ? `
+        <input type="text" value="${escapeHtml(r.name || '')}" data-reminder-location-name placeholder="Place name (optional)"
+          class="w-full text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        <div class="flex items-center gap-1">
+          <input type="number" step="any" value="${r.lat}" data-reminder-lat aria-label="Latitude"
+            class="w-24 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          <input type="number" step="any" value="${r.lon}" data-reminder-lon aria-label="Longitude"
+            class="w-24 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          <input type="number" min="10" max="50000" step="10" value="${r.radius || 150}" data-reminder-radius aria-label="Radius in metres"
+            class="w-20 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          <span class="text-[11px] text-td-muted">m</span>
+        </div>
+        <button type="button" class="qa-pick w-full" data-reminder-use-location>
+          <i data-lucide="map-pin" class="w-3 h-3"></i> Use my current location
+        </button>`
+      : absolute ? `
         <input type="datetime-local" data-reminder-at value="${escapeHtml(r.at)}" aria-label="Reminder time"
           class="w-full text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />`
       : (() => {
@@ -245,6 +269,32 @@ dueRemindersBox.addEventListener('change', (e) => {
       : r)));
     return;
   }
+  if (e.target.matches('[data-reminder-lat]') || e.target.matches('[data-reminder-lon]')) {
+    const latInput = row.querySelector('[data-reminder-lat]');
+    const lonInput = row.querySelector('[data-reminder-lon]');
+    const radiusInput = row.querySelector('[data-reminder-radius]');
+    const lat = Number(latInput?.value);
+    const lon = Number(lonInput?.value);
+    const radius = Math.max(10, Math.min(50000, Number(radiusInput?.value) || 150));
+    setDraftReminders(list.map(r => (r.id === row.dataset.reminderId
+      ? { id: r.id, lat, lon, radius, name: r.name || '' }
+      : r)));
+    return;
+  }
+  if (e.target.matches('[data-reminder-radius]')) {
+    const radius = Math.max(10, Math.min(50000, Number(e.target.value) || 150));
+    setDraftReminders(list.map(r => (r.id === row.dataset.reminderId
+      ? { id: r.id, lat: r.lat, lon: r.lon, radius, name: r.name || '' }
+      : r)));
+    return;
+  }
+  if (e.target.matches('[data-reminder-location-name]')) {
+    const name = e.target.value;
+    setDraftReminders(list.map(r => (r.id === row.dataset.reminderId
+      ? { id: r.id, lat: r.lat, lon: r.lon, radius: r.radius, name }
+      : r)));
+    return;
+  }
   const select = e.target.closest('[data-reminder-minutes]');
   if (!select) return;
   if (select.value === 'custom') {
@@ -292,7 +342,32 @@ dueRemindersBox.addEventListener('change', (e) => {
   services.updateModalChips();
 });
 
-dueRemindersBox.addEventListener('click', (e) => {
+dueRemindersBox.addEventListener('click', async (e) => {
+  // "Use my current location" fills the coordinates in.
+  const locate = e.target.closest('[data-reminder-use-location]');
+  if (locate) {
+    const row = locate.closest('[data-reminder-id]');
+    if (!row) return;
+    locate.disabled = true;
+    try {
+      const pos = await currentPosition();
+      const latInput = row.querySelector('[data-reminder-lat]');
+      const lonInput = row.querySelector('[data-reminder-lon]');
+      if (latInput) latInput.value = pos.lat.toFixed(5);
+      if (lonInput) lonInput.value = pos.lon.toFixed(5);
+      const list = taskReminders(draft());
+      setDraftReminders(list.map(r => (r.id === row.dataset.reminderId
+        ? { id: r.id, lat: pos.lat, lon: pos.lon, radius: r.radius || 150, name: r.name || '' }
+        : r)));
+      services.updateModalChips();
+    } catch (err) {
+      showToast(err.message || 'Could not read your location', 'error');
+    } finally {
+      locate.disabled = false;
+    }
+    return;
+  }
+
   const btn = e.target.closest('[data-reminder-remove]');
   if (!btn) return;
   const row = btn.closest('[data-reminder-id]');

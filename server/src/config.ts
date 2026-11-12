@@ -20,6 +20,9 @@ const schema = z.object({
   // ends. Set both to the same value (or leave blank) to disable.
   QUIET_HOURS_START: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   QUIET_HOURS_END: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  // Automatic backups: how often to take one, and how many to keep.
+  BACKUP_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
+  BACKUP_KEEP: z.coerce.number().int().positive().default(24),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -41,4 +44,6 @@ export const config = {
     start: env.QUIET_HOURS_START || null,
     end: env.QUIET_HOURS_END || null,
   },
+  backupIntervalMinutes: env.BACKUP_INTERVAL_MINUTES,
+  backupKeep: env.BACKUP_KEEP,
 };

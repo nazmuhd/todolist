@@ -19,6 +19,7 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Repeat **end conditions** (after N times / on a date) | Due-date dialog (`COUNT` / `UNTIL`) |
 | ✅ | Multiple reminders per task, with preset and custom offsets | Due-date dialog |
 | ✅ | Absolute-time reminders (a specific date and time, not just "N minutes before") | Due-date dialog |
+| ✅ | Location reminders: fire when you are near a place | Due-date dialog |
 | ✅ | Notification **Complete** and **Snooze** actions (10m / 1h / tomorrow) | System notifications |
 | ✅ | In-page + system notifications while the tab is open | Reminder scheduler |
 | ✅ | Server-side Web Push reminders with every tab closed | Reminder worker + service worker |
@@ -50,6 +51,7 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Completed tasks view, grouped by completion day, restorable | Completed view |
 | ✅ | Board (Kanban) view, drag between **priority** columns | Header toggle |
 | ✅ | Board columns by project section (incl. "No section"), drag between sections | Header toggle |
+| ✅ | Table layout: one row per task, with project, labels, priority, due, deadline and duration in columns | Header toggle |
 | ✅ | Calendar month, week and day views with a time grid | Sidebar → Calendar |
 | ✅ | Drag a task in the calendar to reschedule; drag empty time to create | Calendar |
 | ✅ | Duration-sized time blocks in week/day views | Calendar |
@@ -96,6 +98,7 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Undo toasts, completion and view animations | Everywhere |
 | ✅ | Keyboard shortcuts with a `?` overlay | `?` |
 | ✅ | Karma / productivity stats | Karma view |
+| ✅ | Activity history: every change logged, kept across reloads | Activity view |
 | ✅ | Accessibility: arrow-key list navigation, screen-reader announcements | Task list, toasts |
 | ✅ | Print stylesheet | Everywhere |
 
@@ -114,3 +117,5 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Orphan attachment cleanup after a guard period | `POST /api/blobs/cleanup` |
 | ✅ | Closed-tab reminders in the service worker | `sw.js` |
 | ✅ | Local-only undo history document (survives reloads) | `core/undo.js` |
+| ✅ | Local-only activity log (up to 5,000 events) | `core/activity.js` |
+| ✅ | Automatic backups on the server, with restore | `services/backups.ts`, `/api/state/backups` |

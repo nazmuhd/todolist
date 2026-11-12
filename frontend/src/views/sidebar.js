@@ -10,6 +10,7 @@ import { snapshotData, offerUndo } from '../core/undo.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { savedFilters, filterTaskCount } from '../features/filters.js';
+import { recordActivity } from '../core/activity.js';
 
 export function renderSidebar() {
   // counts
@@ -142,12 +143,14 @@ function bindSidebarDropTargets() {
           task.sectionId = null; // sections belong to the previous project
           saveState();
           requestRender();
+          recordActivity('moved', task, `moved to ${projectName(targetId)}`);
           offerUndo(`Moved to ${projectName(targetId)}`, snapshot);
         } else {
           if ((task.labels || []).includes(targetId)) return;
           task.labels = [...(task.labels || []), targetId];
           saveState();
           requestRender();
+          recordActivity('edited', task, `label @${labelName(targetId)} added`);
           offerUndo(`Label @${labelName(targetId)} added`, snapshot);
         }
       },

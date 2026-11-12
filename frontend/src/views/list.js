@@ -15,11 +15,21 @@ import { showEmptyState } from '../features/empty-states.js';
 import { renderTaskRow, bindTaskEvents } from '../features/task-row.js';
 import { renderCalendar } from '../features/calendar.js';
 import { renderKarma } from '../features/karma.js';
+import { renderActivity } from './activity.js';
 import { renderBoard, destroyBoardSortables } from './board.js';
+import { renderTable } from './table.js';
 
 /** Board layout is available for task lists, not grouped/archive views. */
 export function supportsBoard(view = state.ui.view) {
-  return view !== 'upcoming' && view !== 'completed' && view !== 'calendar' && view !== 'karma' && !(state.ui.search || '').trim();
+  return view !== 'upcoming' && view !== 'completed' && view !== 'calendar' && view !== 'karma' && view !== 'activity' && !(state.ui.search || '').trim();
+}
+
+/**
+ * The table layout needs a flat list of tasks, so it is offered wherever the
+ * board is (both are task lists) but not for the grouped views.
+ */
+export function supportsTable(view = state.ui.view) {
+  return supportsBoard(view);
 }
 
 const SORT_OPTIONS = [  { id: 'manual', label: 'Manual order' },
@@ -96,6 +106,10 @@ export function getViewInfo() {
     title = 'Karma'; icon = 'trophy';
     subtitle = 'Your productivity at a glance';
     filter = () => true;
+  } else if (v === 'activity') {
+    title = 'Activity'; icon = 'history';
+    subtitle = 'Everything that happened to your tasks';
+    filter = () => true;
   } else if (v === 'completed') {
     title = 'Completed'; icon = 'circle-check-big';
     subtitle = '';
@@ -154,9 +168,11 @@ export function renderMain() {
   document.getElementById('calendar-view').innerHTML = '';
   document.getElementById('karma-view').classList.add('hidden');
   document.getElementById('karma-view').innerHTML = '';
+  document.getElementById('activity-view').classList.add('hidden');
   document.getElementById('empty-state').classList.add('hidden');
   document.getElementById('content-container').classList.remove('board-mode');
   document.getElementById('content-container').classList.remove('calendar-mode');
+  document.getElementById('content-container').classList.remove('table-mode');
 
   // Upcoming gets day buckets instead of one flat list (no drag reorder).
   if (state.ui.view === 'upcoming' && !searchActive) {
@@ -176,14 +192,26 @@ export function renderMain() {
     renderKarma();
     return;
   }
+  if (state.ui.view === 'activity' && !searchActive) {
+    list.classList.add('hidden');
+    document.getElementById('activity-view').classList.remove('hidden');
+    renderActivity(document.getElementById('activity-view'));
+    return;
+  }
   if (state.ui.view === 'completed' && !searchActive) {
     renderCompleted(list);
     return;
   }
   // Today keeps overdue tasks separate from today's own list, so it is
-  // grouped (and not drag-ordered) like Upcoming.
-  if (state.ui.view === 'today' && !searchActive && state.ui.layout !== 'board') {
+  // grouped (and not drag-ordered) like Upcoming. The table layout is a
+  // flat list, so it is used there too.
+  if (state.ui.view === 'today' && !searchActive && state.ui.layout === 'list') {
     renderToday(list);
+    return;
+  }
+  if (!searchActive && state.ui.layout === 'table' && supportsTable()) {
+    document.getElementById('content-container').classList.add('table-mode');
+    renderTable(info);
     return;
   }
   if (!searchActive && state.ui.layout === 'board' && supportsBoard()) {
@@ -220,14 +248,15 @@ export function renderMain() {
   bindTaskEvents(true);
 }
 
-/** Shows the list/board switch only where a board makes sense. */
+/** Shows the list/board/table switch only where a layout makes sense. */
 export function updateLayoutToggle() {
   const wrap = document.getElementById('view-layout');
   const show = supportsBoard();
   wrap.classList.toggle('hidden', !show);
   if (!show) return;
+  const current = state.ui.layout === 'board' ? 'board' : state.ui.layout === 'table' ? 'table' : 'list';
   wrap.querySelectorAll('[data-layout]').forEach(btn => {
-    const active = btn.dataset.layout === (state.ui.layout === 'board' ? 'board' : 'list');
+    const active = btn.dataset.layout === current;
     btn.classList.toggle('layout-btn-active', active);
     btn.setAttribute('aria-pressed', String(active));
   });
