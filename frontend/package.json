@@ -8,9 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm build && node tests/smoke.mjs && node tests/offline.mjs",
+    "test": "pnpm build && node tests/smoke.mjs && node tests/offline.mjs && node tests/offline-tasks.mjs",
     "test:smoke": "pnpm build && node tests/smoke.mjs",
-    "test:offline": "pnpm build && node tests/offline.mjs"
+    "test:offline": "pnpm build && node tests/offline.mjs && node tests/offline-tasks.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
