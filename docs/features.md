@@ -20,6 +20,7 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Multiple reminders per task, with preset and custom offsets | Due-date dialog |
 | ✅ | Absolute-time reminders (a specific date and time, not just "N minutes before") | Due-date dialog |
 | ✅ | Location reminders: fire when you are near a place | Due-date dialog |
+| ✅ | Custom priority levels, added from the priority menu | Task modal |
 | ✅ | Notification **Complete** and **Snooze** actions (10m / 1h / tomorrow) | System notifications |
 | ✅ | In-page + system notifications while the tab is open | Reminder scheduler |
 | ✅ | Server-side Web Push reminders with every tab closed | Reminder worker + service worker |
@@ -72,6 +73,7 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Move a task to a project or label | Context menu, batch bar |
 | ✅ | Move a task to a section | Context menu, board drag |
 | ✅ | Drag a task onto a sidebar project or label | Sidebar |
+| ✅ | Chip menus in the task dialog: due date, priority, project, labels, each able to add a new one | Task modal |
 
 ## Working with tasks in bulk
 
@@ -96,7 +98,7 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Import a **Todoist JSON backup** (projects, sections, labels, tasks, notes, reminders) | Sidebar → Import |
 | ✅ | Multi-tab sync | Storage adapter change channel |
 | ✅ | Undo toasts, completion and view animations | Everywhere |
-| ✅ | Keyboard shortcuts with a `?` overlay | `?` |
+| ✅ | Keyboard shortcuts with a `?` overlay, a header button and a list in Settings | `?`, header, Settings |
 | ✅ | Karma / productivity stats | Karma view |
 | ✅ | Activity history: every change logged, kept across reloads | Activity view |
 | ✅ | Accessibility: arrow-key list navigation, screen-reader announcements | Task list, toasts |
@@ -107,7 +109,7 @@ other boundaries are listed in `gaps.md`.
 | | Feature | Where |
 |---|---|---|
 | ✅ | Local-first storage behind a swappable adapter | `storage.js` |
-| ✅ | Schema versioning with migrations (v1 → v8) | `MIGRATIONS` |
+| ✅ | Schema versioning with migrations (v1 → v9) | `MIGRATIONS` |
 | ✅ | Documents and blobs in IndexedDB (no 5 MB localStorage cap) | `storage.js` |
 | ✅ | Single-user SQLite backend (`node:sqlite`) | `server/` |
 | ✅ | Per-entity sync with per-record revisions and tombstones | `/api/sync`, `core/sync.js` |

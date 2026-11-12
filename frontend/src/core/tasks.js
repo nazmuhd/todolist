@@ -79,6 +79,7 @@ export function addTask(data) {
     reminderFiredKey: null,
     durationMinutes: cleanDuration(data.durationMinutes),
     priority,
+    customPriorityId: data.customPriorityId || null,
     projectId: data.projectId || null,
     labels: data.labels || [],
     parentId: data.parentId || null,

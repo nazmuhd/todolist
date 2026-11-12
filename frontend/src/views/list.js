@@ -18,6 +18,7 @@ import { renderKarma } from '../features/karma.js';
 import { renderActivity } from './activity.js';
 import { renderBoard, destroyBoardSortables } from './board.js';
 import { renderTable } from './table.js';
+import { hasNoPriority } from '../core/priorities.js';
 
 /** Board layout is available for task lists, not grouped/archive views. */
 export function supportsBoard(view = state.ui.view) {
@@ -91,7 +92,7 @@ export function getViewInfo() {
     subtitle = 'Tasks with no project';
     filter = (t) => !t.projectId;
   } else if (v === 'today') {
-    title = 'Today'; icon = 'calendar-days';
+    title = 'Today'; icon = 'calendar-check';
     subtitle = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
     filter = (t) => t.due === todayISO() || isTaskOverdue(t);
   } else if (v === 'upcoming') {
@@ -121,7 +122,7 @@ export function getViewInfo() {
   } else if (v === 'no-priority') {
     title = 'No priority'; icon = 'flag-off';
     subtitle = 'Tasks still at Priority 4';
-    filter = (t) => t.priority === 4;
+    filter = (t) => hasNoPriority(t);
   } else if (v.startsWith('project:')) {
     const id = v.split(':')[1];
     const proj = state.projects.find(p => p.id === id);

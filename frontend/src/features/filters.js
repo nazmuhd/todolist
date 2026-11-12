@@ -7,6 +7,7 @@
 import { state, saveState } from '../core/state.js';
 import { isTaskOverdue, todayISO, daysFromToday, nextWeekdayISO, toISODate, QUERY_WEEKDAYS } from '../core/dates.js';
 import { activeTasks, taskReminders } from '../core/tasks.js';
+import { hasNoPriority } from '../core/priorities.js';
 import { store } from '../core/store.js';
 import { uid } from '../core/app.js';
 import { requestRender } from '../core/render.js';
@@ -206,8 +207,8 @@ export function queryTermPredicate(word) {
   if (w === 'no:project') return t => !t.projectId;
   if (w === 'has:label') return t => (t.labels || []).length > 0;
   if (w === 'no:label') return t => !(t.labels || []).length;
-  if (w === 'has:priority') return t => t.priority < 4;
-  if (w === 'no:priority') return t => t.priority === 4;
+  if (w === 'has:priority') return t => !hasNoPriority(t);
+  if (w === 'no:priority') return t => hasNoPriority(t);
   if (w === 'has:reminders' || w === 'has:reminder') return t => taskReminders(t).length > 0;
   if (w === 'has:deadline') return t => !!t.deadline;
   if (w === 'no:deadline') return t => !t.deadline;

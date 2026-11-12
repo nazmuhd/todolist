@@ -7,9 +7,10 @@
  */
 import { state } from '../core/state.js';
 import { activeTasks, priorityColor, priorityLabel, projectName } from '../core/tasks.js';
+import { taskLevel } from '../core/priorities.js';
 import { formatDue, isTaskOverdue, isDeadlineOverdue, formatDuration } from '../core/dates.js';
 import { escapeHtml, highlightHtml } from '../core/text.js';
-import { bindTaskEvents, priorityMarker, searchTerm } from '../features/task-row.js';
+import { bindTaskEvents, taskPriorityMarker, searchTerm } from '../features/task-row.js';
 
 const COLUMNS = [
   { id: 'task', label: 'Task', sortable: true },
@@ -34,9 +35,11 @@ function cellDeadline(t) {
 }
 
 function cellPriority(t) {
+  const level = taskLevel(t);
+  if (!level) return '<span class="text-td-muted">—</span>';
   return `<span class="flex items-center gap-1.5 whitespace-nowrap">
-    ${priorityMarker(t.priority)}
-    <span class="text-td-muted">${escapeHtml(priorityLabel(t.priority))}</span>
+    ${taskPriorityMarker(t)}
+    <span class="text-td-muted">${escapeHtml(level.name)}</span>
   </span>`;
 }
 
@@ -80,9 +83,9 @@ export function renderTable(info) {
       <td class="py-1.5 px-2 align-top">
         <div class="flex items-start gap-2">
           <button class="task-check mt-0.5 flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center"
-            style="border-color:${priorityColor(t.priority)}" title="Complete task" aria-label="Complete task"></button>
+            style="border-color:${taskLevel(t) ? taskLevel(t).color : '#999'}" title="Complete task" aria-label="Complete task"></button>
           <div class="task-content min-w-0">
-            <div class="task-title cursor-pointer text-sm ${t.completed ? 'line-through text-td-muted' : ''}" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
+            <div class="task-title cursor-pointer text-sm ${t.completed ? 'line-through text-td-muted' : ''}" tabindex="0">${taskPriorityMarker(t)}${highlightHtml(t.title, searchTerm())}</div>
             ${t.description ? `<div class="text-xs text-td-muted truncate-2 md-inline">${escapeHtml(t.description)}</div>` : ''}
           </div>
         </div>

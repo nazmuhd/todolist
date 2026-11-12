@@ -8,7 +8,7 @@ import { showToast } from './toasts.js';
 import { taskReminders, normalizeRecurrenceEnd, normalizeReminder, cleanRecurrenceMode } from './tasks.js';
 import { reminderAt } from './dates.js';
 import { cleanDueTime, cleanDuration, cleanReminderMinutes, cleanTimeZone, DATE_RE } from './dates.js';
-import { asText, cleanColor, clampPriority, PROJECT_COLORS, LABEL_COLORS } from './text.js';
+import { asText, cleanColor, clampPriority, PROJECT_COLORS, LABEL_COLORS, PRIORITY_LEVEL_COLORS } from './text.js';
 import { savedFilterIds } from './saved-filters.js';
 import { services } from './services.js';
 
@@ -75,7 +75,7 @@ export function clearPendingUndo() {
 export let pendingUndo = null;
 export function setPendingUndo(value) { pendingUndo = value; }
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 
 export const MIGRATIONS = {
@@ -155,6 +155,15 @@ export const MIGRATIONS = {
     if (!Array.isArray(s.templates)) s.templates = [];
     return s;
   },
+  // v8 -> v9 (custom priority levels).
+  8: (s) => {
+    if (!Array.isArray(s.priorityLevels)) s.priorityLevels = [];
+    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
+      if (!t || typeof t !== 'object') return;
+      if (t.customPriorityId === undefined) t.customPriorityId = null;
+    });
+    return s;
+  },
 };
 
 
@@ -170,6 +179,7 @@ export function defaultState() {
     ],
     tasks: [],
     templates: [],
+    priorityLevels: [],
     ui: { view: 'inbox', activeId: null, search: '', layout: 'list', sort: 'manual', sortByView: {}, calendarScale: 'month' },
     updatedAt: 0,
   };
@@ -210,6 +220,17 @@ export function normalizeState(s) {
     labels.push({ id, name, color: cleanColor(l.color, LABEL_COLORS[i % LABEL_COLORS.length]), pinned: !!l.pinned });
   });
 
+  // The user's own priority levels, on top of the built-in P1-P4.
+  const priorityLevels = (Array.isArray(s.priorityLevels) ? s.priorityLevels : [])
+    .filter(l => l && typeof l === 'object' && asText(l.id) && asText(l.name).trim())
+    .map((l, i) => ({
+      id: asText(l.id) || 'pl_' + uid(),
+      name: asText(l.name).trim().slice(0, 40),
+      color: cleanColor(l.color, PRIORITY_LEVEL_COLORS[i % PRIORITY_LEVEL_COLORS.length]),
+      order: typeof l.order === 'number' ? l.order : i,
+    }));
+  const priorityLevelIds = new Set(priorityLevels.map(l => l.id));
+
   const tasks = [];
   const taskIds = new Set();
   (Array.isArray(s.tasks) ? s.tasks : []).forEach((t, i) => {
@@ -232,6 +253,7 @@ export function normalizeState(s) {
       reminderFiredKey: asText(t.reminderFiredKey) || null,
       durationMinutes: cleanDuration(t.durationMinutes),
       priority: clampPriority(t.priority),
+      customPriorityId: priorityLevelIds.has(asText(t.customPriorityId)) ? asText(t.customPriorityId) : null,
       projectId: projectIds.has(t.projectId) ? t.projectId : null,
       labels: [...new Set((Array.isArray(t.labels) ? t.labels : []).map(asText).filter(lid => labelIds.has(lid)))],
       parentId: asText(t.parentId) || null,
@@ -334,6 +356,7 @@ export function normalizeState(s) {
     labels,
     tasks,
     templates,
+    priorityLevels,
     ui: {
       view,
       activeId: asText(rawUi.activeId) || null,

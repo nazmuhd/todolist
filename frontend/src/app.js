@@ -24,6 +24,7 @@ import { renderSidebar } from './views/sidebar.js';
 import { initBoard } from './views/board.js';
 import { initActivityView } from './views/activity.js';
 import { initRailMenu, closeRailMenu } from './ui/rail-menu.js';
+import { initChipMenus } from './features/chip-menus.js';
 import { setSidebarCollapsed } from './ui/chrome.js';
 import { renderStorageBadge } from './features/backup.js';
 import { loadSettings, applyTheme } from './features/settings.js';
@@ -201,6 +202,7 @@ initBoard();
 initActivityView();
 initFilterEditor();
 initRailMenu();
+initChipMenus();
 initListView(() => renderMain());
 
 init();

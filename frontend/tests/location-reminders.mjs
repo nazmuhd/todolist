@@ -63,6 +63,8 @@ try {
   await waitFor(`document.getElementById('task-modal').open`, 'task modal open');
   await sleep(300);
   await evalJs(`document.getElementById('meta-due').click()`);
+  await waitFor(`!document.getElementById('due-menu').classList.contains('hidden')`, 'due menu open');
+  await evalJs(`document.querySelector('#due-menu [data-chip-action="due-open"]').click()`);
   await waitFor(`document.getElementById('due-modal').open`, 'due modal open');
   await sleep(300);
 
@@ -157,6 +159,8 @@ try {
   await waitFor(`document.getElementById('task-modal').open`, 'task modal open again');
   await sleep(300);
   await evalJs(`document.getElementById('meta-due').click()`);
+  await waitFor(`!document.getElementById('due-menu').classList.contains('hidden')`, 'due menu open again');
+  await evalJs(`document.querySelector('#due-menu [data-chip-action="due-open"]').click()`);
   await waitFor(`document.getElementById('due-modal').open`, 'due modal open again');
   await sleep(300);
   await evalJs(`document.getElementById('due-add-reminder').click()`);

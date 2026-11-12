@@ -7,6 +7,7 @@ import { escapeHtml } from '../core/text.js';
 import { requestRender } from '../core/render.js';
 import { pushSupported, pushPermission, isPushEnabled, enablePush, disablePush, listPushDevices, removePushDevice } from '../core/push.js';
 import { listBackups, takeBackup, restoreBackup, backupLabel } from '../core/backups.js';
+import { SHORTCUTS } from '../ui/chrome.js';
 
 const DEFAULT_SETTINGS = {
   theme: 'system',
@@ -145,6 +146,25 @@ async function refreshBackups() {
   if (settingsModal.open) renderSettings();
 }
 
+/**
+ * The keyboard shortcuts, listed in Settings so they can be found without
+ * knowing the "?" key.
+ */
+function shortcutsSection() {
+  return `
+    <div class="mb-2 border-t border-td-border pt-4">
+      <div class="text-xs text-td-muted mb-1">Keyboard shortcuts</div>
+      <p class="text-xs text-td-muted mb-2">Press <kbd class="kbd">?</kbd> anywhere to see this list.</p>
+      <ul class="shortcut-list text-xs">
+        ${SHORTCUTS.map(s => `
+          <li class="shortcut-row">
+            <span class="shortcut-keys">${s.keys.map(k => `<kbd class="kbd">${escapeHtml(k)}</kbd>`).join('')}</span>
+            <span class="shortcut-label">${escapeHtml(s.label)}</span>
+          </li>`).join('')}
+      </ul>
+    </div>`;
+}
+
 function renderSettings() {
   $('#settings-body').innerHTML = SETTINGS_DEFS.map(def => `
     <div class="mb-4">
@@ -156,7 +176,7 @@ function renderSettings() {
           return `<button type="button" class="qa-pick" data-setting="${def.key}" data-value="${escapeHtml(raw)}" aria-pressed="${active}">${escapeHtml(label)}</button>`;
         }).join('')}
       </div>
-    </div>`).join('') + backupSection() + pushSection();
+    </div>`).join('') + shortcutsSection() + backupSection() + pushSection();
 }
 
 $('#settings-body').addEventListener('click', async (e) => {

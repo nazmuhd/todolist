@@ -5,6 +5,14 @@ import { createHarness, sleep } from './harness.mjs';
 const h = await createHarness({ port: 5199, debugPort: 9333 });
 const { send, evalJs, waitFor, check, errors } = h;
 
+/** Opens the full due-date editor: the chip shows a quick menu first. */
+async function openDueEditor() {
+  await evalJs(`document.getElementById('meta-due').click()`);
+  await waitFor(`!document.getElementById('due-menu').classList.contains('hidden')`, 'due menu');
+  await evalJs(`document.querySelector('#due-menu [data-chip-action="due-open"]').click()`);
+  await waitFor(`document.getElementById('due-modal').open`, 'due modal');
+}
+
 try {
   await send('Runtime.enable');
   await send('Log.enable');
@@ -78,8 +86,7 @@ try {
   })()`));
 
   // Due editor: natural language.
-  await evalJs(`document.getElementById('meta-due').click()`);
-  await waitFor(`document.getElementById('due-modal').open`, 'due modal');
+  await openDueEditor();
   await evalJs(`(() => {
     const i = document.getElementById('due-nl');
     i.value = 'next Friday';
@@ -106,7 +113,7 @@ try {
   await evalJs(`document.querySelector('#task-list li[data-task-id]').dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, clientX:120, clientY:160}))`);
   await waitFor(`!document.getElementById('context-menu').classList.contains('hidden')`, 'context menu');
   check('context menu opens with actions', await evalJs(`document.querySelectorAll('#context-menu [data-context-action]').length > 5`));
-  await evalJs(`document.querySelector('#context-menu [data-context-action="priority-2"]').click()`);
+  await evalJs(`document.querySelector('#context-menu [data-context-action="priority-p2"]').click()`);
   check('context menu action closes menu', await evalJs(`document.getElementById('context-menu').classList.contains('hidden')`));
 
   // Complete and undo through the toast.
@@ -211,8 +218,7 @@ try {
     li.querySelector('.task-edit').click();
   })()`);
   await waitFor(`document.getElementById('task-modal').open`, 'repeat task modal');
-  await evalJs(`document.getElementById('meta-due').click()`);
-  await waitFor(`document.getElementById('due-modal').open`, 'repeat due modal');
+  await openDueEditor();
   await evalJs(`(() => {
     const d = document.getElementById('due-deadline');
     d.value = '2026-12-31';
@@ -428,8 +434,7 @@ try {
     li.querySelector('.task-edit').click();
   })()`);
   await waitFor(`document.getElementById('task-modal').open`, 'notification task modal');
-  await evalJs(`document.getElementById('meta-due').click()`);
-  await waitFor(`document.getElementById('due-modal').open`, 'notification due modal');
+  await openDueEditor();
   await evalJs(`(() => {
     const i = document.getElementById('due-nl');
     i.value = 'today';
@@ -492,8 +497,7 @@ try {
     li.querySelector('.task-edit').click();
   })()`);
   await waitFor(`document.getElementById('task-modal').open`, 'snooze task modal');
-  await evalJs(`document.getElementById('meta-due').click()`);
-  await waitFor(`document.getElementById('due-modal').open`, 'snooze due modal');
+  await openDueEditor();
   await evalJs(`document.getElementById('due-add-reminder').click()`);
   await waitFor(`!!document.querySelector('#due-reminders [data-reminder-minutes]')`, 'snooze reminder row');
   await evalJs(`document.getElementById('due-done').click()`);

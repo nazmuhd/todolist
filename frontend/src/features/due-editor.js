@@ -586,11 +586,9 @@ export function closeDueEditor() {
   if (dueModal.open) dueModal.close();
 }
 
-$('#meta-due').onclick = (e) => {
-  e.stopPropagation();
-  services.closeMetaMenus();
-  openDueEditor();
-};
+// The due chip opens the quick menu (features/chip-menus.js), which offers
+// this editor from its last row. The editor is also opened from the
+// context menu and the swipe gesture.
 
 dueNlInput.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;

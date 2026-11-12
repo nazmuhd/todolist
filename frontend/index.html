@@ -85,7 +85,7 @@
           <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
         </a>
         <a href="#" data-view="today" title="Today" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
-          <i data-lucide="calendar-days" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+          <i data-lucide="calendar-check" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
           <span class="sidebar-hide">Today</span>
           <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
         </a>
@@ -202,7 +202,7 @@
 
     <!-- The collapsed rail hides the footer, so the settings button moves
          into the rail and opens the upward menu instead of the dialog. -->
-    <div class="sidebar-collapsed-only border-t border-td-border flex-shrink-0 justify-center py-2">
+    <div id="sidebar-rail" class="sidebar-collapsed-only border-t border-td-border flex-shrink-0 justify-center py-2">
       <button id="rail-settings-btn" class="text-td-muted hover:text-td-text p-1" title="Menu" aria-label="Menu" aria-haspopup="true" aria-expanded="false">
         <i data-lucide="settings" class="w-4 h-4"></i>
       </button>
@@ -229,6 +229,11 @@
           </button>
           <button type="button" data-layout="table" class="layout-btn" title="Table view" aria-label="Table view" aria-pressed="false">
             <i data-lucide="table" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <div class="relative">
+          <button type="button" id="shortcuts-btn" class="layout-btn" style="border:1px solid #e5e5e5;border-radius:4px" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
+            <i data-lucide="keyboard" class="w-4 h-4"></i>
           </button>
         </div>
         <div class="relative">
@@ -381,6 +386,7 @@
             <i data-lucide="calendar" class="w-3.5 h-3.5 text-td-muted"></i>
             <span id="meta-due-text">Due date</span>
           </button>
+          <div id="due-menu" class="hidden absolute left-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-10 w-44 text-sm"></div>
         </div>
         <label class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50 cursor-text" title="Estimated duration">
           <i data-lucide="clock" class="w-3.5 h-3.5 text-td-muted"></i>
@@ -393,7 +399,7 @@
             <i data-lucide="flag" class="w-3.5 h-3.5" id="meta-priority-icon" style="color:#999"></i>
             <span id="meta-priority-text">Priority</span>
           </button>
-          <div id="priority-menu" class="hidden absolute left-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-10 w-40 text-sm"></div>
+          <div id="priority-menu" class="hidden absolute left-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-10 w-44 text-sm"></div>
         </div>
         <div class="relative">
           <button type="button" id="meta-project" class="meta-chip flex items-center gap-1 border border-td-border rounded px-2 py-1 hover:bg-gray-50">

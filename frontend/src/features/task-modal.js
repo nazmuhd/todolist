@@ -10,6 +10,7 @@ import { state, saveState } from '../core/state.js';
 import { store } from '../core/store.js';
 import { cleanDuration, formatDue } from '../core/dates.js';
 import { taskReminders, priorityColor, priorityLabel, projectName, labelName, removeTask } from '../core/tasks.js';
+import { taskLevel } from '../core/priorities.js';
 import { escapeHtml } from '../core/text.js';
 import { renderMarkdown, renderMarkdownInline } from '../core/markdown.js';
 import { requestRender } from '../core/render.js';
@@ -18,6 +19,7 @@ import { showToast } from '../core/toasts.js';
 import { reminderKey, ensureNotificationPermission } from '../core/reminders.js';
 import { recordActivity } from '../core/activity.js';
 import { positionMetaMenu } from '../ui/menus.js';
+import { renderChipMenu, closeChipMenus, initChipMenus } from './chip-menus.js';
 import { commitDueEdits, recurrenceEndFromBody, closeDueEditor, isDueEditorOpen } from './due-editor.js';
 import { saveTaskTemplate } from './templates.js';
 import { setTaskHash, clearTaskHash } from '../core/router.js';
@@ -209,9 +211,6 @@ export function openTaskModal(id) {
   $('#modal-desc').classList.remove('hidden');
   $('#modal-duration').value = t.durationMinutes || '';
   updateModalChips();
-  renderPriorityMenu();
-  renderProjectMenu();
-  renderLabelMenu();
   renderModalComments();
   renderModalSections();
   renderModalAttachments();
@@ -297,10 +296,11 @@ export function updateModalChips() {
   // due
   $('#meta-due-text').textContent = t.due ? `${formatDue(t.due, t.dueTime)}${t.recurrence ? ' ↻' : ''}` : 'Due date';
   $('#meta-due').classList.toggle('text-td-red', !!t.due);
-  // priority
-  $('#meta-priority-text').textContent = priorityLabel(t.priority);
-  $('#meta-priority-icon').style.color = priorityColor(t.priority);
-  $('#meta-priority-icon').setAttribute('fill', t.priority < 4 ? priorityColor(t.priority) : 'none');
+  // priority: the built-in P1-P4, or the user's own level.
+  const level = taskLevel(t);
+  $('#meta-priority-text').textContent = level ? level.name : 'Priority';
+  $('#meta-priority-icon').style.color = level ? level.color : '#999';
+  $('#meta-priority-icon').setAttribute('fill', level && level.priority && level.priority < 4 ? level.color : 'none');
   // project
   $('#meta-project-text').textContent = t.projectId ? projectName(t.projectId) : 'Project';
   // labels
@@ -309,76 +309,21 @@ export function updateModalChips() {
 }
 
 function renderPriorityMenu() {
-  const opts = [1,2,3,4];
-  priorityMenu.innerHTML = opts.map(p => `
-    <button type="button" data-p="${p}" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
-      <i data-lucide="flag" class="w-3.5 h-3.5" style="color:${priorityColor(p)}"></i>
-      ${priorityLabel(p)}
-    </button>`).join('');
-  priorityMenu.querySelectorAll('button').forEach(b => {
-    b.onclick = () => {
-      draft().priority = +b.dataset.p;
-      updateModalChips();
-      priorityMenu.classList.add('hidden');
-      lucide.createIcons();
-    };
-  });
-  lucide.createIcons();
+  renderChipMenu('priority', draft());
 }
 
 function renderProjectMenu() {
-  const opts = [{ id: null, name: 'No project', color: '#999' }, ...state.projects];
-  projectMenu.innerHTML = opts.map(p => `
-    <button type="button" data-id="${p.id ?? ''}" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
-      <i data-lucide="hash" class="w-3.5 h-3.5" style="color:${p.color}"></i>
-      ${escapeHtml(p.name)}
-    </button>`).join('');
-  projectMenu.querySelectorAll('button').forEach(b => {
-    b.onclick = () => {
-      draft().projectId = b.dataset.id || null;
-      // The section list belongs to the project, so it changes with it.
-      draft().sectionId = null;
-      updateModalChips();
-      renderModalSections();
-      projectMenu.classList.add('hidden');
-      lucide.createIcons();
-    };
-  });
-  lucide.createIcons();
+  renderChipMenu('project', draft());
 }
 
 function renderLabelMenu() {
-  if (!state.labels.length) {
-    labelMenu.innerHTML = `<div class="px-3 py-2 text-td-muted text-xs">No labels yet</div>`;
-    return;
-  }
-  labelMenu.innerHTML = state.labels.map(l => {
-    const checked = (draft().labels || []).includes(l.id);
-    return `
-      <button type="button" data-id="${l.id}" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
-        <span class="w-3.5 h-3.5 flex items-center justify-center">${checked ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}</span>
-        <i data-lucide="tag" class="w-3.5 h-3.5" style="color:${l.color}"></i>
-        @${escapeHtml(l.name)}
-      </button>`;
-  }).join('');
-  labelMenu.querySelectorAll('button').forEach(b => {
-    b.onclick = (e) => {
-      e.stopPropagation();
-      const id = b.dataset.id;
-      const arr = draft().labels || [];
-      draft().labels = arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id];
-      renderLabelMenu();
-      updateModalChips();
-      labelMenu.classList.remove('hidden');
-    };
-  });
-  lucide.createIcons();
+  renderChipMenu('label', draft());
 }
 
 /* ---------- The meta chip menus ---------- */
 
 export function closeMetaMenus() {
-  [priorityMenu, projectMenu, labelMenu].forEach(menu => menu.classList.add('hidden'));
+  closeChipMenus();
 }
 
 function toggleMetaMenu(menu, trigger) {
@@ -400,23 +345,6 @@ window.addEventListener('scroll', () => {
   if (!labelMenu.classList.contains('hidden')) positionMetaMenu(labelMenu, $('#meta-label'));
 }, true);
 
-$('#meta-priority').onclick = (e) => {
-  e.stopPropagation();
-  toggleMetaMenu(priorityMenu, e.currentTarget);
-};
-$('#meta-project').onclick = (e) => {
-  e.stopPropagation();
-  toggleMetaMenu(projectMenu, e.currentTarget);
-};
-$('#meta-label').onclick = (e) => {
-  e.stopPropagation();
-  toggleMetaMenu(labelMenu, e.currentTarget);
-};
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.meta-chip') && !e.target.closest('#priority-menu') && !e.target.closest('#project-menu') && !e.target.closest('#label-menu')) {
-    closeMetaMenus();
-  }
-});
 
 $$('.close-modal').forEach(b => b.onclick = () => modal.close());
 modal.addEventListener('close', () => {
@@ -483,6 +411,7 @@ $('#modal-save').onclick = () => {
   if (t.reminderMinutes !== null) ensureNotificationPermission();
   t.durationMinutes = cleanDuration(Number($('#modal-duration').value));
   t.priority = modalDraft.priority;
+  t.customPriorityId = modalDraft.customPriorityId || null;
   t.projectId = modalDraft.projectId;
   t.labels = modalDraft.labels;
   saveState();

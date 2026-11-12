@@ -5,6 +5,7 @@
 import { $ } from '../core/app.js';
 import { state, saveState } from '../core/state.js';
 import { toggleComplete, skipOccurrence, snoozeTask, snoozeReminder, deleteTask, priorityColor, projectName, labelName, taskReminders } from '../core/tasks.js';
+import { priorityLevels, taskLevel } from '../core/priorities.js';
 import { toISODate, todayISO, formatDue } from '../core/dates.js';
 import { snapshotData, offerUndo } from '../core/undo.js';
 import { recordActivity } from '../core/activity.js';
@@ -72,8 +73,9 @@ export function openContextMenu(taskId, x, y) {
   sep();
 
   header('Priority');
-  [1, 2, 3, 4].forEach(p => {
-    item(`priority-${p}`, `Priority ${p}`, 'flag', { checked: t.priority === p, color: priorityColor(p) });
+  priorityLevels().forEach(level => {
+    const current = taskLevel(t);
+    item(`priority-${level.id}`, level.name, 'flag', { checked: !!current && current.id === level.id, color: level.color });
   });
   sep();
 
@@ -152,12 +154,14 @@ export function runContextAction(action, id) {
   if (action === 'delete') { deleteTask(id); return; }
 
   if (action.startsWith('priority-')) {
-    const p = Number(action.slice('priority-'.length));
-    if (!Number.isInteger(p) || p < 1 || p > 4) return;
-    t.priority = p;
+    const levelId = action.slice('priority-'.length);
+    const level = priorityLevels().find(l => l.id === levelId);
+    if (!level) return;
+    t.customPriorityId = level.custom ? level.id : null;
+    t.priority = level.custom ? 4 : level.priority;
     saveState();
     requestRender();
-    showToast(`Priority ${p}`, 'info');
+    showToast(`Priority ${level.name}`, 'info');
     return;
   }
 

@@ -6,7 +6,7 @@ import { state, saveState } from '../core/state.js';
 import { activeTasks, priorityColor, projectName, taskReminders } from '../core/tasks.js';
 import { formatDue, isTaskOverdue, todayISO } from '../core/dates.js';
 import { escapeHtml, highlightHtml } from '../core/text.js';
-import { bindTaskEvents, priorityMarker, durationBadge, searchTerm } from '../features/task-row.js';
+import { bindTaskEvents, taskPriorityMarker, durationBadge, searchTerm } from '../features/task-row.js';
 
 const BOARD_PRIORITIES = [1, 2, 3, 4];
 
@@ -111,7 +111,7 @@ export function renderBoardCard(t) {
           style="border-color:${priorityColor(t.priority)}" title="Complete task">
         </button>
         <div class="flex-1 min-w-0">
-          <div class="task-title cursor-pointer text-sm font-medium" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
+          <div class="task-title cursor-pointer text-sm font-medium" tabindex="0">${taskPriorityMarker(t)}${highlightHtml(t.title, searchTerm())}</div>
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${dueBadge}${reminderBadge}${durationBadge(t)}${projBadge}${labelBadges}

@@ -90,6 +90,7 @@ export function applySidebarState() {
   }
 
   lucide.createIcons();
+  syncBottomBars();
 }
 
 export function setSidebarCollapsed(collapsed) {
@@ -97,6 +98,27 @@ export function setSidebarCollapsed(collapsed) {
   applySidebarState();
   store.setDoc(store.keys.sidebarCollapsed, collapsed)
     .catch(err => console.error('Could not save preferences:', err));
+}
+
+/**
+ * Keeps the sidebar's bottom edge level with the quick-add bar.
+ *
+ * The two bars sit at the bottom of their columns, so their top borders
+ * line up only when their heights match. The quick-add bar grows as its
+ * editor opens, so the sidebar bar follows it.
+ */
+function syncBottomBars() {
+  const quickAdd = document.getElementById('quick-add-bar');
+  const aside = $('#sidebar');
+  if (!quickAdd || !aside) return;
+  const height = quickAdd.getBoundingClientRect().height;
+  const footer = aside.querySelector('.sidebar-footer:not(.sidebar-collapsed-only)');
+  const rail = document.getElementById('sidebar-rail');
+  // Only the one that is actually on screen matters.
+  const target = aside.classList.contains('sidebar-collapsed') ? rail : footer;
+  const other = aside.classList.contains('sidebar-collapsed') ? footer : rail;
+  if (target) target.style.height = `${Math.round(height)}px`;
+  if (other) other.style.height = '';
 }
 
 export function openMobileSidebar() {
@@ -234,7 +256,7 @@ document.addEventListener('keydown', (e) => {
 /* ============================================================
    KEYBOARD SHORTCUTS
 ============================================================ */
-const SHORTCUTS = [
+export const SHORTCUTS = [
   { keys: ['q'], label: 'Add a task' },
   { keys: ['a'], label: 'Add a task' },
   { keys: ['/'], label: 'Search' },
@@ -279,6 +301,9 @@ export function closeShortcuts() {
 }
 
 $('#shortcuts-close').onclick = () => shortcutsModal.close();
+
+// The header button opens the same overlay the "?" key does.
+$('#shortcuts-btn').onclick = () => openShortcuts();
 
 // Two-key sequences such as "g i".
 let gPrefix = false;
@@ -401,4 +426,12 @@ export async function initChrome({ renderSortMenu: sortMenuFn, supportsBoard: bo
     });
   }
   applySidebarState();
+
+  // The quick-add bar grows when its editor opens, so the sidebar's bottom
+  // bar is kept in step with it.
+  const quickAdd = document.getElementById('quick-add-bar');
+  if (quickAdd && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncBottomBars).observe(quickAdd);
+  }
+  window.addEventListener('resize', syncBottomBars);
 }

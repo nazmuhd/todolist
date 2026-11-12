@@ -556,6 +556,8 @@ h1, h2, h3 {
 .prio-1 { border-radius: 2px; background: #db4c3f; }
 .prio-2 { border-radius: 999px; background: #eb8909; }
 .prio-3 { border-radius: 999px; background: transparent; border: 2px solid #246fe0; }
+/* A custom level uses its own colour, with the square shape of P1. */
+.prio-custom { border-radius: 2px; }
 
 /* ---------- Print ---------- */
 @media print {

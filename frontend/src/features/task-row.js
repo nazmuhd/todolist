@@ -8,6 +8,7 @@
  */
 import { state, saveState } from '../core/state.js';
 import { addTask, toggleComplete, deleteTask, subtasksOf, priorityColor, priorityLabel, projectName, labelName, taskReminders } from '../core/tasks.js';
+import { taskLevel } from '../core/priorities.js';
 import { formatDue, isTaskOverdue, isDeadlineOverdue, todayISO, formatDuration } from '../core/dates.js';
 import { escapeHtml, highlightHtml } from '../core/text.js';
 import { renderMarkdownInline } from '../core/markdown.js';
@@ -26,6 +27,15 @@ export function priorityMarker(p) {
   if (p === 2) return '<span class="prio-marker prio-2" aria-hidden="true"></span>';
   if (p === 3) return '<span class="prio-marker prio-3" aria-hidden="true"></span>';
   return '';
+}
+
+/** The marker for a task, taking a custom level into account. */
+export function taskPriorityMarker(t) {
+  const level = taskLevel(t);
+  if (level && level.custom) {
+    return `<span class="prio-marker prio-custom" aria-hidden="true" style="background:${level.color};border-color:${level.color}"></span>`;
+  }
+  return priorityMarker(t && t.priority);
 }
 
 /** The "30m" chip next to a task that has a duration. */
@@ -72,7 +82,8 @@ export function renderTaskRow(t, isSub, opts = {}) {
     return `<span class="flex items-center gap-0.5 text-td-muted"><i data-lucide="tag" class="w-3 h-3" style="color:${l.color}"></i>@${escapeHtml(l.name)}</span>`;
   }).join('');
 
-  const checkColor = priorityColor(t.priority);
+  const level = taskLevel(t);
+  const checkColor = level ? level.color : '#999';
   const completedClass = t.completed ? 'line-through text-td-muted' : '';
 
   return `
@@ -80,12 +91,12 @@ export function renderTaskRow(t, isSub, opts = {}) {
       <div class="flex items-start gap-2 py-2 px-1 border-b border-gray-100 hover:bg-gray-50 rounded">
         <button class="task-check mt-0.5 flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center"
           style="border-color:${t.completed ? '#808080' : checkColor}; ${t.completed ? 'background:#808080;' : ''}"
-          title="${t.completed ? 'Reopen task' : 'Complete task'} · ${priorityLabel(t.priority)}"
-          aria-label="${t.completed ? 'Reopen task' : 'Complete task'} · ${priorityLabel(t.priority)}">
+          title="${t.completed ? 'Reopen task' : 'Complete task'} · ${level ? level.name : 'No priority'}"
+          aria-label="${t.completed ? 'Reopen task' : 'Complete task'} · ${level ? level.name : 'No priority'}">
           ${t.completed ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : ''}
         </button>
         <div class="task-content flex-1 min-w-0">
-          <div class="task-title cursor-pointer text-sm ${completedClass}" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
+          <div class="task-title cursor-pointer text-sm ${completedClass}" tabindex="0">${taskPriorityMarker(t)}${highlightHtml(t.title, searchTerm())}</div>
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2 md-inline">${renderMarkdownInline(t.description)}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
             ${parentBadge}${dueBadge}${reminderBadge}${deadlineBadge}${durationBadge(t)}${projBadge}${labelBadges}
@@ -265,8 +276,11 @@ function ensureTaskGestures() {
     if (dx > 70) {
       toggleComplete(id);
     } else if (dx < -70) {
+      // Swiping left opens the due-date editor.
       services.openTaskModal(id);
-      setTimeout(() => document.getElementById('meta-due')?.click(), 30);
+      setTimeout(() => {
+        import('./due-editor.js').then(m => m.openDueEditor());
+      }, 60);
     }
   };
 

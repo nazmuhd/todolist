@@ -11,6 +11,7 @@ import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { savedFilters, filterTaskCount } from '../features/filters.js';
 import { recordActivity } from '../core/activity.js';
+import { hasNoPriority } from '../core/priorities.js';
 
 export function renderSidebar() {
   // counts
@@ -18,7 +19,7 @@ export function renderSidebar() {
   const todayCount = state.tasks.filter(t => !t.parentId && !t.completed && (t.due === todayISO() || isTaskOverdue(t))).length;
   const completedCount = state.tasks.filter(t => t.completed).length;
   const noDateCount = state.tasks.filter(t => !t.parentId && !t.completed && !t.due).length;
-  const noPriorityCount = state.tasks.filter(t => !t.parentId && !t.completed && t.priority === 4).length;
+  const noPriorityCount = state.tasks.filter(t => !t.parentId && !t.completed && hasNoPriority(t)).length;
   document.querySelector('[data-view="inbox"] .nav-count').textContent = inboxCount || '';
   document.querySelector('[data-view="today"] .nav-count').textContent = todayCount || '';
   document.querySelector('[data-view="completed"] .nav-count').textContent = completedCount || '';

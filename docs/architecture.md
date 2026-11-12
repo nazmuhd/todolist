@@ -155,6 +155,7 @@ positions popovers and imports nothing, so features can use it safely.
 | `core/state.js` | `defaultState`, `normalizeState`, `migrateState`, `MIGRATIONS`, `SCHEMA_VERSION` |
 | `core/dates.js` | `parseDate`, `toISODate`, `todayISO`, `daysFromToday`, `formatDue`, `formatTime`, `formatDateShort`, `formatDuration`, `isTaskOverdue`, `dueSortValue`, `taskDueDate` |
 | `core/tasks.js` | `addTask`, `toggleComplete`, `removeTask`, `deleteTask`, `subtasksOf`, `nextOrder`, `cleanRecurrence`, `parseRecurrenceText`, `recurrenceToText`, `nextRecurrenceISO`, `firstRecurrenceISO`, `skipOccurrence`, `snoozeTask` |
+| `core/priorities.js` | the built-in P1-P4 plus the user's own levels: `priorityLevels`, `taskLevel`, `addPriorityLevel`, `removePriorityLevel`, `hasNoPriority` |
 | `core/text.js` | `escapeHtml`, `highlightHtml`, `asText`, `cleanColor`, `clampPriority`, the colour palettes |
 | `core/undo.js` | `snapshotData`, `offerUndo`, `undoPending`, `redoPending`, `loadUndoHistory`, `clearUndoHistory` (history is a local-only `undo-history` doc) |
 | `core/activity.js` | `recordActivity`, `activityEvents`, `activityForTask`, `loadActivity`, `clearActivity` (the log is a local-only `activity-history` doc) |
@@ -168,6 +169,7 @@ positions popovers and imports nothing, so features can use it safely.
 | `core/saved-filters.js` | the saved filter list, so the state normaliser can validate the active view |
 | `features/due-editor.js` | the whole due-date dialog: `openDueEditor`, `syncDueEditor`, `applyNaturalDue`, `initDueCalendar`, repeat-end controls, reminders, start date |
 | `features/task-modal.js` | `openTaskModal`, comments, sections, attachments, inline title edit |
+| `features/chip-menus.js` | the task dialog's due / priority / project / label menus, and the inline "add new" prompt |
 | `features/task-row.js` | `renderTaskRow`, `bindTaskEvents`, the inline title and subtask editors |
 | `features/selection.js` | `selectTask`, `clearSelection`, `renderSelection`, the batch bar and its actions |
 | `features/context-menu.js` | `openContextMenu`, `runContextAction` |
