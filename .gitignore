@@ -18,6 +18,11 @@ server/data/
 *.db-wal
 *.db-shm
 
+# Exported backups: they hold the user's own task data
+todoist-backup-*.json
+todolist-backup-*.json
+*-backup-*.json
+
 # Logs and OS
 *.log
 npm-debug.log*
