@@ -108,5 +108,4 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 | ✅ | Server-side reminders and Web Push subscriptions | `services/reminders.ts`, `/api/push` |
 | ✅ | Orphan attachment cleanup after a guard period | `POST /api/blobs/cleanup` |
 | ✅ | Closed-tab reminders in the service worker | `sw.js` |
-| ✅ | Todoist JSON backup import | Sidebar → Import |
 | ✅ | Local-only undo history document (survives reloads) | `core/undo.js` |
