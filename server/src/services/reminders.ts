@@ -1,4 +1,5 @@
 import { exportEntities, markReminderFired, reminderAlreadyFired } from '../db/repository.ts';
+import { config } from '../config.ts';
 import { pushIsConfigured, sendPush } from './push.ts';
 
 const TWELVE_HOURS = 12 * 60 * 60 * 1000;
@@ -138,11 +139,38 @@ export interface DueReminder {
   key: string;
 }
 
+function minutesOfDay(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h as number) * 60 + (m as number);
+}
+
+/**
+ * True while a local wall-clock time is inside the quiet window.
+ * A window that crosses midnight (22:00 → 07:00) is supported. Equal start
+ * and end times disable quiet hours.
+ */
+export function inQuietHours(
+  date: Date,
+  start: string | null | undefined,
+  end: string | null | undefined,
+): boolean {
+  if (!start || !end || start === end) return false;
+  const from = minutesOfDay(start);
+  const to = minutesOfDay(end);
+  const now = date.getHours() * 60 + date.getMinutes();
+  return from < to ? now >= from && now < to : now >= from || now < to;
+}
+
 /**
  * Reminders that came due in the last 12 hours and have not been sent yet.
- * Anything older is skipped rather than spammed.
+ * Anything older is skipped rather than spammed. During quiet hours nothing
+ * is returned, which leaves those reminders pending until the window ends.
  */
-export function dueReminders(now = Date.now()): DueReminder[] {
+export function dueReminders(
+  now = Date.now(),
+  quiet: { start: string | null; end: string | null } = config.quietHours,
+): DueReminder[] {
+  if (inQuietHours(new Date(now), quiet.start, quiet.end)) return [];
   const tasks = exportEntities().tasks as ReminderTask[];
   const due: DueReminder[] = [];
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   deletePushSubscription,
+  listPushDevices,
   listPushSubscriptions,
   savePushSubscription,
 } from '../db/repository.ts';
@@ -22,19 +23,28 @@ pushRouter.post('/subscribe', (req, res) => {
   const body = req.body as {
     endpoint?: unknown;
     keys?: { p256dh?: unknown; auth?: unknown };
+    label?: unknown;
+    userAgent?: unknown;
   } | undefined;
 
   const endpoint = typeof body?.endpoint === 'string' ? body.endpoint : '';
   const p256dh = typeof body?.keys?.p256dh === 'string' ? body.keys.p256dh : '';
   const auth = typeof body?.keys?.auth === 'string' ? body.keys.auth : '';
+  const label = typeof body?.label === 'string' ? body.label.slice(0, 80) : null;
+  const userAgent = typeof body?.userAgent === 'string' ? body.userAgent.slice(0, 300) : null;
 
   if (!endpoint || !/^https?:\/\//.test(endpoint) || !p256dh || !auth) {
     res.status(400).json({ error: 'invalid_subscription' });
     return;
   }
 
-  savePushSubscription({ endpoint, p256dh, auth });
+  savePushSubscription({ endpoint, p256dh, auth, label, userAgent });
   res.status(201).json({ ok: true });
+});
+
+/** The registered devices, without their push keys. */
+pushRouter.get('/subscriptions', (_req, res) => {
+  res.json({ subscriptions: listPushDevices() });
 });
 
 pushRouter.delete('/subscribe', (req, res) => {

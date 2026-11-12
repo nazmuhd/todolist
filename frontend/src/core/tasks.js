@@ -5,7 +5,7 @@
 import { state, saveState } from './state.js';
 import { requestRender } from './render.js';
 import { settings, uid, cleanRecurrence } from './app.js';
-import { parseDate, toISODate, todayISO, isTaskOverdue, cleanDueTime, cleanDuration, cleanReminderMinutes, cleanDateTime, cleanTimeZone, formatDue, DATE_RE } from './dates.js';
+import { parseDate, toISODate, todayISO, isTaskOverdue, cleanDueTime, cleanDuration, cleanReminderMinutes, cleanDateTime, cleanTimeZone, formatDue, DATE_RE, toLocalDateTime } from './dates.js';
 import { snapshotData, offerUndo } from './undo.js';
 
 /* The phrases people actually type, checked before rrule's own parser:
@@ -295,6 +295,25 @@ export function snoozeTask(task) {
   saveState();
   requestRender();
   offerUndo('Snoozed until tomorrow', snapshot);
+  return true;
+}
+
+/**
+ * Snoozes only the reminder (not the due date) by replacing the task's
+ * reminders with one absolute reminder `minutes` from now.
+ */
+export function snoozeReminder(task, minutes) {
+  if (!task || !Number.isFinite(minutes) || minutes < 0) return false;
+  const snapshot = snapshotData();
+  const when = new Date(Date.now() + minutes * 60 * 1000);
+  task.reminders = [{ id: uid(), at: toLocalDateTime(when) }];
+  task.reminderMinutes = null;
+  task.reminderFiredKey = null;
+  saveState();
+  requestRender();
+  const label = minutes >= 1440 ? 'Snoozed reminder until tomorrow'
+    : `Reminder snoozed for ${minutes >= 60 ? `${Math.round(minutes / 60)} hour${minutes >= 120 ? 's' : ''}` : `${minutes} minutes`}`;
+  offerUndo(label, snapshot);
   return true;
 }
 

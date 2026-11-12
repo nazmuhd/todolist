@@ -156,6 +156,12 @@ export const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/;
 
 export const cleanDateTime = (v) => (typeof v === 'string' && DATETIME_RE.test(v) ? v : null);
 
+/** Formats a Date as the wall-clock value a datetime-local input expects. */
+export function toLocalDateTime(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function cleanTimeZone(v) {
   if (typeof v !== 'string' || !v.trim()) return null;
   try {

@@ -49,15 +49,15 @@ Legend: `[x]` shipped · `[~]` partly shipped · `[ ]` active gap · `⏳ later`
 - [~] **Keyboard shortcut coverage** — added `a`, `k`, `g` sequences; still not Todoist's full set.
 - [~] **Time-block overlap handling** — overlapping timed tasks stack vertically but do not yet side-by-side tile.
 
-## 3. Notifications — active
+## 3. Notifications — shipped (email remains open)
 
-- [ ] **Notification actions** — Complete and Snooze straight from the notification.
-- [ ] **Snooze presets** on reminders.
-- [ ] **Custom reminder offsets** — currently fixed (at due, 10m, 30m, 1h, 2h, 1d).
+- [x] **Notification actions** — Complete and Snooze straight from the notification; the service worker forwards them to a tab or opens `#/action`.
+- [x] **Snooze presets** on reminders — 10 minutes, 1 hour and tomorrow; reminder-only snooze writes an absolute reminder.
+- [x] **Custom reminder offsets** — any number of minutes/hours/days in addition to the fixed presets.
 - [x] **Timezone-correct server scheduling** — the worker converts due times with the task's `timeZone`.
-- [ ] **Per-device subscription management** — the single-user store cannot target devices.
-- [ ] **Delivery retry and quiet-hours behavior** when push fails or the server is down.
-- [ ] **Email notifications** — none.
+- [x] **Per-device subscription management** — the settings dialog lists registered devices (labelled by browser/OS) and can remove them.
+- [x] **Delivery retry and quiet-hours behavior** — transient push failures retry with backoff; `QUIET_HOURS_START`/`QUIET_HOURS_END` suppress delivery.
+- [ ] **Email notifications** — none; needs an SMTP provider and configuration.
 
 ---
 

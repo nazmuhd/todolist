@@ -16,6 +16,10 @@ const schema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().optional(),
+  // Local quiet-hours window (HH:MM). Reminders due inside it wait until it
+  // ends. Set both to the same value (or leave blank) to disable.
+  QUIET_HOURS_START: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  QUIET_HOURS_END: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -33,4 +37,8 @@ export const config = {
   isProduction: env.NODE_ENV === 'production',
   corsOrigins: env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean),
   hasPush: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
+  quietHours: {
+    start: env.QUIET_HOURS_START || null,
+    end: env.QUIET_HOURS_END || null,
+  },
 };

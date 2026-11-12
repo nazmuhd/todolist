@@ -22,8 +22,15 @@ Push** for reliable delivery.
   subscriptions stored in SQLite. Requires `VAPID_*` keys.
 - [x] **Server-side reminder scheduling** — a worker reads the synced tasks and
   sends push notifications every 30 seconds; `reminder_fired` deduplicates.
-- [ ] **Notification actions** — Complete / Snooze directly from the notification.
-- [~] **Multiple reminders per task** — done; snooze and custom offsets are open.
+- [x] **Notification actions** — Complete and Snooze from the notification;
+  the service worker forwards the action to a tab or opens `#/action`.
+- [x] **Multiple reminders per task** — including custom minute/hour/day offsets
+  and reminder-only snooze presets.
+- [x] **Per-device push management** — subscriptions carry a browser/OS label and
+  last-seen time, and can be removed from settings.
+- [x] **Push retry and quiet hours** — transient failures retry with backoff;
+  `QUIET_HOURS_START`/`QUIET_HOURS_END` hold reminders until the window ends.
+- [ ] **Email notifications** — needs an SMTP provider.
 - [ ] **Periodic Background Sync** — browser-throttled; not reliable on its own.
 - [x] **Background sync / offline queue** — edits made offline are queued and
   pushed to `/api/sync` when the connection returns.
@@ -126,7 +133,7 @@ Active or later gaps from `gaps.md`; none block single-user use.
 - [x] Completion-based repeats (`every!`).
 - [x] Separate start date distinct from the due date (filtering, not anchoring).
 - [ ] Exceptions and skips ("every Monday except holidays").
-- [ ] Snooze presets and custom reminder offsets.
+- [x] Snooze presets and custom reminder offsets.
 
 ---
 

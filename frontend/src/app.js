@@ -9,6 +9,7 @@ import { showToast } from './core/toasts.js';
 import { services } from './core/services.js';
 import { setRenderer } from './core/render.js';
 import { isKnownView, syncHash, navigateTo, taskIdFromHash } from './core/router.js';
+import { actionFromHash, handleNotificationAction, initNotificationActions } from './core/notification-actions.js';
 import { startReminders } from './core/reminders.js';
 import { initSync, scheduleSync } from './core/sync.js';
 import { loadSavedFilters, initFilterEditor } from './features/filters.js';
@@ -121,6 +122,9 @@ async function init() {
   // The state loads from IndexedDB, so show a placeholder while it does.
   $('#loading-skeleton').classList.remove('hidden');
 
+  // A notification action link is handled after the data is loaded.
+  const pendingAction = actionFromHash();
+
   // Filters must be known before the state is read: a saved filter can be
   // the active view, and the state loader validates the view name.
   await loadSavedFilters();
@@ -150,6 +154,12 @@ async function init() {
   render();
   $('#loading-skeleton').classList.add('hidden');
   applySidebarState();
+
+  initNotificationActions();
+  if (pendingAction) {
+    handleNotificationAction(pendingAction.action, pendingAction.taskId);
+    syncHash();
+  }
 
   const linkedTaskId = taskIdFromHash();
   if (linkedTaskId && state.tasks.some(t => t.id === linkedTaskId)) {

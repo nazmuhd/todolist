@@ -365,14 +365,31 @@ export interface PushSubscriptionRow {
   endpoint: string;
   p256dh: string;
   auth: string;
+  label?: string | null;
+  user_agent?: string | null;
+  created_at?: string | null;
+  last_seen_at?: string | null;
 }
 
-export function savePushSubscription(sub: PushSubscriptionRow): void {
+export interface PushSubscriptionInput {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  label?: string | null;
+  userAgent?: string | null;
+}
+
+export function savePushSubscription(sub: PushSubscriptionInput): void {
   getDb().prepare(`
-    insert into push_subscriptions (endpoint, p256dh, auth)
-    values (?, ?, ?)
-    on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth
-  `).run(sub.endpoint, sub.p256dh, sub.auth);
+    insert into push_subscriptions (endpoint, p256dh, auth, label, user_agent, last_seen_at)
+    values (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    on conflict (endpoint) do update set
+      p256dh = excluded.p256dh,
+      auth = excluded.auth,
+      label = coalesce(excluded.label, push_subscriptions.label),
+      user_agent = coalesce(excluded.user_agent, push_subscriptions.user_agent),
+      last_seen_at = excluded.last_seen_at
+  `).run(sub.endpoint, sub.p256dh, sub.auth, sub.label || null, sub.userAgent || null);
 }
 
 export function deletePushSubscription(endpoint: string): boolean {
@@ -380,8 +397,37 @@ export function deletePushSubscription(endpoint: string): boolean {
 }
 
 export function listPushSubscriptions(): PushSubscriptionRow[] {
-  return getDb().prepare('select endpoint, p256dh, auth from push_subscriptions order by created_at')
-    .all() as unknown as PushSubscriptionRow[];
+  return getDb().prepare(`
+    select endpoint, p256dh, auth, label, user_agent, created_at, last_seen_at
+    from push_subscriptions
+    order by created_at
+  `).all() as unknown as PushSubscriptionRow[];
+}
+
+/** Public device list: never exposes the push keys. */
+export interface PushDevice {
+  endpoint: string;
+  label: string | null;
+  userAgent: string | null;
+  createdAt: string | null;
+  lastSeenAt: string | null;
+}
+
+export function listPushDevices(): PushDevice[] {
+  return getDb().prepare(`
+    select endpoint, label, user_agent, created_at, last_seen_at
+    from push_subscriptions
+    order by created_at
+  `).all().map((row) => {
+    const r = row as unknown as PushSubscriptionRow;
+    return {
+      endpoint: r.endpoint,
+      label: r.label || null,
+      userAgent: r.user_agent || null,
+      createdAt: r.created_at || null,
+      lastSeenAt: r.last_seen_at || null,
+    };
+  });
 }
 
 /* ---------- reminder bookkeeping ---------- */

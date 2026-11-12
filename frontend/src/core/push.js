@@ -45,6 +45,42 @@ export async function isPushEnabled() {
   return Boolean(await currentSubscription());
 }
 
+function deviceLabel() {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+  const browser = /Edg\//.test(ua) ? 'Edge'
+    : /Chrome\//.test(ua) ? 'Chrome'
+    : /Firefox\//.test(ua) ? 'Firefox'
+    : /Safari\//.test(ua) ? 'Safari'
+    : 'Browser';
+  const platform = /Android/.test(ua) ? 'Android'
+    : /iPhone|iPad|iPod/.test(ua) ? 'iOS'
+    : /Windows/.test(ua) ? 'Windows'
+    : /Mac OS X/.test(ua) ? 'macOS'
+    : /Linux/.test(ua) ? 'Linux'
+    : '';
+  return platform ? `${browser} on ${platform}` : browser;
+}
+
+/** The registered devices (no push keys), for the settings list. */
+export async function listPushDevices() {
+  const data = await store.jsonBody(await store.send('/push/subscriptions'));
+  return Array.isArray(data?.subscriptions) ? data.subscriptions : [];
+}
+
+/** Forgets another device's subscription. */
+export async function removePushDevice(endpoint) {
+  if (!endpoint) return false;
+  const response = await store.send('/push/subscribe', {
+    method: 'DELETE',
+    json: { endpoint },
+  });
+  return Boolean(response && (response.ok || response.status === 404));
+}
+
+export function currentDeviceLabel() {
+  return deviceLabel();
+}
+
 export async function enablePush() {
   if (!pushSupported()) {
     showToast('This browser does not support push notifications', 'error');
@@ -89,6 +125,8 @@ export async function enablePush() {
   }
 
   const body = subscription.toJSON();
+  body.label = deviceLabel();
+  body.userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null;
   const response = await store.send('/push/subscribe', { method: 'POST', json: body });
   if (!response || !response.ok) {
     showToast('Could not save the push subscription', 'error');

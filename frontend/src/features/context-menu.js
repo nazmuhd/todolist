@@ -4,7 +4,7 @@
  */
 import { $ } from '../core/app.js';
 import { state, saveState } from '../core/state.js';
-import { toggleComplete, skipOccurrence, snoozeTask, deleteTask, priorityColor, projectName, labelName } from '../core/tasks.js';
+import { toggleComplete, skipOccurrence, snoozeTask, snoozeReminder, deleteTask, priorityColor, projectName, labelName, taskReminders } from '../core/tasks.js';
 import { toISODate, todayISO, formatDue } from '../core/dates.js';
 import { snapshotData, offerUndo } from '../core/undo.js';
 import { showToast } from '../core/toasts.js';
@@ -45,7 +45,13 @@ export function openContextMenu(taskId, x, y) {
   if (t.due) {
     item('snooze', 'Snooze until tomorrow', 'moon');
   }
-  if (t.recurrence || t.due) sep();
+  if (taskReminders(t).length) {
+    header('Snooze reminder');
+    item('snooze-reminder-10', '10 minutes', 'bell');
+    item('snooze-reminder-60', '1 hour', 'bell');
+    item('snooze-reminder-1440', 'Tomorrow', 'bell');
+  }
+  if (t.recurrence || t.due || taskReminders(t).length) sep();
 
   header('Reschedule');
   item('due-today', 'Today', 'calendar');
@@ -107,6 +113,11 @@ export function runContextAction(action, id) {
   if (action === 'complete') { toggleComplete(id); return; }
   if (action === 'skip-occurrence') { const task = state.tasks.find(x => x.id === id); if (task) skipOccurrence(task); return; }
   if (action === 'snooze') { const task = state.tasks.find(x => x.id === id); if (task) snoozeTask(task); return; }
+  if (action.startsWith('snooze-reminder-')) {
+    const minutes = Number(action.slice('snooze-reminder-'.length));
+    if (Number.isFinite(minutes)) snoozeReminder(t, minutes);
+    return;
+  }
   if (action === 'edit') { services.openTaskModal(id); return; }
   if (action === 'delete') { deleteTask(id); return; }
 

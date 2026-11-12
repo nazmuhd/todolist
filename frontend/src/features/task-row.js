@@ -50,7 +50,12 @@ export function renderTaskRow(t, isSub, opts = {}) {
     <span class="flex items-center gap-1 ${isTaskOverdue(t) ? 'text-red-600' : t.due === todayISO() ? 'text-green-700' : 'text-td-muted'}">
       <i data-lucide="calendar" class="w-3 h-3"></i>${escapeHtml(formatDue(t.due, t.dueTime))}
       ${t.recurrence ? `<i data-lucide="${t.recurrenceMode === 'completion' ? 'refresh-cw' : 'repeat'}" class="w-3 h-3 ml-0.5" title="${t.recurrenceMode === 'completion' ? 'Repeats from completion' : 'Repeats from due date'}"></i>` : ''}
-      ${taskReminders(t).length ? '<i data-lucide="bell" class="w-3 h-3 ml-0.5"></i>' : ''}
+    </span>` : '';
+  // Reminders are independent of the due date (absolute reminders can exist
+  // on their own), so the bell is its own badge.
+  const reminderBadge = taskReminders(t).length ? `
+    <span class="flex items-center gap-1 text-td-muted" title="Reminders">
+      <i data-lucide="bell" class="w-3 h-3"></i>
     </span>` : '';
   const deadlineBadge = t.deadline ? `
     <span class="flex items-center gap-1 ${isDeadlineOverdue(t) ? 'text-red-600' : 'text-td-muted'}" title="Deadline">
@@ -82,7 +87,7 @@ export function renderTaskRow(t, isSub, opts = {}) {
           <div class="task-title cursor-pointer text-sm ${completedClass}" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2 md-inline">${renderMarkdownInline(t.description)}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
-            ${parentBadge}${dueBadge}${deadlineBadge}${durationBadge(t)}${projBadge}${labelBadges}
+            ${parentBadge}${dueBadge}${reminderBadge}${deadlineBadge}${durationBadge(t)}${projBadge}${labelBadges}
             ${t.startDate && t.startDate !== t.due ? `<span class="flex items-center gap-1 text-td-muted"><i data-lucide="flag" class="w-3 h-3"></i>starts ${escapeHtml(formatDue(t.startDate))}</span>` : ''}
             ${(t.attachments || []).length ? `<span class="flex items-center gap-1 text-td-muted"><i data-lucide="paperclip" class="w-3 h-3"></i>${t.attachments.length}</span>` : ''}
           </div>

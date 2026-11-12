@@ -5,7 +5,7 @@ import { $, settings } from '../core/app.js';
 import { store } from '../core/store.js';
 import { escapeHtml } from '../core/text.js';
 import { requestRender } from '../core/render.js';
-import { pushSupported, pushPermission, isPushEnabled, enablePush, disablePush } from '../core/push.js';
+import { pushSupported, pushPermission, isPushEnabled, enablePush, disablePush, listPushDevices, removePushDevice } from '../core/push.js';
 
 const DEFAULT_SETTINGS = {
   theme: 'system',
@@ -63,6 +63,28 @@ else if (darkMedia.addListener) darkMedia.addListener(applyTheme); // older Safa
 
 const settingsModal = $('#settings-modal');
 let pushReady = false;
+let pushDevices = [];
+
+function deviceRow(device, index) {
+  const name = device.label || 'Unknown device';
+  const last = device.lastSeenAt ? new Date(device.lastSeenAt) : null;
+  const seen = last && !Number.isNaN(last.getTime())
+    ? ` · last seen ${last.toLocaleDateString()}`
+    : '';
+  return `
+    <div class="flex items-center gap-2 text-xs py-1" data-device-row="${index}">
+      <i data-lucide="smartphone" class="w-3.5 h-3.5 text-td-muted flex-shrink-0"></i>
+      <span class="flex-1 truncate" title="${escapeHtml(device.userAgent || name)}">${escapeHtml(name)}${escapeHtml(seen)}</span>
+      <button type="button" class="text-td-muted hover:text-red-600 p-0.5" data-device-remove="${index}" title="Remove this device" aria-label="Remove ${escapeHtml(name)}">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>`;
+}
+
+async function refreshPushDevices() {
+  pushDevices = await listPushDevices();
+  if (settingsModal.open) renderSettings();
+}
 
 function pushSection() {
   if (!pushSupported()) return '';
@@ -74,6 +96,11 @@ function pushSection() {
       <button type="button" class="qa-pick" data-push-toggle ${blocked ? 'disabled' : ''}>
         ${blocked ? 'Notifications blocked in browser settings' : (pushReady ? 'Disable push reminders' : 'Enable push reminders')}
       </button>
+      ${pushDevices.length ? `
+        <div class="mt-3">
+          <div class="text-xs text-td-muted mb-1">Registered devices</div>
+          ${pushDevices.map(deviceRow).join('')}
+        </div>` : ''}
     </div>`;
 }
 
@@ -92,6 +119,16 @@ function renderSettings() {
 }
 
 $('#settings-body').addEventListener('click', async (e) => {
+  const removeBtn = e.target.closest('[data-device-remove]');
+  if (removeBtn) {
+    const device = pushDevices[Number(removeBtn.dataset.deviceRemove)];
+    if (!device) return;
+    removeBtn.disabled = true;
+    await removePushDevice(device.endpoint);
+    await refreshPushDevices();
+    return;
+  }
+
   const pushBtn = e.target.closest('[data-push-toggle]');
   if (pushBtn) {
     pushBtn.disabled = true;
@@ -101,7 +138,7 @@ $('#settings-body').addEventListener('click', async (e) => {
     } else {
       pushReady = await enablePush();
     }
-    renderSettings();
+    await refreshPushDevices();
     return;
   }
 
@@ -123,10 +160,12 @@ $('#settings-btn').onclick = () => {
   renderSettings();
   if (!settingsModal.open) settingsModal.showModal();
   isPushEnabled().then((enabled) => {
-    if (enabled === pushReady) return;
-    pushReady = enabled;
-    if (settingsModal.open) renderSettings();
+    if (enabled !== pushReady) {
+      pushReady = enabled;
+      if (settingsModal.open) renderSettings();
+    }
   });
+  refreshPushDevices();
 };
 $('#settings-close').onclick = () => settingsModal.close();
 

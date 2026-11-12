@@ -1,7 +1,7 @@
 /* Offline support for the Todoist clone.
    Everything the app needs is served from this origin (the libraries are
    vendored locally), so the first visit is enough to work offline. */
-const CACHE = 'todoist-clone-v5';
+const CACHE = 'todoist-clone-v6';
 const DB_NAME = 'todoist-clone-files';
 const DB_VERSION = 2;
 const STORE = 'files';
@@ -86,11 +86,19 @@ async function readDoc(key) {
   }
 }
 
+/* Reminder notifications give the user Complete and Snooze without opening
+   the app first. The Snooze action uses the app's 1-hour preset. */
+const NOTIFICATION_ACTIONS = [
+  { action: 'complete', title: 'Complete' },
+  { action: 'snooze-60', title: 'Snooze 1h' },
+];
+
 function showReminder(item) {
   self.registration.showNotification('Task reminder', {
     body: item.title,
     tag: `todoist-clone-${item.id}`,
-    data: { id: item.id },
+    actions: NOTIFICATION_ACTIONS,
+    data: { id: item.taskId || item.id, taskId: item.taskId || '' },
   }).catch(() => {});
 }
 
@@ -121,21 +129,47 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, {
     body: data.body || '',
     tag: data.tag || 'todoist-clone',
-    data: { id: data.taskId || data.id || '' },
+    actions: NOTIFICATION_ACTIONS,
+    data: { id: data.taskId || data.id || '', taskId: data.taskId || '' },
   }).catch(() => {}));
 });
 
+/** Focuses a tab and forwards the action; opens the app when none is open. */
+async function deliverAction(action, taskId) {
+  const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  if (list.length) {
+    list.forEach((client) => client.postMessage({ type: 'notification-action', action, taskId }));
+    const focused = list.find((client) => 'focus' in client) || list[0];
+    if (focused && 'focus' in focused) await focused.focus();
+    return;
+  }
+  const query = `action=${encodeURIComponent(action)}&task=${encodeURIComponent(taskId || '')}`;
+  await self.clients.openWindow(`./index.html#/action?${query}`);
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const id = event.notification.data && event.notification.data.id;
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then((list) => {
-      for (const client of list) {
-        if ('focus' in client) return client.focus();
+  const data = event.notification.data || {};
+  const taskId = data.taskId || data.id || '';
+
+  // A notification button was pressed.
+  if (event.action) {
+    event.waitUntil(deliverAction(event.action, taskId));
+    return;
+  }
+
+  // The body was clicked: focus an existing tab, or deep-link to the task.
+  event.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of list) {
+      if ('focus' in client) {
+        await client.focus();
+        return;
       }
-      return self.clients.openWindow('./index.html');
-    })
-  );
+    }
+    const hash = taskId ? `#/task/${encodeURIComponent(taskId)}` : './index.html';
+    await self.clients.openWindow(taskId ? `./index.html${hash}` : hash);
+  })());
 });
 
 self.addEventListener('fetch', (event) => {

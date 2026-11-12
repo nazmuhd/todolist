@@ -6,7 +6,7 @@
  * and this module never import each other.
  */
 import { $, $$, uid, modalState, cleanRecurrence } from '../core/app.js';
-import { toISODate, todayISO, formatDue, parseDate, localTimeZone, cleanDateTime } from '../core/dates.js';
+import { toISODate, todayISO, formatDue, parseDate, localTimeZone, cleanDateTime, toLocalDateTime } from '../core/dates.js';
 import { taskReminders, parseRecurrence, recurrenceToText } from '../core/tasks.js';
 import { escapeHtml } from '../core/text.js';
 import { services } from '../core/services.js';
@@ -36,9 +36,7 @@ const dueTimeZone = $('#due-timezone');
 const draft = () => modalState.draft;
 
 function toDateTimeInput(d) {
-  if (!d) return '';
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return d ? toLocalDateTime(d) : '';
 }
 
 function defaultReminderAt(r) {
@@ -106,6 +104,20 @@ const REMINDER_OPTIONS = [
   [1440, '1 day before'],
 ];
 
+const REMINDER_UNITS = [
+  [1, 'minutes'],
+  [60, 'hours'],
+  [1440, 'days'],
+];
+
+/** Splits a custom offset into the largest whole unit. */
+export function reminderCustomParts(minutes) {
+  const n = Number.isInteger(minutes) ? minutes : 15;
+  if (n > 0 && n % 1440 === 0) return { value: n / 1440, unit: 1440 };
+  if (n > 0 && n % 60 === 0) return { value: n / 60, unit: 60 };
+  return { value: n, unit: 1 };
+}
+
 function setDraftReminders(list) {
   if (!draft()) return;
   draft().reminders = list;
@@ -132,10 +144,24 @@ function renderDueReminders() {
       ${absolute ? `
         <input type="datetime-local" data-reminder-at value="${escapeHtml(r.at)}" aria-label="Reminder time"
           class="w-full text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />`
-      : `
+      : (() => {
+        const preset = REMINDER_OPTIONS.some(([v]) => v === Number(r.minutes));
+        const parts = reminderCustomParts(r.minutes);
+        return `
         <select class="w-full text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" data-reminder-minutes aria-label="Reminder">
           ${REMINDER_OPTIONS.map(([v, l]) => `<option value="${v}" ${Number(r.minutes) === v ? 'selected' : ''}>${l}</option>`).join('')}
-        </select>`}
+          <option value="custom" ${preset ? '' : 'selected'}>Custom…</option>
+        </select>
+        <div class="flex items-center gap-1 ${preset ? 'hidden' : ''}" data-reminder-custom>
+          <input type="number" min="1" max="10080" step="1" value="${parts.value}" data-reminder-custom-value
+            aria-label="Custom reminder amount"
+            class="w-16 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          <select class="text-xs border border-td-border rounded px-1 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" data-reminder-custom-unit aria-label="Custom reminder unit">
+            ${REMINDER_UNITS.map(([v, l]) => `<option value="${v}" ${parts.unit === v ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>
+          <span class="text-[11px] text-td-muted">before</span>
+        </div>`;
+      })()}
     </div>`;
   }).join('')
     : '<div class="text-[11px] text-td-muted">No reminders.</div>';
@@ -221,9 +247,49 @@ dueRemindersBox.addEventListener('change', (e) => {
   }
   const select = e.target.closest('[data-reminder-minutes]');
   if (!select) return;
+  if (select.value === 'custom') {
+    // Switch a preset to a custom offset using a non-preset default.
+    setDraftReminders(list.map(r => {
+      if (r.id !== row.dataset.reminderId) return r;
+      const current = Number(r.minutes);
+      const preset = REMINDER_OPTIONS.some(([v]) => v === current);
+      return { id: r.id, minutes: preset ? 15 : current };
+    }));
+    renderDueReminders();
+    const input = dueRemindersBox.querySelector('[data-reminder-id="' + row.dataset.reminderId + '"] [data-reminder-custom-value]');
+    if (input) input.focus();
+    services.updateModalChips();
+    return;
+  }
   setDraftReminders(list.map(r => (r.id === row.dataset.reminderId
     ? { id: r.id, minutes: Number(select.value) }
     : r)));
+});
+
+// Live-update a custom offset without re-rendering (keeps focus in the input).
+dueRemindersBox.addEventListener('input', (e) => {
+  if (!e.target.matches('[data-reminder-custom-value]')) return;
+  const row = e.target.closest('[data-reminder-id]');
+  if (!row) return;
+  const unit = Number(row.querySelector('[data-reminder-custom-unit]')?.value) || 1;
+  const amount = Math.max(0, Math.min(10080, Math.round(Number(e.target.value) || 0)));
+  const minutes = Math.min(10080, amount * unit);
+  setDraftReminders(taskReminders(draft()).map(r => (r.id === row.dataset.reminderId
+    ? { id: r.id, minutes }
+    : r)));
+  services.updateModalChips();
+});
+dueRemindersBox.addEventListener('change', (e) => {
+  if (!e.target.matches('[data-reminder-custom-unit]')) return;
+  const row = e.target.closest('[data-reminder-id]');
+  if (!row) return;
+  const valueInput = row.querySelector('[data-reminder-custom-value]');
+  const amount = Math.max(0, Math.min(10080, Math.round(Number(valueInput?.value) || 0)));
+  const minutes = Math.min(10080, amount * (Number(e.target.value) || 1));
+  setDraftReminders(taskReminders(draft()).map(r => (r.id === row.dataset.reminderId
+    ? { id: r.id, minutes }
+    : r)));
+  services.updateModalChips();
 });
 
 dueRemindersBox.addEventListener('click', (e) => {
@@ -237,6 +303,9 @@ dueRemindersBox.addEventListener('click', (e) => {
 
 $('#due-add-reminder').onclick = () => {
   const list = taskReminders(draft());
+  // A relative reminder needs something to be relative to; don't silently
+  // drop it on save. Defaulting to today matches Todoist's prompting flow.
+  if (!draft().due) setDueDate(todayISO());
   list.push({ id: uid(), minutes: 30 });
   setDraftReminders(list);
   renderDueReminders();

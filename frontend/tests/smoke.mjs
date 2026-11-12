@@ -403,6 +403,115 @@ try {
     check('dropping on a day header reschedules the task', false, dragResult && dragResult.reason);
   }
 
+  // ---- Section 3: notification actions and custom reminder offsets. ----
+
+  // Custom reminder offsets in the due editor.
+  await evalJs(`document.querySelector('[data-view="inbox"]').click()`);
+  await sleep(120);
+  await evalJs(`document.querySelector('[data-layout="list"]').click()`);
+  await waitFor(`!document.getElementById('task-list').classList.contains('hidden')`, 'inbox back in list layout');
+  await evalJs(`document.getElementById('quick-add-placeholder').click()`);
+  await waitFor(`!document.getElementById('quick-add-editor').classList.contains('hidden')`, 'quick add for notifications');
+  await evalJs(`(() => {
+    const t = document.getElementById('quick-add-input');
+    t.value = 'Notify me';
+    t.dispatchEvent(new Event('input', {bubbles:true}));
+    document.getElementById('quick-add-submit').click();
+  })()`);
+  await waitFor(`document.getElementById('task-list').textContent.includes('Notify me')`, 'notification task added');
+  const notifyId = await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Notify me'));
+    return li ? li.dataset.taskId : null;
+  })()`);
+  await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Notify me'));
+    li.querySelector('.task-edit').click();
+  })()`);
+  await waitFor(`document.getElementById('task-modal').open`, 'notification task modal');
+  await evalJs(`document.getElementById('meta-due').click()`);
+  await waitFor(`document.getElementById('due-modal').open`, 'notification due modal');
+  await evalJs(`(() => {
+    const i = document.getElementById('due-nl');
+    i.value = 'today';
+    i.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
+  })()`);
+  await waitFor(`document.getElementById('due-nl-status').textContent.includes('Due')`, 'notification due parsed');
+  await evalJs(`document.getElementById('due-add-reminder').click()`);
+  await waitFor(`!!document.querySelector('#due-reminders [data-reminder-minutes]')`, 'reminder select present');
+  await evalJs(`(() => {
+    const sel = document.querySelector('#due-reminders [data-reminder-minutes]');
+    sel.value = 'custom';
+    sel.dispatchEvent(new Event('change', {bubbles:true}));
+  })()`);
+  await waitFor(`!document.querySelector('#due-reminders [data-reminder-custom]').classList.contains('hidden')`, 'custom reminder fields');
+  check('custom reminder offset fields appear', await evalJs(`!!document.querySelector('#due-reminders [data-reminder-custom-value]') && !!document.querySelector('#due-reminders [data-reminder-custom-unit]')`));
+  await evalJs(`(() => {
+    const input = document.querySelector('#due-reminders [data-reminder-custom-value]');
+    input.value = '45';
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    const unit = document.querySelector('#due-reminders [data-reminder-custom-unit]');
+    unit.value = '1';
+    unit.dispatchEvent(new Event('change', {bubbles:true}));
+  })()`);
+  await evalJs(`document.getElementById('due-done').click()`);
+  await waitFor(`!document.getElementById('due-modal').open`, 'custom reminder due modal closed');
+  await evalJs(`document.getElementById('modal-save').click()`);
+  await waitFor(`!document.getElementById('task-modal').open`, 'custom reminder saved');
+  check('custom reminder survives saving', await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Notify me'));
+    return !!li && !!li.querySelector('[data-lucide="bell"]');
+  })()`));
+
+  // Notification action link completes the task without opening its dialog.
+  await evalJs(`location.hash = '#/action?action=complete&task=${notifyId}'`);
+  await sleep(220);
+  check('notification Complete action completes the task', await evalJs(`!document.getElementById('task-list').textContent.includes('Notify me')`));
+  await evalJs(`document.querySelector('[data-view="completed"]').click()`);
+  await waitFor(`document.getElementById('task-list').textContent.includes('Notify me')`, 'completed task visible');
+  check('the completed task appears in Completed', true);
+
+  // Snoozing only the reminder keeps the task in place.
+  await evalJs(`document.querySelector('[data-view="inbox"]').click()`);
+  await sleep(120);
+  await evalJs(`document.getElementById('quick-add-placeholder').click()`);
+  await waitFor(`!document.getElementById('quick-add-editor').classList.contains('hidden')`, 'quick add for snooze');
+  await evalJs(`(() => {
+    const t = document.getElementById('quick-add-input');
+    t.value = 'Snooze me';
+    t.dispatchEvent(new Event('input', {bubbles:true}));
+    document.getElementById('quick-add-submit').click();
+  })()`);
+  await waitFor(`document.getElementById('task-list').textContent.includes('Snooze me')`, 'snooze task added');
+  const snoozeId = await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Snooze me'));
+    return li ? li.dataset.taskId : null;
+  })()`);
+  // Give it a reminder through the due editor.
+  await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Snooze me'));
+    li.querySelector('.task-edit').click();
+  })()`);
+  await waitFor(`document.getElementById('task-modal').open`, 'snooze task modal');
+  await evalJs(`document.getElementById('meta-due').click()`);
+  await waitFor(`document.getElementById('due-modal').open`, 'snooze due modal');
+  await evalJs(`document.getElementById('due-add-reminder').click()`);
+  await waitFor(`!!document.querySelector('#due-reminders [data-reminder-minutes]')`, 'snooze reminder row');
+  await evalJs(`document.getElementById('due-done').click()`);
+  await waitFor(`!document.getElementById('due-modal').open`, 'snooze due closed');
+  await evalJs(`document.getElementById('modal-save').click()`);
+  await waitFor(`!document.getElementById('task-modal').open`, 'snooze task saved');
+  check('snooze task starts with a reminder', await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Snooze me'));
+    return !!li && !!li.querySelector('[data-lucide="bell"]');
+  })()`));
+  await evalJs(`location.hash = '#/action?action=snooze-10&task=${snoozeId}'`);
+  await sleep(220);
+  check('notification Snooze keeps the task open', await evalJs(`document.getElementById('task-list').textContent.includes('Snooze me')`));
+  check('snoozed task still has a reminder', await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Snooze me'));
+    return !!li && !!li.querySelector('[data-lucide="bell"]');
+  })()`));
+
   const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   check('no console errors', realErrors.length === 0, realErrors.join(' | '));
 } catch (err) {

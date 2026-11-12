@@ -14,9 +14,12 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | ✅ | Due date **and** time of day, all-day vs timed | Due-date dialog |
 | ✅ | Repeat rules ("every Monday", "every 2 weeks", …) | RRULE, due-date dialog |
 | ✅ | Repeat **end conditions** (after N times / on a date) | Due-date dialog (`COUNT` / `UNTIL`) |
-| ✅ | Multiple reminders per task | Due-date dialog |
+| ✅ | Multiple reminders per task, with preset and custom offsets | Due-date dialog |
+| ✅ | Notification **Complete** and **Snooze** actions (10m / 1h / tomorrow) | System notifications |
 | ✅ | In-page + system notifications while the tab is open | Reminder scheduler |
 | ✅ | Server-side Web Push reminders with every tab closed | Reminder worker + service worker |
+| ✅ | Per-device push management (labelled, last seen, removable) | Settings |
+| ✅ | Push retry with backoff and server quiet hours | Reminder worker |
 | ✅ | Estimated duration (task duration) | Task modal |
 | ✅ | Sub-tasks, nested more than one level | Task rows |
 | ✅ | Inline title editing | Click a title |

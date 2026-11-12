@@ -112,6 +112,17 @@ worker checks the synced tasks every 30 seconds and sends notifications through
 the service worker, so they still arrive with the app closed. Without VAPID
 keys the in-page and service-worker timers keep working as before.
 
+Reminders can be completed or snoozed from the notification itself. Each
+browser registers as its own device (shown in Settings and removable), and
+transient push failures are retried. To hold notifications overnight:
+
+```
+QUIET_HOURS_START=22:00
+QUIET_HOURS_END=07:00
+```
+
+A window may cross midnight; leave both blank (or equal) to disable it.
+
 ### Attachment cleanup
 
 Attachments abandoned without a task (an upload that was never saved, or a

@@ -7,8 +7,9 @@ process.env.DATABASE_PATH = ':memory:';
 const { createApp } = await import('../src/index.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { getDb } = await import('../src/db/index.ts');
-const { replaceEntities, markReminderFired, getCursor } = await import('../src/db/repository.ts');
-const { dueReminders, reminderKey, taskReminderList, reminderAt, zonedDateTimeToDate } = await import('../src/services/reminders.ts');
+const { replaceEntities, markReminderFired, getCursor, listPushDevices } = await import('../src/db/repository.ts');
+const { dueReminders, reminderKey, taskReminderList, reminderAt, zonedDateTimeToDate, inQuietHours } = await import('../src/services/reminders.ts');
+const { pushRetryable, subscriptionGone } = await import('../src/services/push.ts');
 await migrate();
 
 const app = createApp({ serveApp: false });
@@ -50,9 +51,26 @@ test('subscriptions validate, store and delete', async () => {
     const subscription = {
       endpoint: 'https://push.example.test/abc',
       keys: { p256dh: 'key', auth: 'secret' },
+      label: 'Chrome on Windows',
+      userAgent: 'Mozilla/5.0 test',
     };
     res = await fetch(`${base}/api/push/subscribe`, json('POST', subscription));
     assert.equal(res.status, 201);
+
+    const devices = listPushDevices();
+    assert.equal(devices.length, 1);
+    assert.equal(devices[0]?.label, 'Chrome on Windows');
+    assert.equal(devices[0]?.userAgent, 'Mozilla/5.0 test');
+    assert.ok(devices[0]?.lastSeenAt);
+
+    // The public list never exposes the push keys.
+    res = await fetch(`${base}/api/push/subscriptions`);
+    assert.equal(res.status, 200);
+    const publicDevices = await res.json() as { subscriptions: Record<string, unknown>[] };
+    assert.equal(publicDevices.subscriptions.length, 1);
+    assert.equal(publicDevices.subscriptions[0]?.label, 'Chrome on Windows');
+    assert.equal(publicDevices.subscriptions[0]?.p256dh, undefined);
+    assert.equal(publicDevices.subscriptions[0]?.auth, undefined);
 
     const stored = getDb().prepare('select endpoint from push_subscriptions').all() as { endpoint: string }[];
     assert.equal(stored.length, 1);
@@ -99,7 +117,8 @@ test('due reminders are computed once and recorded', () => {
   assert.notEqual(reminderKey(changed), key);
 });
 
-test('completed tasks and far-past reminders are skipped', () => {  const now = Date.now();
+test('completed tasks and far-past reminders are skipped', () => {
+  const now = Date.now();
   const old = new Date(now - 48 * 60 * 60 * 1000);
   const due = [
     old.getFullYear(),
@@ -201,4 +220,40 @@ test('wall-clock times convert using the task timezone', () => {
   const task = { id: 'tz', title: 'TZ', due: '2026-11-12', dueTime: '09:00', timeZone: 'Asia/Tokyo' };
   // 09:00 Tokyo (UTC+9) is 00:00 UTC.
   assert.equal(reminderAt(task, { minutes: 0 })?.toISOString(), '2026-11-12T00:00:00.000Z');
+});
+
+test('quiet hours suppress delivery and handle overnight windows', () => {
+  const at = (h: number, m = 0) => new Date(2026, 0, 5, h, m);
+
+  assert.equal(inQuietHours(at(23), '22:00', '07:00'), true);
+  assert.equal(inQuietHours(at(6, 59), '22:00', '07:00'), true);
+  assert.equal(inQuietHours(at(7), '22:00', '07:00'), false);
+  assert.equal(inQuietHours(at(13), '09:00', '17:00'), true);
+  assert.equal(inQuietHours(at(18), '09:00', '17:00'), false);
+  // Equal ends disable quiet hours; missing values do too.
+  assert.equal(inQuietHours(at(13), '09:00', '09:00'), false);
+  assert.equal(inQuietHours(at(13), null, null), false);
+
+  // A due reminder inside the window stays pending.
+  const now = new Date();
+  const due = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const past = new Date(now.getTime() - 5 * 60 * 1000);
+  const dueTime = `${String(past.getHours()).padStart(2, '0')}:${String(past.getMinutes()).padStart(2, '0')}`;
+  replaceEntities({
+    tasks: [{ id: 'quiet-task', title: 'Quiet', due, dueTime, completed: false, reminders: [{ id: 'r', minutes: 0 }] }],
+  }, getCursor());
+
+  const allDay = { start: '00:00', end: '23:59' };
+  assert.deepEqual(dueReminders(now.getTime(), allDay), []);
+});
+
+test('push retry classification covers transient and permanent failures', () => {
+  assert.equal(subscriptionGone(404), true);
+  assert.equal(subscriptionGone(410), true);
+  assert.equal(subscriptionGone(500), false);
+  assert.equal(pushRetryable(undefined), true);
+  assert.equal(pushRetryable(429), true);
+  assert.equal(pushRetryable(503), true);
+  assert.equal(pushRetryable(400), false);
+  assert.equal(pushRetryable(401), false);
 });

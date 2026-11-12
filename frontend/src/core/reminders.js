@@ -36,8 +36,25 @@ function notifyTask(t) {
   const dueLabel = formatDue(t.due, t.dueTime);
   const body = `${t.title}${dueLabel ? ' · ' + dueLabel : ''}`;
   if ('Notification' in window && window.Notification.permission === 'granted') {
+    const options = {
+      body,
+      tag: 'todoist-clone-' + t.id,
+      actions: [
+        { action: 'complete', title: 'Complete' },
+        { action: 'snooze-60', title: 'Snooze 1h' },
+      ],
+      data: { id: t.id, taskId: t.id },
+    };
+    // Prefer the service worker: it supports action buttons, and the click
+    // handler can still forward to an open tab.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then(reg => reg.showNotification('Task reminder', options))
+        .catch(() => {});
+      return;
+    }
     try {
-      const n = new window.Notification('Task reminder', { body, tag: 'todoist-clone-' + t.id });
+      const n = new window.Notification('Task reminder', options);
       n.onclick = () => { window.focus(); services.openTaskModal(t.id); n.close(); };
       return;
     } catch {}

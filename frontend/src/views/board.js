@@ -3,7 +3,7 @@
  * outside a project, one column per priority.
  */
 import { state, saveState } from '../core/state.js';
-import { activeTasks, priorityColor, projectName } from '../core/tasks.js';
+import { activeTasks, priorityColor, projectName, taskReminders } from '../core/tasks.js';
 import { formatDue, isTaskOverdue, todayISO } from '../core/dates.js';
 import { escapeHtml, highlightHtml } from '../core/text.js';
 import { bindTaskEvents, priorityMarker, durationBadge, searchTerm } from '../features/task-row.js';
@@ -90,6 +90,10 @@ export function renderBoardCard(t) {
       <i data-lucide="calendar" class="w-3 h-3"></i>${escapeHtml(formatDue(t.due, t.dueTime))}
       ${t.recurrence ? '<i data-lucide="repeat" class="w-3 h-3 ml-0.5"></i>' : ''}
     </span>` : '';
+  const reminderBadge = taskReminders(t).length ? `
+    <span class="flex items-center gap-1 text-td-muted" title="Reminders">
+      <i data-lucide="bell" class="w-3 h-3"></i>
+    </span>` : '';
   const projBadge = t.projectId ? `
     <span class="flex items-center gap-1 text-td-muted">
       <i data-lucide="hash" class="w-3 h-3" style="color:${state.projects.find(p => p.id === t.projectId)?.color || '#999'}"></i>${escapeHtml(projectName(t.projectId))}
@@ -110,7 +114,7 @@ export function renderBoardCard(t) {
           <div class="task-title cursor-pointer text-sm font-medium" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
           ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
-            ${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
+            ${dueBadge}${reminderBadge}${durationBadge(t)}${projBadge}${labelBadges}
           </div>
         </div>
         <div class="task-actions flex items-center gap-0.5">

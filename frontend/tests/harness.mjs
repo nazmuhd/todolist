@@ -186,6 +186,19 @@ function staticServer(port) {
       }
     }
 
+    if (section === 'push') {
+      if (parts[2] === 'subscriptions' && method === 'GET') {
+        sendJson(res, 200, { subscriptions: [] });
+        return;
+      }
+      if (parts[2] === 'key' && method === 'GET') {
+        sendJson(res, 404, { error: 'push_disabled' });
+        return;
+      }
+      sendJson(res, method === 'POST' ? 201 : 200, { ok: true });
+      return;
+    }
+
     if (section === 'blobs') {
       if (!key) {
         sendJson(res, 200, [...api.blobs.entries()].map(([id, b]) => ({
