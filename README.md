@@ -9,23 +9,24 @@ attachment must be 25 MB or smaller. There are no AI features: nothing is
 sent to a model provider, and the app needs no API key to work. The full
 list of limits is in `docs/gaps.md`.
 ```
-todoist/
+todolist/
 ├── frontend/                 the app (Vite, native ES modules)
 │   ├── index.html            the app shell
 │   ├── src/
 │   │   ├── app.js            entry point and wiring
-│   │   ├── storage.js        the storage adapter: localStorage + IndexedDB
+│   │   ├── storage.js        the storage adapter: IndexedDB + the API
 │   │   ├── core/             state, store, router, services, dates, reminders
 │   │   ├── features/         dialogs and feature logic (task modal, quick add, …)
-│   │   ├── ui/               chrome, menus, row menu
-│   │   └── views/            list · board · calendar · karma · sidebar
+│   │   ├── ui/               chrome, menus, row menu, rail menu
+│   │   └── views/            list · board · table · activity · sidebar
 │   └── public/               service worker, manifest, icon, vendor libraries
 ├── e2e/                      real-server end-to-end test (Express + SQLite + browser)
 ├── server/                   the API (Node + Express, pnpm, TypeScript)
 │   ├── database/sqlite/      numbered SQL migrations
 │   ├── src/                  the express app, SQLite repository and routes
 │   └── tests/
-├── docs/                     architecture plan and notes
+├── docs/                     architecture, feature status, known limits
+├── design/                   the HTML mockups the UI was built from
 └── start.bat                 boots the server (app + API)
 ```
 
@@ -167,7 +168,8 @@ Ctrl+Z / Ctrl+Shift+Z still work after a reload.
 
 ## Docs
 
-- `docs/architecture.md` — the module layout, the split plan and the backend design
+- `docs/architecture.md` — how the app is put together: the module layout,
+  the layering rules, the storage adapter and the backend design
 - `docs/features.md` — feature status
-- `docs/gaps.md` — known limits and interoperability
-- `docs/deferred.md` — what is intentionally not built
+- `docs/gaps.md` — known limits, what is not built, and interoperability
+- `design/` — the HTML mockups the UI was built from
