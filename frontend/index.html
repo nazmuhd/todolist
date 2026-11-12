@@ -142,11 +142,6 @@
           </button>
         </div>
         <div id="filters-list" class="space-y-0.5"></div>
-        <div id="filter-save-row" class="px-2 mt-1 items-center gap-1" hidden>
-          <input id="filter-name-input" type="text" placeholder="Filter name" autocomplete="off"
-            class="flex-1 min-w-0 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
-          <button id="filter-save-btn" class="text-xs bg-td-red hover:bg-td-redhover text-white font-semibold px-2 py-1 rounded">Save</button>
-        </div>
       </div>
 
       <!-- Projects -->
@@ -232,12 +227,7 @@
           </button>
         </div>
         <div class="relative">
-          <button type="button" id="shortcuts-btn" class="layout-btn" style="border:1px solid #e5e5e5;border-radius:4px" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
-            <i data-lucide="keyboard" class="w-4 h-4"></i>
-          </button>
-        </div>
-        <div class="relative">
-          <button type="button" id="sort-menu-btn" class="layout-btn" style="border:1px solid #e5e5e5;border-radius:4px" title="Sort tasks" aria-label="Sort tasks" aria-haspopup="true">
+          <button type="button" id="sort-menu-btn" class="layout-btn layout-btn-outline" title="Sort tasks" aria-label="Sort tasks" aria-haspopup="true">
             <i data-lucide="arrow-down-up" class="w-4 h-4"></i>
           </button>
           <div id="sort-menu" class="hidden absolute right-0 top-full mt-1 bg-white border border-td-border rounded shadow-lg z-10 w-44 text-sm"></div>
@@ -245,6 +235,11 @@
         <div class="relative">
           <i data-lucide="search" class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-td-muted"></i>
           <input id="search-input" type="text" placeholder="Search" title="Try: p1, #project, @label, overdue, 7 days, due:today, no:date, has:reminders, created:today, search:text" class="pl-8 pr-2 py-1.5 text-sm border border-td-border rounded bg-white w-28 sm:w-44 md:w-56 focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </div>
+        <div class="relative">
+          <button type="button" id="shortcuts-btn" class="layout-btn layout-btn-outline" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
+            <i data-lucide="keyboard" class="w-4 h-4"></i>
+          </button>
         </div>
       </div>
     </header>
@@ -584,6 +579,22 @@
   </div>
 </dialog>
 
+<!-- Saved filter -->
+<dialog id="filter-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-sm border border-td-border">
+  <div class="p-4">
+    <h3 id="filter-modal-title" class="font-semibold mb-3">Add filter</h3>
+    <input id="filter-modal-name" type="text" placeholder="Filter name" autocomplete="off"
+      class="w-full text-sm border border-td-border rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-td-red/30 mb-3" />
+    <input id="filter-modal-query" type="text" placeholder="Search, e.g. p1 @urgent overdue" autocomplete="off"
+      class="w-full text-sm border border-td-border rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-td-red/30 mb-2" />
+    <p class="text-[11px] text-td-muted mb-3">A filter runs the search you give it. You can also save the search you are typing now.</p>
+    <div class="flex justify-end gap-2">
+      <button type="button" id="filter-modal-cancel" class="text-xs text-td-muted px-2 py-1">Cancel</button>
+      <button type="button" id="filter-modal-save" class="bg-td-red text-white text-xs font-semibold px-3 py-1.5 rounded">Save</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- Shared "…" menu for projects / labels -->
 <div id="row-menu" class="hidden fixed z-50 bg-white border border-td-border rounded shadow-lg py-1 text-sm w-40"></div>
 
@@ -631,7 +642,7 @@
         <i data-lucide="x" class="w-4 h-4"></i>
       </button>
     </div>
-    <ul id="shortcuts-list" class="shortcut-list"></ul>
+    <ul id="shortcuts-list" class="shortcut-groups"></ul>
     <p class="text-[11px] text-td-muted mt-3">Shortcuts are ignored while you are typing in a field.</p>
   </div>
 </dialog>

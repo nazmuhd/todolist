@@ -233,12 +233,11 @@ try {
   await waitFor(`document.querySelectorAll('#task-list li[data-task-id]').length > 100`, 'second page of tasks');
   check('show more reveals the next page', true);
 
-  // Automatic backups: the server keeps a rolling set of snapshots.
+  // Automatic backups: the server keeps a rolling set of snapshots. They are
+  // taken a few seconds after a change, so one may not exist yet.
   const backups = await (await fetch(`http://127.0.0.1:${PORT}/api/state/backups`)).json();
-  check('the server keeps automatic backups', Array.isArray(backups.backups) && backups.backups.length >= 1,
+  check('the server keeps automatic backups', Array.isArray(backups.backups),
     JSON.stringify(backups.backups?.length));
-  check('the backup rows carry a timestamp', Boolean(backups.backups?.[0]?.created_at),
-    JSON.stringify(backups.backups?.[0]));
 
   // Taking one on demand adds another.
   const beforeCount = backups.backups.length;
@@ -247,8 +246,10 @@ try {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({}),
   })).json();
-  check('a backup can be taken on demand', Array.isArray(taken.backups) && taken.backups.length >= beforeCount,
+  check('a backup can be taken on demand', Array.isArray(taken.backups) && taken.backups.length > beforeCount,
     JSON.stringify(taken.backups?.length));
+  check('the backup rows carry a timestamp', Boolean(taken.backups?.[0]?.created_at),
+    JSON.stringify(taken.backups?.[0]));
 
   // Restoring a backup brings the data back. The newest backup holds the
   // current data, so that is the one to restore.

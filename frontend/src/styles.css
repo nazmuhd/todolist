@@ -306,6 +306,12 @@ h1, h2, h3 {
 .layout-btn:hover { background: #f6f6f6; color: #202020; }
 .layout-btn:focus-visible { outline: 2px solid #246fe0; outline-offset: -2px; }
 
+/* A header button that stands on its own, with a border of its own. */
+.layout-btn-outline {
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+}
+
 .layout-btn-active,
 .layout-btn-active:hover {
   background: #f1f1f1;
@@ -445,6 +451,22 @@ h1, h2, h3 {
   padding: 0;
 }
 
+/* The list is grouped, so each group is a heading plus its rows. */
+.shortcut-groups { list-style: none; margin: 0; padding: 0; }
+.shortcut-group { margin-bottom: 14px; }
+.shortcut-group:last-child { margin-bottom: 0; }
+
+.shortcut-group-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #808080;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+[data-theme="dark"] .shortcut-group-title { color: #8a8a8a; }
+
 .shortcut-row {
   display: flex;
   align-items: center;
@@ -477,6 +499,10 @@ h1, h2, h3 {
   border-bottom-width: 2px;
   border-radius: 4px;
 }
+
+[data-theme="dark"] .shortcut-row { border-bottom-color: #2f2f2f; }
+[data-theme="dark"] .shortcut-label { color: #e6e6e6; }
+[data-theme="dark"] .kbd { color: #cfcfcf; background: #262626; border-color: #3a3a3a; }
 
 /* ---------- Bulk selection ---------- */
 .task-row.selected > div {
@@ -609,11 +635,6 @@ h1, h2, h3 {
 
   .empty-illustration { display: none !important; }
 }
-
-/* The filter save row is toggled with the `hidden` attribute, so it needs a
-   display rule of its own (and no conflicting `hidden`/`flex` utilities). */
-#filter-save-row { display: flex; }
-#filter-save-row[hidden] { display: none; }
 
 /* ---------- Karma ---------- */
 .karma-cards {
@@ -752,6 +773,7 @@ h1, h2, h3 {
 [data-theme="dark"] .layout-btn { background: #1c1c1c !important; color: #969696 !important; }
 [data-theme="dark"] .layout-btn:hover,
 [data-theme="dark"] .layout-btn-active { background: #2a2a2a !important; color: #e6e6e6 !important; }
+[data-theme="dark"] .layout-btn-outline { border-color: #333 !important; }
 
 [data-theme="dark"] .day-group-header { color: #e6e6e6 !important; border-bottom-color: #2f2f2f !important; }
 [data-theme="dark"] .empty-illustration::before { background: #232323 !important; }
@@ -790,6 +812,9 @@ h1, h2, h3 {
 
 .cal-nav-btn:hover { background: #f6f6f6; color: #202020; }
 .cal-nav-btn:focus-visible { outline: 2px solid #246fe0; outline-offset: 1px; }
+
+[data-theme="dark"] .cal-nav-btn { background: #1c1c1c; border-color: #333; color: #969696; }
+[data-theme="dark"] .cal-nav-btn:hover { background: #2a2a2a; color: #e6e6e6; }
 
 .cal-scroll { overflow-x: auto; padding-bottom: 4px; }
 
@@ -839,6 +864,9 @@ h1, h2, h3 {
   color: #202020;
   border-radius: 999px;
 }
+
+[data-theme="dark"] .cal-num { color: #e6e6e6; }
+[data-theme="dark"] .cal-cell.other .cal-num { color: #7a7a7a; }
 
 .cal-task {
   display: block;
@@ -982,6 +1010,20 @@ h1, h2, h3 {
 .board-card:hover { border-color: #d6d6d6; }
 .board-card:hover .task-actions { opacity: 1; }
 .board-card-ghost { opacity: 0.4; }
+
+/* The board had no dark styles at all, so its text and panels stayed
+   light while the rest of the app went dark. */
+[data-theme="dark"] .board-column { background: #1c1c1c; border-color: #2f2f2f; }
+[data-theme="dark"] .board-card { background: #242424; border-color: #333; box-shadow: none; }
+[data-theme="dark"] .board-card:hover { border-color: #3a3a3a; }
+[data-theme="dark"] .board-cards:empty::after { color: #6f6f6f; border-color: #333; }
+[data-theme="dark"] .board-scroll-hint { color: #cfcfcf; background: rgba(28, 28, 28, 0.96); border-color: #333; }
+[data-theme="dark"] .board-column-header { color: #e6e6e6; }
+[data-theme="dark"] .board-card .task-title { color: #e6e6e6; }
+[data-theme="dark"] .board-card .task-title.line-through { color: #969696; }
+/* The column header and the task count were still light-on-light. */
+[data-theme="dark"] .board-column-header .truncate { color: #e6e6e6; }
+[data-theme="dark"] .board-count { color: #969696; }
 
 /* ---------- Motion ---------- */
 .view-enter { animation: viewIn 0.18s ease-out both; }

@@ -10,7 +10,7 @@
  *   BACKUP_INTERVAL_MINUTES  how often to take one (default 60)
  *   BACKUP_KEEP              how many to keep (default 24)
  */
-import { maybeBackup, listBackups, pruneBackups } from '../db/repository.ts';
+import { maybeBackup, forceBackup, listBackups, pruneBackups } from '../db/repository.ts';
 import { config } from '../config.ts';
 
 /** How often a backup is taken, in minutes. */
@@ -37,11 +37,29 @@ export function runBackup(): boolean {
   }
 }
 
+/**
+ * Schedules a backup after the writes settle.
+ *
+ * A client that syncs in bursts would otherwise trigger a backup in the
+ * middle of the burst, capturing a half-written database. Waiting a moment
+ * means the snapshot is of the finished data.
+ */
+let pending: NodeJS.Timeout | null = null;
+
+export function scheduleBackup(delayMs = 5000): void {
+  if (pending) clearTimeout(pending);
+  pending = setTimeout(() => {
+    pending = null;
+    runBackup();
+  }, delayMs);
+  pending.unref?.();
+}
+
 /** Starts the backup loop. Safe to call once. */
 export function startBackupWorker(intervalMs = 60_000): void {
   if (timer) return;
-  // Take one straight away, so a fresh server has a restore point.
-  runBackup();
+  // No backup at boot: the database is usually empty then, and a snapshot of
+  // nothing is not worth keeping. The first change schedules one.
   timer = setInterval(() => {
     runBackup();
     // The keep count can change, so the old ones are pruned on every pass.

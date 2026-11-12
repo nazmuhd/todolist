@@ -7,7 +7,6 @@ import { escapeHtml } from '../core/text.js';
 import { requestRender } from '../core/render.js';
 import { pushSupported, pushPermission, isPushEnabled, enablePush, disablePush, listPushDevices, removePushDevice } from '../core/push.js';
 import { listBackups, takeBackup, restoreBackup, backupLabel } from '../core/backups.js';
-import { SHORTCUTS } from '../ui/chrome.js';
 
 const DEFAULT_SETTINGS = {
   theme: 'system',
@@ -147,21 +146,17 @@ async function refreshBackups() {
 }
 
 /**
- * The keyboard shortcuts, listed in Settings so they can be found without
- * knowing the "?" key.
+ * The keyboard shortcuts live in their own overlay, which the header button
+ * and the collapsed-rail menu both open.
  */
 function shortcutsSection() {
   return `
     <div class="mb-2 border-t border-td-border pt-4">
       <div class="text-xs text-td-muted mb-1">Keyboard shortcuts</div>
-      <p class="text-xs text-td-muted mb-2">Press <kbd class="kbd">?</kbd> anywhere to see this list.</p>
-      <ul class="shortcut-list text-xs">
-        ${SHORTCUTS.map(s => `
-          <li class="shortcut-row">
-            <span class="shortcut-keys">${s.keys.map(k => `<kbd class="kbd">${escapeHtml(k)}</kbd>`).join('')}</span>
-            <span class="shortcut-label">${escapeHtml(s.label)}</span>
-          </li>`).join('')}
-      </ul>
+      <p class="text-xs text-td-muted mb-2">Press <kbd class="kbd">?</kbd> anywhere to see the full list.</p>
+      <button type="button" class="qa-pick" data-open-shortcuts>
+        <i data-lucide="keyboard" class="w-3.5 h-3.5"></i> Show the keyboard shortcuts
+      </button>
     </div>`;
 }
 
@@ -180,6 +175,13 @@ function renderSettings() {
 }
 
 $('#settings-body').addEventListener('click', async (e) => {
+  // Open the keyboard shortcuts overlay.
+  if (e.target.closest('[data-open-shortcuts]')) {
+    closeSettings();
+    document.getElementById('shortcuts-btn')?.click();
+    return;
+  }
+
   // Restore one of the automatic backups.
   const restoreBtn = e.target.closest('[data-backup-restore]');
   if (restoreBtn) {

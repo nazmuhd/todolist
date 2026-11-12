@@ -101,12 +101,40 @@ test('POST /api/state/backups takes one on demand', async () => {
     const res = await fetch(`${base}/api/state/backups`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ intervalMinutes: 0 }),
+      body: JSON.stringify({}),
     });
     assert.equal(res.status, 200);
     const body = await res.json() as BackupsResponse;
+    // A fresh snapshot is written, even if one was taken moments ago.
     assert.equal(body.written, true);
     assert.ok(body.backups.length > before);
+  });
+});
+
+test('an on-demand backup holds the data as it is now', async () => {
+  await withServer(async (base) => {
+    // A task that is added after the server started.
+    await fetch(`${base}/api/sync`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        changes: { tasks: [{ id: 'later-task', baseRev: 0, data: { id: 'later-task', title: 'Added later', priority: 4, completed: false, labels: [], order: 0 } }] },
+      }),
+    });
+
+    const taken = await (await fetch(`${base}/api/state/backups`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    })).json() as BackupsResponse;
+
+    const newest = taken.backups[0]!;
+    const value = readBackup(newest.id);
+    const parsed = JSON.parse(value!) as { tasks: { id: string }[] };
+    assert.ok(
+      parsed.tasks.some(t => t.id === 'later-task'),
+      'the on-demand backup should include the task that was just added',
+    );
   });
 });
 

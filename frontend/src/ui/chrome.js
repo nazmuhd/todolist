@@ -257,33 +257,45 @@ document.addEventListener('keydown', (e) => {
    KEYBOARD SHORTCUTS
 ============================================================ */
 export const SHORTCUTS = [
-  { keys: ['q'], label: 'Add a task' },
-  { keys: ['a'], label: 'Add a task' },
-  { keys: ['/'], label: 'Search' },
-  { keys: ['i'], label: 'Go to Inbox' },
-  { keys: ['t'], label: 'Go to Today' },
-  { keys: ['u'], label: 'Go to Upcoming' },
-  { keys: ['c'], label: 'Go to Completed' },
-  { keys: ['k'], label: 'Go to Calendar' },
-  { keys: ['g', 'i'], label: 'Go to Inbox (sequence)' },
-  { keys: ['g', 't'], label: 'Go to Today (sequence)' },
-  { keys: ['g', 'u'], label: 'Go to Upcoming (sequence)' },
-  { keys: ['g', 'c'], label: 'Go to Calendar (sequence)' },
-  { keys: ['b'], label: 'Toggle board / list' },
-  { keys: ['?'], label: 'Show this help' },
-  { keys: ['Esc'], label: 'Close dialogs and menus' },
-  { keys: ['Ctrl', 'Z'], label: 'Undo the last action' },
-  { keys: ['Ctrl', 'Shift', 'Z'], label: 'Redo the last action' },
-  { keys: ['Ctrl', 'Click'], label: 'Select tasks' },
+  { group: 'Tasks', items: [
+    { keys: ['q'], label: 'Add a task' },
+    { keys: ['a'], label: 'Add a task' },
+    { keys: ['/'], label: 'Search' },
+    { keys: ['Ctrl', 'Click'], label: 'Select tasks' },
+  ] },
+  { group: 'Navigation', items: [
+    { keys: ['i'], label: 'Go to Inbox' },
+    { keys: ['t'], label: 'Go to Today' },
+    { keys: ['u'], label: 'Go to Upcoming' },
+    { keys: ['c'], label: 'Go to Completed' },
+    { keys: ['k'], label: 'Go to Calendar' },
+    { keys: ['g', 'i'], label: 'Go to Inbox (sequence)' },
+    { keys: ['g', 't'], label: 'Go to Today (sequence)' },
+    { keys: ['g', 'u'], label: 'Go to Upcoming (sequence)' },
+    { keys: ['g', 'c'], label: 'Go to Calendar (sequence)' },
+  ] },
+  { group: 'Editing', items: [
+    { keys: ['b'], label: 'Toggle board / list' },
+    { keys: ['Ctrl', 'Z'], label: 'Undo the last action' },
+    { keys: ['Ctrl', 'Shift', 'Z'], label: 'Redo the last action' },
+    { keys: ['?'], label: 'Show this help' },
+    { keys: ['Esc'], label: 'Close dialogs and menus' },
+  ] },
 ];
 
 const shortcutsModal = $('#shortcuts-modal');
 
 function renderShortcuts() {
-  $('#shortcuts-list').innerHTML = SHORTCUTS.map(s => `
-    <li class="shortcut-row">
-      <span class="shortcut-keys">${s.keys.map(k => `<kbd class="kbd">${k}</kbd>`).join('')}</span>
-      <span class="shortcut-label">${s.label}</span>
+  $('#shortcuts-list').innerHTML = SHORTCUTS.map(group => `
+    <li class="shortcut-group">
+      <div class="shortcut-group-title">${group.group}</div>
+      <ul class="shortcut-list">
+        ${group.items.map(s => `
+          <li class="shortcut-row">
+            <span class="shortcut-keys">${s.keys.map(k => `<kbd class="kbd">${k}</kbd>`).join('')}</span>
+            <span class="shortcut-label">${s.label}</span>
+          </li>`).join('')}
+      </ul>
     </li>`).join('');
 }
 

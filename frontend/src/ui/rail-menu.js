@@ -112,7 +112,8 @@ function runRailAction(id) {
     return;
   }
   if (id === 'shortcuts') {
-    document.getElementById('shortcuts-modal')?.showModal();
+    // The rail menu opens the same overlay the header button does.
+    document.getElementById('shortcuts-btn')?.click();
     return;
   }
   if (id === 'expand') {

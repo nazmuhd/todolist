@@ -63,22 +63,11 @@ export { savedFilters, findSavedFilter };
 
 /* ============================================================
    SAVED FILTER UI
-   The row under the search box: name a filter and save it.
+   The dialog the "+" button opens: name a filter and give it a search.
    ============================================================ */
 
-let editingFilterId = null;
-
 export function openFilterEditor(id) {
-  const f = findSavedFilter(id);
-  if (!f) return;
-  editingFilterId = id;
-  const row = document.getElementById('filter-save-row');
-  const input = document.getElementById('filter-name-input');
-  row.removeAttribute('hidden');
-  input.value = f.name;
-  input.dataset.query = f.query;
-  input.focus();
-  input.select();
+  openFilterModal(id);
 }
 
 export function deleteFilter(id) {
@@ -91,10 +80,39 @@ export function deleteFilter(id) {
   showToast('Filter deleted', 'info');
 }
 
-export function saveFilterFromRow() {
-  const input = document.getElementById('filter-name-input');
-  const name = input.value.trim();
-  const query = input.dataset.query !== undefined ? input.dataset.query : (state.ui.search || '').trim();
+/** The dialog the "add filter" button opens. */
+const filterModal = document.getElementById('filter-modal');
+let editingFilterId = null;
+
+/** Opens the filter dialog, optionally for an existing filter. */
+export function openFilterModal(id = null) {
+  if (!filterModal) return;
+  const existing = id ? findSavedFilter(id) : null;
+  if (id && !existing) return;
+  editingFilterId = id;
+  const nameInput = document.getElementById('filter-modal-name');
+  const queryInput = document.getElementById('filter-modal-query');
+  document.getElementById('filter-modal-title').textContent = existing ? 'Edit filter' : 'Add filter';
+  document.getElementById('filter-modal-save').textContent = existing ? 'Save' : 'Add';
+  nameInput.value = existing ? existing.name : '';
+  // A new filter starts from the search that is being typed.
+  queryInput.value = existing ? existing.query : (state.ui.search || '').trim();
+  filterModal.showModal();
+  if (!services.isMobileSidebar()) setTimeout(() => nameInput.focus(), 50);
+}
+
+export function closeFilterModal() {
+  if (filterModal && filterModal.open) filterModal.close();
+}
+
+export function isFilterModalOpen() {
+  return !!filterModal && filterModal.open;
+}
+
+/** Saves the filter the dialog is editing. */
+export function saveFilterFromModal() {
+  const name = document.getElementById('filter-modal-name').value.trim();
+  const query = document.getElementById('filter-modal-query').value.trim();
   if (!name || !query) {
     showToast('A filter needs a name and a search', 'error');
     return;
@@ -103,35 +121,25 @@ export function saveFilterFromRow() {
   const id = editing || `filter_${uid()}`;
   upsertSavedFilter(id, name, query);
   editingFilterId = null;
-  input.value = '';
-  delete input.dataset.query;
-  document.getElementById('filter-save-row').setAttribute('hidden', '');
-  if (!editing) {
-    state.ui.search = '';
-    document.getElementById('search-input').value = '';
-  }
+  closeFilterModal();
   saveState();
   services.navigateTo(`filter:${id}`);
   showToast(editing ? 'Filter updated' : 'Filter saved', 'success');
 }
 
-/** Wires the "save as filter" row. */
+/** Wires the "save as filter" button and the dialog. */
 export function initFilterEditor() {
-  document.getElementById('add-filter-btn').onclick = () => {
-    editingFilterId = null;
-    const input = document.getElementById('filter-name-input');
-    input.value = '';
-    delete input.dataset.query;
-    document.getElementById('filter-save-row').removeAttribute('hidden');
-    input.focus();
-    if (!(state.ui.search || '').trim()) {
-      showToast('Type a search first, then save it as a filter', 'error');
-    }
-  };
+  const addBtn = document.getElementById('add-filter-btn');
+  if (addBtn) addBtn.onclick = () => openFilterModal();
 
-  document.getElementById('filter-save-btn').onclick = saveFilterFromRow;
-  document.getElementById('filter-name-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); saveFilterFromRow(); }
+  if (!filterModal) return;
+  document.getElementById('filter-modal-save').onclick = saveFilterFromModal;
+  document.getElementById('filter-modal-cancel').onclick = closeFilterModal;
+  document.getElementById('filter-modal-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveFilterFromModal(); }
+  });
+  document.getElementById('filter-modal-query').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveFilterFromModal(); }
   });
 }
 

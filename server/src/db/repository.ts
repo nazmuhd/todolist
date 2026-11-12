@@ -420,6 +420,18 @@ export function maybeBackup(intervalMs: number, keep: number): boolean {
   return written;
 }
 
+/**
+ * Writes a backup right now, whatever the interval says.
+ *
+ * This is what the user pressing "Back up now" gets: a snapshot of the
+ * data as it is at this moment, not the last scheduled one.
+ */
+export function forceBackup(keep: number): boolean {
+  const written = backupEntities(`auto-${new Date().toISOString()}`);
+  if (written) pruneBackups(keep);
+  return written;
+}
+
 /** The stored value of a backup, for restoring it. */
 export function readBackup(id: number): string | undefined {
   const row = getDb().prepare('select value from state_backups where id = ?').get(id) as { value: string } | undefined;

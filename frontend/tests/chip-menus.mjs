@@ -140,12 +140,10 @@ try {
   await evalJs(`document.getElementById('shortcuts-close').click()`);
   await sleep(300);
 
-  // ---- Settings lists the shortcuts. ----
+  // ---- Settings points at the shortcuts overlay. ----
   await evalJs(`document.getElementById('settings-btn').click()`);
   await sleep(800);
-  check('Settings lists the keyboard shortcuts', await evalJs(`document.getElementById('settings-body').textContent.includes('Keyboard shortcuts')`));
-  check('Settings shows the shortcut rows', await evalJs(`document.querySelectorAll('#settings-body .shortcut-row').length > 10`),
-    await evalJs(`String(document.querySelectorAll('#settings-body .shortcut-row').length)`));
+  check('Settings links to the shortcuts overlay', await evalJs(`!!document.querySelector('#settings-body [data-open-shortcuts]')`));
   await evalJs(`document.getElementById('settings-close').click()`);
   await sleep(300);
 

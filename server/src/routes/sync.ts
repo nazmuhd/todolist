@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { applyChanges, changesSince, ENTITY_NAMES, type EntityChange, type EntityName } from '../db/repository.ts';
-import { runBackup } from '../services/backups.ts';
+import { scheduleBackup } from '../services/backups.ts';
 
 export const syncRouter = Router();
 
@@ -67,7 +67,8 @@ syncRouter.post('/', (req, res) => {
 
   const result = applyChanges(input);
   // A change means there is now something worth a backup point. The backup
-  // itself is throttled, so this is cheap.
-  if (result.applied.length) runBackup();
+  // waits for the writes to settle, so it never captures a half-synced
+  // database.
+  if (result.applied.length) scheduleBackup();
   res.json(result);
 });

@@ -59,6 +59,7 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Drag an Upcoming/Today task onto a day header to reschedule | Upcoming, Today |
 | ✅ | Filter query language (`p1`, `#project`, `overdue`, `7 days`, `due:`, `created:`, `has:`, `no:`, `!`, `&`, `|`) | Search box |
 | ✅ | Custom / saved filters, no count limit | Sidebar → My filters |
+| ✅ | Saved filter dialog: name, search, Save and Cancel | Sidebar → My filters |
 | ✅ | Sorting (manual, date, priority, name, added), remembered per view | Header menu |
 | ✅ | Section filter in a project; drag a task between section columns | Project view |
 | ✅ | Swipe right to complete, swipe left to open the due editor on touch | Task rows |
@@ -98,7 +99,8 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Import a **Todoist JSON backup** (projects, sections, labels, tasks, notes, reminders) | Sidebar → Import |
 | ✅ | Multi-tab sync | Storage adapter change channel |
 | ✅ | Undo toasts, completion and view animations | Everywhere |
-| ✅ | Keyboard shortcuts with a `?` overlay, a header button and a list in Settings | `?`, header, Settings |
+| ✅ | Keyboard shortcuts in a grouped overlay, opened from `?` or the header button | `?`, header |
+| ✅ | Dark mode across every view, dialog and menu | Everywhere |
 | ✅ | Karma / productivity stats | Karma view |
 | ✅ | Activity history: every change logged, kept across reloads | Activity view |
 | ✅ | Accessibility: arrow-key list navigation, screen-reader announcements | Task list, toasts |

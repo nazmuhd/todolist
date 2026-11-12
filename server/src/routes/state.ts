@@ -7,6 +7,7 @@ import {
   listBackups,
   readBackup,
   maybeBackup,
+  forceBackup,
   pruneBackups,
   ENTITY_NAMES,
   type EntityName,
@@ -67,14 +68,28 @@ stateRouter.get('/backups', (_req, res) => {
   res.json({ backups: listBackups() });
 });
 
-/** Takes an automatic backup now (the scheduler does this on its own). */
+/**
+ * Takes a backup now.
+ *
+ * Asking for one means asking for a snapshot of the data as it is right
+ * now, so this always writes a fresh one. An explicit interval is honoured
+ * when given (an interval of 0 also means "always due").
+ */
 stateRouter.post('/backups', (req, res) => {
   const body = req.body as { intervalMinutes?: unknown; keep?: unknown } | undefined;
-  // An interval of 0 means "a backup is always due".
-  const rawInterval = Number(body?.intervalMinutes);
-  const intervalMinutes = Number.isFinite(rawInterval) && rawInterval >= 0 ? rawInterval : 60;
   const keep = Number(body?.keep) > 0 ? Number(body?.keep) : 24;
-  const written = maybeBackup(intervalMinutes * 60_000, keep);
+  const rawInterval = Number(body?.intervalMinutes);
+  const given = body?.intervalMinutes !== undefined && Number.isFinite(rawInterval);
+
+  let written;
+  if (!given) {
+    written = forceBackup(keep);
+  } else {
+    const intervalMinutes = rawInterval >= 0 ? rawInterval : 60;
+    written = intervalMinutes === 0
+      ? forceBackup(keep)
+      : maybeBackup(intervalMinutes * 60_000, keep);
+  }
   res.json({ ok: true, written, backups: listBackups() });
 });
 
