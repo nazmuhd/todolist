@@ -8,9 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm build && node tests/smoke.mjs && node tests/offline.mjs && node tests/offline-tasks.mjs && node tests/offline-autosync.mjs && node tests/sync-regression.mjs",
+    "test": "pnpm build && node tests/smoke.mjs && node tests/offline.mjs && node tests/offline-tasks.mjs && node tests/offline-autosync.mjs && node tests/sync-regression.mjs && node tests/closed-tab.mjs",
     "test:smoke": "pnpm build && node tests/smoke.mjs",
-    "test:offline": "pnpm build && node tests/offline.mjs && node tests/offline-tasks.mjs && node tests/offline-autosync.mjs && node tests/sync-regression.mjs"
+    "test:offline": "pnpm build && node tests/offline.mjs && node tests/offline-tasks.mjs && node tests/offline-autosync.mjs && node tests/sync-regression.mjs && node tests/closed-tab.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
