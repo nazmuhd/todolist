@@ -199,6 +199,14 @@
         <i data-lucide="settings" class="w-3.5 h-3.5"></i>
       </button>
     </div>
+
+    <!-- The collapsed rail hides the footer, so the settings button moves
+         into the rail and opens the upward menu instead of the dialog. -->
+    <div class="sidebar-collapsed-only border-t border-td-border flex-shrink-0 justify-center py-2">
+      <button id="rail-settings-btn" class="text-td-muted hover:text-td-text p-1" title="Menu" aria-label="Menu" aria-haspopup="true" aria-expanded="false">
+        <i data-lucide="settings" class="w-4 h-4"></i>
+      </button>
+    </div>
     <input id="import-file" type="file" accept="application/json,.json" class="hidden" />
   </aside>
 
@@ -572,6 +580,10 @@
 
 <!-- Shared "…" menu for projects / labels -->
 <div id="row-menu" class="hidden fixed z-50 bg-white border border-td-border rounded shadow-lg py-1 text-sm w-40"></div>
+
+<!-- Collapsed-rail menu: the settings button opens this upward, like the
+     reference design. It carries the actions the narrow rail cannot show. -->
+<div id="rail-menu" class="hidden fixed z-50 w-56 rounded-xl overflow-hidden text-sm shadow-2xl"></div>
 
 <!-- Export formats -->
 <dialog id="export-modal" class="p-0 rounded-lg shadow-2xl w-full max-w-sm border border-td-border">

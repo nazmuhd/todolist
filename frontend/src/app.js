@@ -23,6 +23,8 @@ import { renderMain, renderSortMenu, supportsBoard, initListView, completionDayL
 import { renderSidebar } from './views/sidebar.js';
 import { initBoard } from './views/board.js';
 import { initActivityView } from './views/activity.js';
+import { initRailMenu, closeRailMenu } from './ui/rail-menu.js';
+import { setSidebarCollapsed } from './ui/chrome.js';
 import { renderStorageBadge } from './features/backup.js';
 import { loadSettings, applyTheme } from './features/settings.js';
 import { openTaskModal, closeTaskModal } from './features/task-modal.js';
@@ -84,6 +86,8 @@ services.openTaskModal = openTaskModal;
 services.openQuickAdd = openQuickAdd;
 services.navigateTo = navigateTo;
 services.openRowMenu = openRowMenu;
+services.closeRailMenu = closeRailMenu;
+services.setSidebarCollapsed = setSidebarCollapsed;
 services.syncHash = syncHash;
 services.scheduleSync = scheduleSync;
 
@@ -196,6 +200,7 @@ initTemplates();
 initBoard();
 initActivityView();
 initFilterEditor();
+initRailMenu();
 initListView(() => renderMain());
 
 init();

@@ -70,6 +70,10 @@ aside.sidebar-collapsed .nav-item i { flex-shrink: 0; }
 aside.sidebar-collapsed .sidebar-section-header,
 aside.sidebar-collapsed .sidebar-footer { display: none; }
 
+/* Shown only in the collapsed rail (the narrow sidebar). */
+.sidebar-collapsed-only { display: none; }
+aside.sidebar-collapsed .sidebar-collapsed-only { display: flex; }
+
 aside.sidebar-collapsed nav {
   padding-left: 0.5rem;
   padding-right: 0.5rem;
@@ -385,6 +389,54 @@ h1, h2, h3 {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* ---------- Collapsed-rail menu ---------- */
+#rail-menu {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  color: #f5f5f5;
+  animation: rail-menu-enter 0.15s ease-out;
+}
+
+@keyframes rail-menu-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rail-menu-section {
+  padding: 6px 0;
+  border-bottom: 1px solid #333;
+}
+
+.rail-menu-section:last-child {
+  border-bottom: 0;
+}
+
+.rail-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  color: #f5f5f5;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.rail-menu-item:hover { background: #2d2d2d; }
+.rail-menu-item:focus-visible { outline: 2px solid #4073ff; outline-offset: -2px; }
+
+.rail-menu-icon { color: #a3a3a3; flex-shrink: 0; }
+
+.rail-menu-badge {
+  font-size: 11px;
+  color: #a3a3a3;
+  border: 1px solid #a3a3a3;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.rail-menu-item:hover .rail-menu-badge { color: #f5f5f5; border-color: #f5f5f5; }
 
 /* ---------- Keyboard shortcuts dialog ---------- */
 .shortcut-list {

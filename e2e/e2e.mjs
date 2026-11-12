@@ -250,14 +250,16 @@ try {
   check('a backup can be taken on demand', Array.isArray(taken.backups) && taken.backups.length >= beforeCount,
     JSON.stringify(taken.backups?.length));
 
-  // Restoring a backup brings the data back.
-  const backupToRestore = taken.backups?.[taken.backups.length - 1];
+  // Restoring a backup brings the data back. The newest backup holds the
+  // current data, so that is the one to restore.
+  const backupToRestore = taken.backups?.[0];
   if (backupToRestore) {
-    await fetch(`http://127.0.0.1:${PORT}/api/state/backups/${backupToRestore.id}/restore`, {
+    const restoreRes = await fetch(`http://127.0.0.1:${PORT}/api/state/backups/${backupToRestore.id}/restore`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
     });
+    check('restoring a backup succeeds', restoreRes.status === 200, `status=${restoreRes.status}`);
     const after = await (await fetch(`http://127.0.0.1:${PORT}/api/sync?since=0`)).json();
     const titles2 = (after.changes?.tasks || []).map((row) => row.data?.title);
     check('a backup can be restored', titles2.includes('Persist me to SQLite'), JSON.stringify(titles2.slice(0, 5)));

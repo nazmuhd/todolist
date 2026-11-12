@@ -145,7 +145,13 @@ export function renderTemplates() {
   if (!list) return;
   const templates = templateList();
   if (!templates.length) {
-    list.innerHTML = '<div class="px-2 py-1 text-[11px] text-td-muted">Save a task or project as a template.</div>';
+    // The collapsed rail is only an icon wide, so the hint becomes one.
+    list.innerHTML = `
+      <div class="sidebar-hide px-2 py-1 text-[11px] text-td-muted">Save a task or project as a template.</div>
+      <div class="sidebar-collapsed-only justify-center py-1 text-td-muted" title="Save a task or project as a template" aria-label="Save a task or project as a template">
+        <i data-lucide="copy-plus" class="w-4 h-4"></i>
+      </div>`;
+    lucide.createIcons();
     return;
   }
   list.innerHTML = templates.map(t => `

@@ -16,6 +16,9 @@ import { positionContextMenu } from '../ui/menus.js';
 
 const contextMenu = $('#context-menu');
 let contextTaskId = null;
+// Where the menu was opened relative to its task row, so the menu can
+// follow the row while the list scrolls.
+let contextAnchor = null;
 
 export function isContextMenuOpen() {
   return !contextMenu.classList.contains('hidden');
@@ -23,8 +26,15 @@ export function isContextMenuOpen() {
 
 export function closeContextMenu() {
   contextTaskId = null;
+  contextAnchor = null;
   contextMenu.classList.add('hidden');
   contextMenu.innerHTML = '';
+}
+
+/** The row the menu belongs to, if it is still on the page. */
+function anchorRow() {
+  if (!contextTaskId) return null;
+  return document.querySelector(`[data-task-id="${CSS.escape(contextTaskId)}"]`);
 }
 
 export function openContextMenu(taskId, x, y) {
@@ -116,6 +126,13 @@ export function openContextMenu(taskId, x, y) {
   contextMenu.classList.remove('hidden');
   lucide.createIcons();
   positionContextMenu(contextMenu, x, y);
+
+  // Remember where the menu was opened inside its row, so it can follow
+  // the row instead of closing when the list scrolls.
+  const row = anchorRow();
+  contextAnchor = row
+    ? { x, y, offsetY: y - row.getBoundingClientRect().top }
+    : { x, y, offsetY: 0 };
 }
 
 /** Applies a context-menu action to a task. */
@@ -237,5 +254,23 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('#context-menu')) closeContextMenu();
 });
 
-window.addEventListener('scroll', closeContextMenu, true);
+// Scrolling the list moves the task row, so the menu follows it rather
+// than closing. Scrolling *inside* the menu must not move it.
+window.addEventListener('scroll', (e) => {
+  if (!isContextMenuOpen()) return;
+  if (contextMenu.contains(e.target)) return;
+  const row = anchorRow();
+  if (!row || !contextAnchor) {
+    closeContextMenu();
+    return;
+  }
+  const top = row.getBoundingClientRect().top + contextAnchor.offsetY;
+  // The row left the viewport, so the menu has nothing to point at.
+  if (top < -200 || top > window.innerHeight + 200) {
+    closeContextMenu();
+    return;
+  }
+  positionContextMenu(contextMenu, contextAnchor.x, top);
+}, true);
+
 window.addEventListener('resize', closeContextMenu);
