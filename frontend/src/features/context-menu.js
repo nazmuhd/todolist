@@ -76,6 +76,18 @@ export function openContextMenu(taskId, x, y) {
     sep();
   }
 
+  // Sections belong to one project, so only offer them for the task's own.
+  const project = t.projectId ? state.projects.find(p => p.id === t.projectId) : null;
+  const sections = project && Array.isArray(project.sections) ? project.sections : [];
+  if (sections.length) {
+    header('Move to section');
+    item('section-none', 'No section', 'list', { checked: !t.sectionId });
+    sections.forEach(s => {
+      item(`section-${s.id}`, s.name, 'list', { checked: t.sectionId === s.id });
+    });
+    sep();
+  }
+
   const labels = state.labels.slice(0, 8);
   if (labels.length) {
     header('Labels');
@@ -91,7 +103,7 @@ export function openContextMenu(taskId, x, y) {
 
   contextMenu.innerHTML = items.map(it => {
     if (it.sep) return '<div class="context-sep"></div>';
-    if (it.header) return `<div class="context-label">${escapeHtml(it.label)}</div>`;
+    if (it.header) return `<div class="context-label">${escapeHtml(it.header)}</div>`;
     const iconStyle = it.color ? ` style="color:${escapeHtml(it.color)}"` : '';
     return `<button type="button" class="context-item${it.danger ? ' danger' : ''}" data-context-action="${escapeHtml(it.action)}">
       <i data-lucide="${it.icon}" class="w-3.5 h-3.5 flex-shrink-0"${it.color ? iconStyle : ' style="color:#808080"'}></i>
@@ -153,9 +165,25 @@ export function runContextAction(action, id) {
     if (t.projectId === next) return;
     const snapshot = snapshotData();
     t.projectId = next;
+    // Sections belong to the previous project.
+    t.sectionId = null;
     saveState();
     requestRender();
     offerUndo(next ? `Moved to ${projectName(next)}` : 'Removed from project', snapshot);
+    return;
+  }
+
+  if (action.startsWith('section-')) {
+    const sectionId = action.slice('section-'.length);
+    const next = sectionId === 'none' ? null : sectionId;
+    const project = t.projectId ? state.projects.find(p => p.id === t.projectId) : null;
+    if (next && !(project && Array.isArray(project.sections) && project.sections.some(s => s.id === next))) return;
+    if ((t.sectionId || null) === next) return;
+    const snapshot = snapshotData();
+    t.sectionId = next;
+    saveState();
+    requestRender();
+    offerUndo(next ? `Moved to ${project.sections.find(s => s.id === next).name}` : 'Section removed', snapshot);
     return;
   }
 

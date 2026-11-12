@@ -512,6 +512,114 @@ try {
     return !!li && !!li.querySelector('[data-lucide="bell"]');
   })()`));
 
+  // ---- Move a task between sections from the context menu. ----
+  await evalJs(`document.querySelector('[data-layout="list"]').click()`);
+  await evalJs(`(() => {
+    const link = [...document.querySelectorAll('.nav-item')].find(a => a.textContent.includes('Sections Project'));
+    if (link) link.click();
+  })()`);
+  await sleep(180);
+  await evalJs(`(() => {
+    const row = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Beta task'));
+    if (row) row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 120, clientY: 120 }));
+  })()`);
+  await waitFor(`!document.getElementById('context-menu').classList.contains('hidden')`, 'section context menu');
+  check('context menu offers project sections', await evalJs(`(() => {
+    const text = document.getElementById('context-menu').textContent;
+    return text.includes('Move to section') && text.includes('Alpha') && text.includes('Beta');
+  })()`));
+  await evalJs(`(() => {
+    const btn = [...document.querySelectorAll('#context-menu [data-context-action^="section-"]')]
+      .find(b => b.textContent.trim() === 'Alpha');
+    if (btn) btn.click();
+  })()`);
+  await sleep(180);
+  await evalJs(`document.querySelector('[data-layout="board"]').click()`);
+  await sleep(180);
+  check('context menu moves a task to a section', await evalJs(`(() => {
+    const cols = [...document.querySelectorAll('#board-view .board-column[data-group="section"]')];
+    const alpha = cols.find(c => c.textContent.includes('Alpha'));
+    return !!alpha && alpha.textContent.includes('Beta task');
+  })()`));
+
+  // ---- Todoist JSON backup import. ----
+  const todoistBackup = JSON.stringify({
+    projects: [{ id: 'p1', name: 'Imported Project', color: 'blue' }],
+    sections: [{ id: 's1', name: 'Later', project_id: 'p1' }],
+    labels: [{ id: 'l1', name: 'errand', color: 'green' }],
+    items: [
+      {
+        id: 'i1', content: 'Todoist task', description: 'From Todoist',
+        project_id: 'p1', section_id: 's1', labels: ['errand'], priority: 4,
+        due: { date: '2026-11-20T09:00:00', is_recurring: false, string: 'Nov 20 9:00' },
+        child_order: 1, checked: 0, added_at: '2026-11-01T10:00:00Z',
+      },
+      { id: 'i2', content: 'Inbox task', project_id: null, priority: 1, child_order: 2, checked: 0 },
+      {
+        id: 'i3', content: 'Done already', project_id: 'p1', child_order: 3,
+        checked: 1, completed_at: '2026-11-02T10:00:00Z',
+      },
+    ],
+    notes: [{ id: 'n1', item_id: 'i1', content: 'A note', posted_at: '2026-11-01T11:00:00Z' }],
+    reminders: [{ id: 'r1', item_id: 'i1', type: 'relative', minute_offset: 30 }],
+  });
+  await evalJs(`(() => { window.confirm = () => true; })()`);
+  await evalJs(`(() => {
+    const input = document.getElementById('import-file');
+    const file = new File([${JSON.stringify(todoistBackup)}], 'todoist-backup.json', { type: 'application/json' });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await waitFor(`document.getElementById('task-list').textContent.includes('Inbox task')`, 'Todoist backup imported');
+  check('Todoist import replaces the task list', await evalJs(`!document.getElementById('task-list').textContent.includes('Beta task')`));
+  check('Todoist import restores projects and labels', await evalJs(`(() => {
+    const side = document.getElementById('sidebar').textContent;
+    return side.includes('Imported Project') && side.includes('errand');
+  })()`));
+  await evalJs(`(() => {
+    const link = [...document.querySelectorAll('.nav-item')].find(a => a.textContent.includes('Imported Project'));
+    if (link) link.click();
+  })()`);
+  await sleep(180);
+  check('Todoist task keeps project, section, label, priority, due and reminder', await evalJs(`(() => {
+    const row = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Todoist task'));
+    if (!row) return false;
+    const text = document.getElementById('task-list').textContent;
+    return text.includes('Later') && text.includes('@errand') &&
+      !!row.querySelector('.prio-marker.prio-1') && row.textContent.includes('Nov 20') &&
+      !!row.querySelector('[data-lucide="bell"]');
+  })()`));
+  await evalJs(`document.querySelector('[data-view="completed"]').click()`);
+  await sleep(180);
+  check('Todoist import preserves completed tasks', await evalJs(`document.getElementById('task-list').textContent.includes('Done already')`));
+
+  // ---- Undo survives a page reload. ----
+  await evalJs(`document.querySelector('[data-view="inbox"]').click()`);
+  await sleep(150);
+  await evalJs(`document.getElementById('quick-add-placeholder').click()`);
+  await waitFor(`!document.getElementById('quick-add-editor').classList.contains('hidden')`, 'undo quick add');
+  await evalJs(`(() => {
+    const t = document.getElementById('quick-add-input');
+    t.value = 'Undo after reload';
+    t.dispatchEvent(new Event('input', {bubbles:true}));
+    document.getElementById('quick-add-submit').click();
+  })()`);
+  await waitFor(`document.getElementById('task-list').textContent.includes('Undo after reload')`, 'undo task created');
+  await evalJs(`(() => {
+    const row = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Undo after reload'));
+    if (row) row.querySelector('.task-delete').click();
+  })()`);
+  await waitFor(`!document.getElementById('task-list').textContent.includes('Undo after reload')`, 'undo task deleted');
+  await sleep(500); // let the history doc finish writing
+  await send('Page.reload');
+  await sleep(500);
+  await waitFor('window.__appReady === true', 'app ready after reload');
+  await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', {key:'z', ctrlKey:true, bubbles:true}))`);
+  await waitFor(`document.getElementById('task-list').textContent.includes('Undo after reload')`, 'undo restored after reload');
+  check('undo history survives a reload', true);
+
   const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   check('no console errors', realErrors.length === 0, realErrors.join(' | '));
 } catch (err) {

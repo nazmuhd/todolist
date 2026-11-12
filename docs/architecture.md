@@ -156,7 +156,7 @@ positions popovers and imports nothing, so features can use it safely.
 | `core/dates.js` | `parseDate`, `toISODate`, `todayISO`, `daysFromToday`, `formatDue`, `formatTime`, `formatDateShort`, `formatDuration`, `isTaskOverdue`, `dueSortValue`, `taskDueDate` |
 | `core/tasks.js` | `addTask`, `toggleComplete`, `removeTask`, `deleteTask`, `subtasksOf`, `nextOrder`, `cleanRecurrence`, `parseRecurrenceText`, `recurrenceToText`, `nextRecurrenceISO`, `firstRecurrenceISO`, `skipOccurrence`, `snoozeTask` |
 | `core/text.js` | `escapeHtml`, `highlightHtml`, `asText`, `cleanColor`, `clampPriority`, the colour palettes |
-| `core/undo.js` | `snapshotData`, `offerUndo`, `undoPending`, `redoPending`, `pendingUndo` |
+| `core/undo.js` | `snapshotData`, `offerUndo`, `undoPending`, `redoPending`, `loadUndoHistory`, `clearUndoHistory` (history is a local-only `undo-history` doc) |
 | `core/toasts.js` | `showToast`, `announce`, the `#sr-status` live region |
 | `core/render.js` | the renderer registry that breaks the core → views cycle |
 | `core/services.js` | the app-level callback registry that breaks the views → app cycle |
@@ -171,7 +171,7 @@ positions popovers and imports nothing, so features can use it safely.
 | `features/quickadd.js` | `parseQuickAdd`, `updatePreview`, chip pickers, `submitQuickAdd` |
 | `features/projects.js` | `openProjectModal`, `openLabelModal`, `deleteProject`, `deleteLabel` |
 | `features/settings.js` | the settings dialog, `loadSettings`, `persistSettings`, theme application |
-| `features/backup.js` | `exportData`, `exportCsv`, `exportMarkdown`, `exportIcs`, `parseBackup`, `applyBackup` |
+| `features/backup.js` | `exportData`, `exportCsv`, `exportMarkdown`, `exportIcs`, `parseBackup`, `applyBackup`, `todoistBackupToState` |
 | `features/filters.js` | `parseQuery`, `queryMatcher`, saved filters, the filter editor |
 | `features/calendar.js` | `renderCalendar`, month navigation, the day panel |
 | `features/karma.js` | `karmaSummary`, `renderKarma` |

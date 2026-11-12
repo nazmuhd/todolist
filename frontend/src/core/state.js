@@ -12,10 +12,15 @@ import { asText, cleanColor, clampPriority, PROJECT_COLORS, LABEL_COLORS } from 
 import { savedFilterIds } from './saved-filters.js';
 import { services } from './services.js';
 
+// The undo layer registers a hook so a save can retire a stale snapshot
+// without state.js importing it (which would be a cycle). Actions that offer
+// an undo call saveState first, then push their fresh snapshot.
+let stateSavedHook = null;
+export function setStateSavedHook(fn) { stateSavedHook = fn; }
+
 export function saveState() {
-  // Any new change supersedes a pending undo, so a stale snapshot can
-  // never wipe out work done after the action it was captured for.
   clearPendingUndo();
+  if (stateSavedHook) stateSavedHook();
   persistState();
 }
 export function persistState() {
@@ -59,10 +64,10 @@ export function clearPendingUndo() {
   pendingUndo = null;
   if (el && el.parentNode) el.remove();
 }
+// The toast currently offering an undo. The history itself lives in
+// core/undo.js so it can survive a reload.
 export let pendingUndo = null;
-export let redoSnapshot = null;
 export function setPendingUndo(value) { pendingUndo = value; }
-export function setRedoSnapshot(value) { redoSnapshot = value; }
 
 export const SCHEMA_VERSION = 8;
 

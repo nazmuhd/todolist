@@ -132,9 +132,20 @@ deleted task) can be removed after a guard period:
 curl -X POST "http://localhost:4000/api/blobs/cleanup?olderThanHours=24"
 ```
 
+### Backups, imports and undo
+
+**Sidebar → Export** downloads this app's data as JSON, CSV, Markdown or ICS.
+**Sidebar → Import** accepts either this app's JSON backup or a **Todoist JSON
+backup**; projects, sections, labels, sub-tasks, notes, reminders, priorities,
+due dates and completed items are converted. Your current data is copied to a
+pre-import recovery slot first.
+
+Undo/redo history is kept in IndexedDB (the latest action, for 24 hours), so
+Ctrl+Z / Ctrl+Shift+Z still work after a reload.
+
 ## Docs
 
 - `docs/architecture.md` — the module layout, the split plan and the backend design
 - `docs/features.md` — feature status
-- `docs/gaps.md` — the active gaps (sections 1–3) and later work (sections 4–9)
-- `docs/deferred.md` — deliberately deferred work, with shipped items marked done
+- `docs/gaps.md` — known limits and interoperability
+- `docs/deferred.md` — what is intentionally not built

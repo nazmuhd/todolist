@@ -1,10 +1,9 @@
 # Features
 
-Status of the Todoist-parity checklist for this clone. **Refreshed against the
-code.** The remaining gaps are tracked in `gaps.md`; sections 1–3 there are
-the active work, sections 4–9 are deliberately deferred.
+Status of this personal todo app. **Refreshed against the code.** Known
+platform limits and intentionally out-of-scope work are listed in `gaps.md`.
 
-Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
+Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 
 ## Task management
 
@@ -28,15 +27,14 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | ✅ | Sections inside projects | Project dialog, project view |
 | ✅ | Quick-add defaults | Quick add |
 | ✅ | Deadlines separate from due dates (date + optional time) | Due-date dialog, task rows |
-| ◐ | Start dates — recurrence skips occurrences before the start date | Due-date dialog |
+| ✅ | Start dates — recurrence skips occurrences before the start date | Due-date dialog |
 | ✅ | Completion-based recurrence ("every!" counts from completion) | Quick add, due-date dialog |
-| ◐ | Absolute-time reminders; location reminders need a native app | Due-date dialog |
+| ✅ | Absolute-time reminders | Due-date dialog |
 | ✅ | Rich text (safe Markdown subset, checklists) in descriptions and comments | Task modal |
 | ✅ | Reusable task/project templates (saved locally in the browser) | Sidebar → Templates |
 | ✅ | Per-task timezone for due-time reminders | Due-date dialog |
 | ✅ | Attachment thumbnails and drag-and-drop upload | Task modal |
 | ✅ | Task permalinks (`#/task/<id>`) | Task modal → Link |
-| ⏳ | Assignees | — |
 
 ## Lists and views
 
@@ -66,6 +64,7 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | ✅ | Projects with colour, pin, edit, delete, drag-reorder | Sidebar |
 | ✅ | Labels with colour, pin, edit, delete, drag-reorder | Sidebar |
 | ✅ | Move a task to a project or label | Context menu, batch bar |
+| ✅ | Move a task to a section | Context menu, board drag |
 | ✅ | Drag a task onto a sidebar project or label | Sidebar |
 
 ## Working with tasks in bulk
@@ -75,7 +74,7 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | ✅ | Multi-select (Ctrl/Cmd-click), range select (Shift-click) | Task list |
 | ✅ | Batch complete / prioritise / move / delete, undoable | Batch bar |
 | ✅ | Right-click context menu with reschedule shortcuts | Task rows, board cards |
-| ✅ | Undo and redo (Ctrl+Z / Ctrl+Shift+Z) | Toasts, keyboard |
+| ✅ | Undo and redo (Ctrl+Z / Ctrl+Shift+Z), kept across reloads | Toasts, keyboard |
 
 ## Shell
 
@@ -87,15 +86,14 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | ✅ | Deep links (`#/today?q=p1`), back/forward | Address bar |
 | ✅ | Installable PWA, works offline | Manifest + service worker |
 | ✅ | Export: JSON, CSV, Markdown, ICS | Sidebar → Export |
-| ✅ | Import a JSON backup, with a pre-import safety copy | Sidebar → Import |
+| ✅ | Import this app's JSON backup, with a pre-import safety copy | Sidebar → Import |
+| ✅ | Import a **Todoist JSON backup** (projects, sections, labels, tasks, notes, reminders) | Sidebar → Import |
 | ✅ | Multi-tab sync | Storage adapter change channel |
 | ✅ | Undo toasts, completion and view animations | Everywhere |
 | ✅ | Keyboard shortcuts with a `?` overlay | `?` |
 | ✅ | Karma / productivity stats | Karma view |
 | ✅ | Accessibility: arrow-key list navigation, screen-reader announcements | Task list, toasts |
 | ✅ | Print stylesheet | Everywhere |
-| ⏳ | i18n (English-only by design) | — |
-| ⏳ | Native mobile/desktop apps, widgets, watch apps | — |
 
 ## Data and storage
 
@@ -110,16 +108,5 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | ✅ | Server-side reminders and Web Push subscriptions | `services/reminders.ts`, `/api/push` |
 | ✅ | Orphan attachment cleanup after a guard period | `POST /api/blobs/cleanup` |
 | ✅ | Closed-tab reminders in the service worker | `sw.js` |
-| ⬜ | Todoist import (CSV or Todoist backup) and Todoist-format export | — |
-| ⏳ | Automated backups, retention, encryption at rest | — |
-
-## Deliberately deferred
-
-Tracked with detail in `gaps.md` §4–9:
-
-- Productivity goals/reports, activity history, vacation mode
-- Todoist import, calendar/email integrations, Todoist-compatible API
-- Native apps, widgets, browser extensions, Slack/Zapier/IFTTT
-- Accounts, sharing, assignees, permissions, 2FA/SSO
-- Visual parity, full i18n, onboarding polish
-- Auth, TLS, rate limiting, metrics, scheduled backups
+| ✅ | Todoist JSON backup import | Sidebar → Import |
+| ✅ | Local-only undo history document (survives reloads) | `core/undo.js` |

@@ -2,7 +2,7 @@ import './styles.css';
 
 import { $, settings, modalState } from './core/app.js';
 import { store } from './core/store.js';
-import { defaultState, migrateState, SCHEMA_VERSION, state, setState, saveState, syncReminderSchedule, clearPendingUndo } from './core/state.js';
+import { defaultState, migrateState, SCHEMA_VERSION, state, setState, saveState, syncReminderSchedule } from './core/state.js';
 import { addTask } from './core/tasks.js';
 import { formatDue } from './core/dates.js';
 import { showToast } from './core/toasts.js';
@@ -11,6 +11,7 @@ import { setRenderer } from './core/render.js';
 import { isKnownView, syncHash, navigateTo, taskIdFromHash } from './core/router.js';
 import { actionFromHash, handleNotificationAction, initNotificationActions } from './core/notification-actions.js';
 import { startReminders } from './core/reminders.js';
+import { loadUndoHistory, clearUndoHistory, initUndo } from './core/undo.js';
 import { initSync, scheduleSync } from './core/sync.js';
 import { loadSavedFilters, initFilterEditor } from './features/filters.js';
 import { initSelection } from './features/selection.js';
@@ -32,6 +33,9 @@ import { openRowMenu } from './ui/row-menu.js';
    a backend later is a one-line change:
      const store = new TodoStore.ApiStore({ token });
 ============================================================ */
+
+// The undo layer retires a stale snapshot on every save.
+initUndo();
 
 /** Reads the saved state, keeping an unreadable payload as a backup. */
 async function loadState() {
@@ -103,7 +107,7 @@ store.onChange(async (key) => {
   }
 
   const editing = modalState.editingTaskId;
-  clearPendingUndo(); // remote data supersedes any local undo snapshot
+  clearUndoHistory(); // remote data supersedes the local undo history
   setState({ ...incoming, ui: state.ui });
   render();
 
@@ -132,6 +136,7 @@ async function init() {
   const loaded = await loadState();
   setState(loaded.state);
 
+  await loadUndoHistory();
   await loadSettings();
   applyTheme();
   await initChrome({ renderSortMenu, supportsBoard, renderMain });
