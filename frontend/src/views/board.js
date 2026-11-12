@@ -1,13 +1,24 @@
 /**
- * The board view: one column per priority.
+ * The board view: one column per project section (Todoist behaviour) or,
+ * outside a project, one column per priority.
  */
 import { state, saveState } from '../core/state.js';
-import { activeTasks, priorityColor, priorityLabel, projectName } from '../core/tasks.js';
+import { activeTasks, priorityColor, projectName } from '../core/tasks.js';
 import { formatDue, isTaskOverdue, todayISO } from '../core/dates.js';
 import { escapeHtml, highlightHtml } from '../core/text.js';
 import { bindTaskEvents, priorityMarker, durationBadge, searchTerm } from '../features/task-row.js';
 
 const BOARD_PRIORITIES = [1, 2, 3, 4];
+
+/** A project board groups by section; other views keep the priority columns. */
+export function boardGrouping() {
+  const view = state.ui.view || '';
+  const project = view.startsWith('project:')
+    ? state.projects.find(p => p.id === view.slice(8))
+    : null;
+  const sections = project && Array.isArray(project.sections) ? project.sections : [];
+  return { project, sections, bySection: !!project && sections.length > 0 };
+}
 
 export function renderBoard(info) {
   const list = document.getElementById('task-list');
@@ -18,20 +29,50 @@ export function renderBoard(info) {
   document.getElementById('content-container').classList.add('board-mode');
 
   const base = activeTasks().filter(info.filter).filter(t => !t.completed);
-  board.innerHTML = `<div class="board-scroll"><div class="board-grid">` + BOARD_PRIORITIES.map(priority => {
-    const tasks = base
-      .filter(t => t.priority === priority)
-      .sort((a, b) => a.order - b.order);
+  const grouping = boardGrouping();
+
+  const columns = grouping.bySection
+    ? [
+        ...grouping.sections.map(s => ({
+          key: s.id,
+          label: s.name,
+          sectionId: s.id,
+          tasks: base.filter(t => t.sectionId === s.id),
+        })),
+        (() => {
+          const ungrouped = base.filter(t => !t.sectionId || !grouping.sections.some(s => s.id === t.sectionId));
+          return ungrouped.length
+            ? { key: 'none', label: 'No section', sectionId: '', tasks: ungrouped }
+            : null;
+        })(),
+      ].filter(Boolean)
+    : BOARD_PRIORITIES.map(priority => ({
+        key: String(priority),
+        label: `P${priority}`,
+        priority,
+        tasks: base.filter(t => t.priority === priority),
+      }));
+
+  board.innerHTML = `<div class="board-scroll"><div class="board-grid">` + columns.map(column => {
+    const tasks = [...column.tasks].sort((a, b) => a.order - b.order);
+    const isSection = grouping.bySection;
+    const icon = isSection ? 'columns-3' : 'flag';
+    const color = isSection
+      ? (column.sectionId ? '#246fe0' : '#808080')
+      : priorityColor(column.priority);
+    const attrs = isSection
+      ? `data-group="section" data-section-id="${escapeHtml(column.sectionId)}"`
+      : `data-group="priority" data-priority="${column.priority}"`;
     return `
-      <section class="board-column" data-priority="${priority}">
+      <section class="board-column" ${attrs}>
         <header class="board-column-header">
-          <span class="flex items-center gap-1.5 text-sm font-semibold">
-            <i data-lucide="flag" class="w-3.5 h-3.5" style="color:${priorityColor(priority)}"></i>
-            P${priority}
+          <span class="flex items-center gap-1.5 text-sm font-semibold min-w-0">
+            <i data-lucide="${icon}" class="w-3.5 h-3.5 flex-shrink-0" style="color:${color}"></i>
+            <span class="truncate">${escapeHtml(column.label)}</span>
           </span>
           <span class="board-count text-xs text-td-muted" title="${tasks.length} tasks">${tasks.length}</span>
         </header>
-        <ul class="board-cards" data-priority="${priority}" aria-label="${escapeHtml(priorityLabel(priority))}">
+        <ul class="board-cards" ${attrs} aria-label="${escapeHtml(column.label)}">
           ${tasks.map(t => renderBoardCard(t)).join('')}
         </ul>
       </section>`;
@@ -108,8 +149,16 @@ export function bindBoardSortables() {
         const to = evt.to;
         if (!task || !to) return;
         const column = to.closest ? to.closest('.board-column') : null;
-        const priority = Number((column && column.dataset.priority) || to.dataset.priority);
-        if (priority >= 1 && priority <= 4) task.priority = priority;
+        if (column && column.dataset.group === 'section') {
+          // Dragging between section columns rewrites the section (and the
+          // project, in case the card came from elsewhere).
+          const project = boardGrouping().project;
+          if (project) task.projectId = project.id;
+          task.sectionId = column.dataset.sectionId || null;
+        } else {
+          const priority = Number((column && column.dataset.priority) || to.dataset.priority);
+          if (priority >= 1 && priority <= 4) task.priority = priority;
+        }
 
         let order = 0;
         board.querySelectorAll('.board-cards .board-card').forEach(card => {

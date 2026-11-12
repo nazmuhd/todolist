@@ -44,12 +44,16 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | ✅ | Upcoming grouped by day, with an Overdue group | Upcoming view |
 | ✅ | Completed tasks view, grouped by completion day, restorable | Completed view |
 | ✅ | Board (Kanban) view, drag between **priority** columns | Header toggle |
-| ◐ | Board columns by project section (Todoist behaviour) | Board uses priority columns |
-| ◐ | Calendar month view; no week/day view or drag rescheduling | Sidebar |
-| ✅ | Filter query language (`p1`, `#project`, `overdue`, `7 days`, `!`, `&`, `|`) | Search box |
+| ✅ | Board columns by project section (incl. "No section"), drag between sections | Header toggle |
+| ✅ | Calendar month, week and day views with a time grid | Sidebar → Calendar |
+| ✅ | Drag a task in the calendar to reschedule; drag empty time to create | Calendar |
+| ✅ | Duration-sized time blocks in week/day views | Calendar |
+| ✅ | Drag an Upcoming/Today task onto a day header to reschedule | Upcoming, Today |
+| ✅ | Filter query language (`p1`, `#project`, `overdue`, `7 days`, `due:`, `created:`, `has:`, `no:`, `!`, `&`, `|`) | Search box |
 | ✅ | Custom / saved filters | Sidebar → My filters |
-| ✅ | Sorting (manual, date, priority, name, added) | Header menu |
-| ◐ | Section filter in a project; drag-to-section still open | Project view |
+| ✅ | Sorting (manual, date, priority, name, added), remembered per view | Header menu |
+| ✅ | Section filter in a project; drag a task between section columns | Project view |
+| ✅ | Swipe right to complete, swipe left to open the due editor on touch | Task rows |
 | ✅ | List and Completed views page at 100 rows with "Show more" | Task list |
 
 ## Organisation

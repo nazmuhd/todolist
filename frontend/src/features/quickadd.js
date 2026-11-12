@@ -376,6 +376,8 @@ export function submitQuickAdd() {
   if (!p.title) { closeQuickAdd(); return; }
   // Empty-state shortcuts can prefill context (e.g. Today adds a due date).
   if (!p.due && quickAddDefaults.due) p.due = quickAddDefaults.due;
+  if (!p.dueTime && quickAddDefaults.dueTime) p.dueTime = quickAddDefaults.dueTime;
+  if (!p.durationMinutes && quickAddDefaults.durationMinutes) p.durationMinutes = quickAddDefaults.durationMinutes;
   if (!p.projectId && quickAddDefaults.projectId) p.projectId = quickAddDefaults.projectId;
   // default project from current view
   if (!p.projectId && state.ui.view.startsWith('project:')) {

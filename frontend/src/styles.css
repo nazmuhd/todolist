@@ -1123,3 +1123,130 @@ ol.md-list { list-style: decimal; }
   border-color: #db4c3f;
   background: rgba(219, 76, 63, 0.06);
 }
+
+/* ---------- Calendar: scale switch and week/day time grid ---------- */
+.cal-scale {
+  margin-left: auto;
+  display: inline-flex;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cal-scale-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #fff;
+  color: #555;
+  border: 0;
+  border-left: 1px solid #e5e5e5;
+  cursor: pointer;
+}
+.cal-scale-btn:first-child { border-left: 0; }
+.cal-scale-btn:hover { background: #f6f6f6; }
+.cal-scale-btn.active { background: #db4c3f; color: #fff; }
+
+.cal-time-scroll {
+  max-height: calc(100dvh - 13rem);
+  overflow: auto;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fff;
+}
+.cal-time-head {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fafafa;
+  border-bottom: 1px solid #e5e5e5;
+}
+.cal-time-gutter { width: 3.5rem; flex: 0 0 3.5rem; }
+.cal-time-days { flex: 1; display: grid; }
+.cal-time-dayname {
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 11px;
+  color: #808080;
+  border-left: 1px solid #eee;
+}
+.cal-time-dayname strong { display: block; font-size: 14px; color: #444; }
+.cal-time-dayname.today strong { color: #db4c3f; }
+
+.cal-allday {
+  display: flex;
+  min-height: 34px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+}
+.cal-allday-label { font-size: 10px; color: #999; text-align: right; padding: 9px 5px 0 0; }
+.cal-allday-cell { border-left: 1px solid #eee; padding: 3px; min-height: 34px; }
+.cal-allday-cell .cal-task { display: block; width: 100%; margin: 0 0 2px; }
+
+.cal-time-body { display: flex; }
+.cal-hour-label {
+  height: 44px;
+  box-sizing: border-box;
+  font-size: 10px;
+  color: #aaa;
+  text-align: right;
+  padding-right: 6px;
+  transform: translateY(-6px);
+}
+.cal-time-col { position: relative; border-left: 1px solid #eee; }
+.cal-time-col.today { background: rgba(219, 76, 63, 0.03); }
+.cal-time-slot { height: 44px; box-sizing: border-box; border-top: 1px solid #f1f1f1; }
+.cal-time-slot:first-child { border-top: 0; }
+
+.cal-time-chip {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 2;
+  overflow: hidden;
+  text-align: left;
+  border: 0;
+  border-left: 3px solid #246fe0;
+  border-radius: 4px;
+  background: #eef4ff;
+  color: #16325c;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 2px 4px;
+  cursor: grab;
+  white-space: normal;
+}
+.cal-time-chip:hover { filter: brightness(0.96); }
+.cal-create-ghost {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 4;
+  border: 1px dashed #246fe0;
+  border-radius: 4px;
+  background: rgba(36, 111, 224, 0.18);
+  pointer-events: none;
+}
+.cal-drop-target { background: rgba(36, 111, 224, 0.09) !important; }
+.cal-task[draggable="true"], .cal-time-chip { cursor: grab; }
+.cal-task:active, .cal-time-chip:active { cursor: grabbing; }
+
+[data-theme="dark"] .cal-time-scroll,
+[data-theme="dark"] .cal-time-head,
+[data-theme="dark"] .cal-allday { background: #1c1c1c !important; border-color: #2f2f2f !important; }
+[data-theme="dark"] .cal-time-col,
+[data-theme="dark"] .cal-time-slot,
+[data-theme="dark"] .cal-time-dayname,
+[data-theme="dark"] .cal-allday-cell { border-color: #2f2f2f !important; }
+[data-theme="dark"] .cal-time-chip { background: #243247 !important; color: #dbe8ff !important; }
+[data-theme="dark"] .cal-scale { border-color: #333 !important; }
+[data-theme="dark"] .cal-scale-btn { background: #1c1c1c !important; color: #cfcfcf !important; border-color: #333 !important; }
+[data-theme="dark"] .cal-scale-btn.active { background: #db4c3f !important; color: #fff !important; }
+[data-theme="dark"] .cal-hour-label { color: #777 !important; }
+
+/* ---------- Mobile task gestures ---------- */
+.task-row { touch-action: pan-y; }
+.task-row.task-row-swiping { transition: none; }
+.task-row.swipe-done { background: #e6f6ea !important; }
+.task-row.swipe-schedule { background: #eaf1ff !important; }
+[data-theme="dark"] .task-row.swipe-done { background: #1f3325 !important; }
+[data-theme="dark"] .task-row.swipe-schedule { background: #1e2940 !important; }

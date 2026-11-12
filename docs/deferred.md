@@ -77,16 +77,17 @@ Active or later gaps from `gaps.md`; none block single-user use.
 - [ ] Assignees (await auth).
 
 ### Views and interaction
-- [x] Board / Kanban view (priority columns; drag between columns).
-- [~] Board columns **by section** (Todoist behaviour); it groups by priority.
-- [x] Calendar (month grid) view.
-- [ ] Calendar week/day views, drag-to-reschedule and drag-to-create.
+- [x] Board / Kanban view (priority columns outside projects; drag between columns).
+- [x] Board columns **by section** in a project, including "No section".
+- [x] Calendar month, week and day views with a time grid.
+- [x] Time-blocked tasks, drag-to-reschedule and drag-to-create.
 - [x] Completed-tasks view (grouped by day, restorable).
 - [x] Custom filters and the filter query language.
 - [x] "No date" / "No priority" views.
-- [ ] Drag a task between sections.
-- [~] Per-view sort memory (sorting is global).
-- [ ] Mobile swipe gestures and long-press parity.
+- [x] Drag a task between section columns.
+- [x] Per-view sort memory.
+- [~] Mobile swipe gestures (swipe complete/schedule); long-press parity is open.
+- [~] Overlapping time blocks stack but do not yet tile side-by-side.
 
 ### Task detail and interaction
 - [x] File attachments (add / open / remove in the task dialog).

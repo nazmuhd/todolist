@@ -70,7 +70,7 @@ export function renderTaskRow(t, isSub, opts = {}) {
   const completedClass = t.completed ? 'line-through text-td-muted' : '';
 
   return `
-    <li class="task-row group" data-task-id="${t.id}">
+    <li class="task-row group" data-task-id="${t.id}"${opts.draggable && !isSub ? ' draggable="true"' : ''}>
       <div class="flex items-start gap-2 py-2 px-1 border-b border-gray-100 hover:bg-gray-50 rounded">
         <button class="task-check mt-0.5 flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center"
           style="border-color:${t.completed ? '#808080' : checkColor}; ${t.completed ? 'background:#808080;' : ''}"
@@ -202,7 +202,73 @@ export function openInlineTitle(taskId) {
  * `sortable` is false for the grouped views (upcoming, today,
  * completed), where the order is the date, not the user's.
  */
+/** Touch gestures: swipe right to complete, swipe left to reschedule. */
+let taskGesturesBound = false;
+function ensureTaskGestures() {
+  if (taskGesturesBound) return;
+  taskGesturesBound = true;
+  let swipe = null;
+
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    const row = e.target.closest('.task-row');
+    if (!row || e.target.closest('button, input, textarea, a')) return;
+    const touch = e.touches[0];
+    swipe = {
+      row,
+      id: row.closest('[data-task-id]')?.dataset.taskId || null,
+      x: touch.clientX,
+      y: touch.clientY,
+      dx: 0,
+      active: false,
+    };
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!swipe || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - swipe.x;
+    const dy = touch.clientY - swipe.y;
+    if (!swipe.active) {
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        swipe.active = true;
+        swipe.row.classList.add('task-row-swiping');
+      } else if (Math.abs(dy) > 16) {
+        swipe = null;
+        return;
+      }
+    }
+    if (!swipe || !swipe.active) return;
+    if (e.cancelable) e.preventDefault();
+    swipe.dx = dx;
+    const limited = Math.max(-120, Math.min(120, dx));
+    swipe.row.style.transform = `translateX(${limited}px)`;
+    swipe.row.classList.toggle('swipe-done', limited > 70);
+    swipe.row.classList.toggle('swipe-schedule', limited < -70);
+  }, { passive: false });
+
+  const endSwipe = (cancelled) => {
+    if (!swipe) return;
+    const { row, id, active, dx } = swipe;
+    swipe = null;
+    row.style.transform = '';
+    row.classList.remove('task-row-swiping', 'swipe-done', 'swipe-schedule');
+    if (cancelled || !active || !id) return;
+    if (!state.tasks.some(t => t.id === id)) return;
+    if (dx > 70) {
+      toggleComplete(id);
+    } else if (dx < -70) {
+      services.openTaskModal(id);
+      setTimeout(() => document.getElementById('meta-due')?.click(), 30);
+    }
+  };
+
+  document.addEventListener('touchend', () => endSwipe(false));
+  document.addEventListener('touchcancel', () => endSwipe(true));
+}
+
 export function bindTaskEvents(sortable = true) {
+  ensureTaskGestures();
   renderSelection();
   document.querySelectorAll('.task-check').forEach(btn => {
     btn.onclick = (e) => {

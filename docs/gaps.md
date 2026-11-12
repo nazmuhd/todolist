@@ -38,15 +38,16 @@ Legend: `[x]` shipped · `[~]` partly shipped · `[ ]` active gap · `⏳ later`
 
 ## 2. Views and interaction — active
 
-- [ ] **Board columns by section** — Todoist boards group sections; this board groups priority.
-- [ ] **Calendar week/day views**, drag-to-reschedule and drag-to-create.
-- [ ] **Time blocking** — durations shown visually in the calendar.
-- [ ] **Upcoming parity** — calendar-style Upcoming with drag rescheduling.
-- [ ] **Move/drag a task between sections** (the section filter already exists).
-- [~] **Per-view sort memory** — sorting is global, not remembered per project/view.
-- [ ] **Filter syntax parity** — align with Todoist's operators and add autocomplete/help.
-- [ ] **Mobile gestures** — swipe to complete/schedule, long-press parity.
-- [~] **Keyboard shortcut coverage** — many exist, not Todoist's full set.
+- [x] **Board columns by section** — a project board groups its sections (plus "No section"); other boards group by priority.
+- [x] **Calendar week/day views**, drag-to-reschedule and drag-to-create — month/week/day scales with a time grid.
+- [x] **Time blocking** — timed tasks render as duration-sized blocks, and dragging empty time creates a task with that duration.
+- [x] **Upcoming parity** — dated day headers double as drop targets for rescheduling.
+- [x] **Move/drag a task between sections** — dragging a card to another section column updates `sectionId`.
+- [x] **Per-view sort memory** — `ui.sortByView` remembers the sort per view and board.
+- [~] **Filter syntax parity** — added `due:`, `created:`, `search:`, `no:label`, `no:priority`, `has:reminders`, `has/no:deadline`, `has:attachment`, `*`; no autocomplete yet.
+- [x] **Mobile gestures** — swipe right completes, swipe left opens the due editor.
+- [~] **Keyboard shortcut coverage** — added `a`, `k`, `g` sequences; still not Todoist's full set.
+- [~] **Time-block overlap handling** — overlapping timed tasks stack vertically but do not yet side-by-side tile.
 
 ## 3. Notifications — active
 

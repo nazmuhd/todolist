@@ -7,6 +7,7 @@
  */
 import { state, saveState } from '../core/state.js';
 import { activeTasks, completedTasks } from '../core/tasks.js';
+import { requestRender } from '../core/render.js';
 import { parseDate, toISODate, todayISO, daysFromToday, formatDateShort, isTaskOverdue, dueSortValue } from '../core/dates.js';
 import { escapeHtml } from '../core/text.js';
 import { queryMatcher, savedFilters } from '../features/filters.js';
@@ -271,11 +272,11 @@ export function renderUpcoming(list) {
   }
   document.getElementById('empty-state').classList.add('hidden');
   list.innerHTML = groups.map(g => `
-    <li class="day-group-header" data-day-group="${g.key}">
+    <li class="day-group-header" data-day-group="${g.key}" title="Drop a task here to reschedule it">
       <span>${escapeHtml(g.label)}</span>
       <span class="text-td-muted font-normal">${g.tasks.length}</span>
     </li>
-    ${g.tasks.map(t => renderTaskRow(t, false)).join('')}
+    ${g.tasks.map(t => renderTaskRow(t, false, { draggable: true })).join('')}
   `).join('');
   // Grouped order is date order, so drag reordering is disabled here.
   bindTaskEvents(false);
@@ -311,11 +312,11 @@ export function renderToday(list) {
   document.getElementById('empty-state').classList.add('hidden');
   list.innerHTML = groups.map(g => `
     ${g.label ? `
-    <li class="day-group-header" data-day-group="${g.key}">
+    <li class="day-group-header" data-day-group="${g.key}" title="Drop a task here to reschedule it">
       <span>${escapeHtml(g.label)}</span>
       <span class="text-td-muted font-normal">${g.tasks.length}</span>
     </li>` : ''}
-    ${g.tasks.map(t => renderTaskRow(t, false)).join('')}
+    ${g.tasks.map(t => renderTaskRow(t, false, { draggable: true })).join('')}
   `).join('');
   // Grouped order is date order, so drag reordering is disabled here.
   bindTaskEvents(false);
@@ -433,7 +434,42 @@ export function renderSortMenu() {
 
 /** Section filter chips in the project view. */
 export function initListView(onSectionFilter) {
-  document.getElementById('task-list').addEventListener('click', (e) => {
+  const list = document.getElementById('task-list');
+
+  // Grouped views (Upcoming, Today) let a task be dragged onto another day
+  // header to reschedule it.
+  list.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('li[data-task-id][draggable="true"]');
+    if (!row || !e.dataTransfer) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', row.dataset.taskId);
+  });
+  list.addEventListener('dragover', (e) => {
+    const header = e.target.closest('.day-group-header[data-day-group]');
+    if (!header || !/^\d{4}-\d{2}-\d{2}$/.test(header.dataset.dayGroup)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    header.classList.add('cal-drop-target');
+  });
+  list.addEventListener('dragleave', (e) => {
+    const header = e.target.closest('.day-group-header[data-day-group]');
+    if (header) header.classList.remove('cal-drop-target');
+  });
+  list.addEventListener('drop', (e) => {
+    const header = e.target.closest('.day-group-header[data-day-group]');
+    if (!header) return;
+    header.classList.remove('cal-drop-target');
+    const day = header.dataset.dayGroup;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !e.dataTransfer) return;
+    e.preventDefault();
+    const task = state.tasks.find(t => t.id === e.dataTransfer.getData('text/plain'));
+    if (!task || task.due === day) return;
+    task.due = day;
+    saveState();
+    requestRender();
+  });
+
+  list.addEventListener('click', (e) => {
     const more = e.target.closest('[data-load-more]');
     if (more) {
       visibleLimit += PAGE_SIZE;

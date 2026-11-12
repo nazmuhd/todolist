@@ -167,6 +167,8 @@ $('#sort-menu').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-sort]');
   if (!btn) return;
   state.ui.sort = btn.dataset.sort;
+  if (!state.ui.sortByView) state.ui.sortByView = {};
+  state.ui.sortByView[state.ui.view] = state.ui.sort;
   $('#sort-menu').classList.add('hidden');
   saveState();
   requestRender();
@@ -234,11 +236,17 @@ document.addEventListener('keydown', (e) => {
 ============================================================ */
 const SHORTCUTS = [
   { keys: ['q'], label: 'Add a task' },
+  { keys: ['a'], label: 'Add a task' },
   { keys: ['/'], label: 'Search' },
   { keys: ['i'], label: 'Go to Inbox' },
   { keys: ['t'], label: 'Go to Today' },
   { keys: ['u'], label: 'Go to Upcoming' },
   { keys: ['c'], label: 'Go to Completed' },
+  { keys: ['k'], label: 'Go to Calendar' },
+  { keys: ['g', 'i'], label: 'Go to Inbox (sequence)' },
+  { keys: ['g', 't'], label: 'Go to Today (sequence)' },
+  { keys: ['g', 'u'], label: 'Go to Upcoming (sequence)' },
+  { keys: ['g', 'c'], label: 'Go to Calendar (sequence)' },
   { keys: ['b'], label: 'Toggle board / list' },
   { keys: ['?'], label: 'Show this help' },
   { keys: ['Esc'], label: 'Close dialogs and menus' },
@@ -271,6 +279,10 @@ export function closeShortcuts() {
 }
 
 $('#shortcuts-close').onclick = () => shortcutsModal.close();
+
+// Two-key sequences such as "g i".
+let gPrefix = false;
+let gPrefixTimer = 0;
 
 document.addEventListener('keydown', (e) => {
   // Don't trigger inside inputs/textarea
@@ -323,11 +335,32 @@ document.addEventListener('keydown', (e) => {
   }
 
   const key = e.key.toLowerCase();
-  if (key === 'q') { e.preventDefault(); openQuickAdd(); return; }
+  if (key === 'g') {
+    e.preventDefault();
+    gPrefix = true;
+    clearTimeout(gPrefixTimer);
+    gPrefixTimer = setTimeout(() => { gPrefix = false; }, 1200);
+    return;
+  }
+  if (gPrefix) {
+    gPrefix = false;
+    clearTimeout(gPrefixTimer);
+    const destinations = {
+      i: 'inbox', t: 'today', u: 'upcoming', c: 'calendar',
+      d: 'completed', n: 'no-date', p: 'no-priority',
+    };
+    if (destinations[key]) {
+      e.preventDefault();
+      services.navigateTo(destinations[key]);
+      return;
+    }
+  }
+  if (key === 'q' || key === 'a') { e.preventDefault(); openQuickAdd(); return; }
   if (key === 'i') { e.preventDefault(); services.navigateTo('inbox'); return; }
   if (key === 't') { e.preventDefault(); services.navigateTo('today'); return; }
   if (key === 'u') { e.preventDefault(); services.navigateTo('upcoming'); return; }
   if (key === 'c') { e.preventDefault(); services.navigateTo('completed'); return; }
+  if (key === 'k') { e.preventDefault(); services.navigateTo('calendar'); return; }
   if (key === 'b') {
     if (!supportsBoard()) return;
     e.preventDefault();

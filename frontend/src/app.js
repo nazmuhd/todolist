@@ -141,6 +141,7 @@ async function init() {
       if (isKnownView(view)) {
         state.ui.view = view;
         state.ui.search = q;
+        state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
         $('#search-input').value = q;
       }
     }

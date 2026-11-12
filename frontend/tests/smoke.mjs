@@ -262,6 +262,147 @@ try {
   await sleep(200);
   check('completion-based repeat rolls forward', await evalJs(`document.getElementById('task-list').textContent.includes('Daily standup')`));
 
+  // ---- Section 2: views, sorting, calendar scales, filters, drag. ----
+
+  // Per-view sort is remembered when leaving and returning to a view.
+  await evalJs(`document.querySelector('[data-view="inbox"]').click()`);
+  await sleep(120);
+  await evalJs(`document.getElementById('sort-menu-btn').click()`);
+  await waitFor(`!document.getElementById('sort-menu').classList.contains('hidden')`, 'sort menu open');
+  await evalJs(`document.querySelector('#sort-menu [data-sort="name"]').click()`);
+  await sleep(120);
+  await evalJs(`document.querySelector('[data-view="today"]').click()`);
+  await sleep(120);
+  await evalJs(`document.querySelector('[data-view="inbox"]').click()`);
+  await sleep(120);
+  await evalJs(`document.getElementById('sort-menu-btn').click()`);
+  await waitFor(`!document.getElementById('sort-menu').classList.contains('hidden')`, 'sort menu reopened');
+  check('per-view sort is remembered', await evalJs(`document.querySelector('#sort-menu [data-sort="name"]').classList.contains('text-td-red')`));
+  await evalJs(`document.getElementById('sort-menu').classList.add('hidden')`);
+
+  // Filter operators: search: and has:deadline.
+  await evalJs(`(() => {
+    const i = document.getElementById('search-input');
+    i.value = 'search:Daily';
+    i.dispatchEvent(new Event('input', {bubbles:true}));
+  })()`);
+  await sleep(150);
+  check('search: filter operator works', await evalJs(`document.getElementById('task-list').textContent.includes('Daily standup')`));
+  await evalJs(`(() => {
+    const i = document.getElementById('search-input');
+    i.value = 'has:deadline';
+    i.dispatchEvent(new Event('input', {bubbles:true}));
+  })()`);
+  await sleep(150);
+  check('has:deadline filter operator works', await evalJs(`(() => {
+    const text = document.getElementById('task-list').textContent;
+    return text.includes('Daily standup') && !text.includes('Tomorrow');
+  })()`));
+  await evalJs(`(() => {
+    const i = document.getElementById('search-input');
+    i.value = '';
+    i.dispatchEvent(new Event('input', {bubbles:true}));
+  })()`);
+  await sleep(120);
+
+  // Calendar scales: month → week → day.
+  await evalJs(`document.querySelector('[data-view="calendar"]').click()`);
+  await waitFor(`!!document.querySelector('#calendar-view [data-cal-scale="month"]')`, 'calendar month scale');
+  check('calendar starts in month scale', await evalJs(`!!document.querySelector('#calendar-view .cal-grid')`));
+  await evalJs(`document.querySelector('#calendar-view [data-cal-scale="week"]').click()`);
+  await waitFor(`!!document.querySelector('#calendar-view .cal-time-scroll')`, 'calendar week scale');
+  check('week scale shows seven day columns', await evalJs(`document.querySelectorAll('#calendar-view .cal-time-col').length === 7`));
+  await evalJs(`document.querySelector('#calendar-view [data-cal-scale="day"]').click()`);
+  await waitFor(`document.querySelectorAll('#calendar-view .cal-time-col').length === 1`, 'calendar day scale');
+  check('day scale shows one time column', await evalJs(`document.querySelectorAll('#calendar-view .cal-time-col').length === 1`));
+  await evalJs(`document.querySelector('#calendar-view [data-cal-scale="month"]').click()`);
+  await waitFor(`!!document.querySelector('#calendar-view .cal-grid')`, 'calendar back to month');
+
+  // Board groups a project's tasks by section.
+  await evalJs(`document.getElementById('add-project-btn').click()`);
+  await waitFor(`document.getElementById('project-modal').open`, 'sections project modal');
+  await evalJs(`(() => {
+    const n = document.getElementById('project-name');
+    n.value = 'Sections Project';
+    n.dispatchEvent(new Event('input', {bubbles:true}));
+    const sec = document.getElementById('project-section-name');
+    sec.value = 'Alpha';
+    document.getElementById('project-section-add').click();
+    sec.value = 'Beta';
+    document.getElementById('project-section-add').click();
+    document.getElementById('save-project').click();
+  })()`);
+  await waitFor(`!![...document.querySelectorAll('.nav-item')].find(a => a.textContent.includes('Sections Project'))`, 'sections project created');
+  await evalJs(`[...document.querySelectorAll('.nav-item')].find(a => a.textContent.includes('Sections Project')).click()`);
+  await sleep(150);
+  await evalJs(`document.querySelector('[data-layout="board"]').click()`);
+  await waitFor(`!!document.querySelector('#board-view .board-column')`, 'section board renders');
+  check('board columns follow project sections', await evalJs(`(() => {
+    const labels = [...document.querySelectorAll('#board-view .board-column[data-group="section"]')].map(c => c.textContent);
+    return labels.length === 2 && labels.some(t => t.includes('Alpha')) && labels.some(t => t.includes('Beta'));
+  })()`));
+
+  // A task assigned to a section appears in that part's column.
+  await evalJs(`document.getElementById('quick-add-placeholder').click()`);
+  await waitFor(`!document.getElementById('quick-add-editor').classList.contains('hidden')`, 'quick add in section project');
+  await evalJs(`(() => {
+    const t = document.getElementById('quick-add-input');
+    t.value = 'Beta task';
+    t.dispatchEvent(new Event('input', {bubbles:true}));
+    document.getElementById('quick-add-submit').click();
+  })()`);
+  await waitFor(`!![...document.querySelectorAll('#board-view [data-task-id]')].find(c => c.textContent.includes('Beta task'))`, 'section task added');
+  await evalJs(`(() => {
+    const card = [...document.querySelectorAll('#board-view [data-task-id]')].find(c => c.textContent.includes('Beta task'));
+    card.querySelector('.task-edit').click();
+  })()`);
+  await waitFor(`document.getElementById('task-modal').open`, 'section task modal');
+  await evalJs(`(() => {
+    const sel = document.getElementById('modal-section');
+    const beta = [...sel.options].find(o => o.textContent === 'Beta');
+    sel.value = beta.value;
+    sel.dispatchEvent(new Event('change', {bubbles:true}));
+    document.getElementById('modal-save').click();
+  })()`);
+  await waitFor(`!document.getElementById('task-modal').open`, 'section task saved');
+  await sleep(150);
+  check('a sectioned task lands in its section column', await evalJs(`(() => {
+    const cols = [...document.querySelectorAll('#board-view .board-column[data-group="section"]')];
+    const beta = cols.find(c => c.textContent.includes('Beta'));
+    return !!beta && beta.textContent.includes('Beta task');
+  })()`));
+
+  // Upcoming day headers are drop targets for rescheduling.
+  await evalJs(`document.querySelector('[data-view="upcoming"]').click()`);
+  await sleep(150);
+  const dragResult = await evalJs(`(() => {
+    const headers = [...document.querySelectorAll('#task-list .day-group-header[data-day-group]')]
+      .filter(h => /^\\d{4}-\\d{2}-\\d{2}$/.test(h.dataset.dayGroup));
+    if (headers.length < 2) return { ok: false, reason: 'need two dated groups' };
+    const from = headers[0];
+    const to = headers[1];
+    const row = from.nextElementSibling;
+    if (!row || !row.matches('li[data-task-id]')) return { ok: false, reason: 'no row after header' };
+    const id = row.dataset.taskId;
+    const dt = new DataTransfer();
+    row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    to.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    to.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    return { ok: true, id, day: to.dataset.dayGroup };
+  })()`);
+  await sleep(200);
+  if (dragResult && dragResult.ok) {
+    check('dropping on a day header reschedules the task', await evalJs(`(() => {
+      const row = document.querySelector('#task-list li[data-task-id="${dragResult.id}"]');
+      if (!row) return false;
+      let prev = row.previousElementSibling;
+      while (prev && !prev.classList.contains('day-group-header')) prev = prev.previousElementSibling;
+      return !!prev && prev.dataset.dayGroup === '${dragResult.day}';
+    })()`));
+  } else {
+    check('dropping on a day header reschedules the task', false, dragResult && dragResult.reason);
+  }
+
   const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   check('no console errors', realErrors.length === 0, realErrors.join(' | '));
 } catch (err) {

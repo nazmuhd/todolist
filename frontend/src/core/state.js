@@ -159,7 +159,7 @@ export function defaultState() {
     ],
     tasks: [],
     templates: [],
-    ui: { view: 'inbox', activeId: null, search: '', layout: 'list', sort: 'manual' },
+    ui: { view: 'inbox', activeId: null, search: '', layout: 'list', sort: 'manual', sortByView: {}, calendarScale: 'month' },
     updatedAt: 0,
   };
 }
@@ -329,6 +329,16 @@ export function normalizeState(s) {
       search: asText(rawUi.search),
       layout: rawUi.layout === 'board' ? 'board' : 'list',
       sort: ['manual', 'date', 'priority', 'name', 'added'].includes(rawUi.sort) ? rawUi.sort : 'manual',
+      sortByView: (() => {
+        const valid = ['manual', 'date', 'priority', 'name', 'added'];
+        const raw = rawUi.sortByView && typeof rawUi.sortByView === 'object' ? rawUi.sortByView : {};
+        const out = {};
+        Object.keys(raw).forEach((key) => {
+          if (valid.includes(raw[key])) out[key] = raw[key];
+        });
+        return out;
+      })(),
+      calendarScale: ['month', 'week', 'day'].includes(rawUi.calendarScale) ? rawUi.calendarScale : 'month',
       calendarMonth: /^\d{4}-\d{2}$/.test(asText(rawUi.calendarMonth)) ? asText(rawUi.calendarMonth) : null,
       calendarSelected: /^\d{4}-\d{2}-\d{2}$/.test(asText(rawUi.calendarSelected)) ? asText(rawUi.calendarSelected) : null,
     },

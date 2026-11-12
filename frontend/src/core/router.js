@@ -64,6 +64,7 @@ export function applyHash() {
   if (view === state.ui.view && q === (state.ui.search || '')) return;
   state.ui.view = view;
   state.ui.search = q;
+  state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
   const input = $('#search-input');
   if (input) input.value = q;
   saveState();
@@ -81,6 +82,7 @@ export function pulseViewIn() {
 export function navigateTo(view) {
   state.ui.view = view;
   state.ui.search = '';
+  state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
   $('#search-input').value = '';
   saveState();
   requestRender();
