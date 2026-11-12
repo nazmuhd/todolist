@@ -55,6 +55,29 @@ const lowContrast = () => evalJs(`(() => {
   return JSON.stringify(bad);
 })()`);
 
+/** Finds elements whose border is lighter than the dark background. */
+const lightBorders = () => evalJs(`(() => {
+  const parse = c => {
+    const m = c.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?\\)/);
+    return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null;
+  };
+  const out = [];
+  document.querySelectorAll('body *').forEach(el => {
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return;
+    ['borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor'].forEach(side => {
+      const w = parseFloat(cs[side.replace('Color', 'Width')]) || 0;
+      if (w < 0.5) return;
+      const c = parse(cs[side]);
+      if (!c || c.a < 0.3) return;
+      if (c.r < 150 && c.g < 150 && c.b < 150) return;
+      out.push(side + ' ' + cs[side] + ' .' + el.className.toString().slice(0, 40));
+    });
+  });
+  return JSON.stringify(out);
+})()`);
+
 try {
   await send('Runtime.enable');
   await send('Log.enable');
@@ -118,15 +141,32 @@ try {
   await evalJs(`document.getElementById('shortcuts-close').click()`);
   await sleep(300);
 
-  // Settings points at the popup rather than listing them.
+  // Settings carries Export and Import rather than the shortcut list.
   await evalJs(`document.getElementById('settings-btn').click()`);
   await sleep(800);
-  check('Settings links to the shortcuts popup', await evalJs(`!!document.querySelector('#settings-body [data-open-shortcuts]')`));
+  check('Settings has an Export button', await evalJs(`!!document.querySelector('#settings-body [data-open-export]')`));
+  check('Settings has an Import button', await evalJs(`!!document.querySelector('#settings-body [data-open-import]')`));
   check('Settings does not list the shortcuts itself', await evalJs(`document.querySelectorAll('#settings-body .shortcut-row').length === 0`));
-  await evalJs(`document.querySelector('#settings-body [data-open-shortcuts]').click()`);
+
+  // Export opens the export dialog.
+  await evalJs(`document.querySelector('#settings-body [data-open-export]').click()`);
   await sleep(600);
-  check('the Settings link opens the popup', await evalJs(`document.getElementById('shortcuts-modal').open`));
-  await evalJs(`document.getElementById('shortcuts-close').click()`);
+  check('the Settings Export button opens the export dialog', await evalJs(`document.getElementById('export-modal').open`));
+  await evalJs(`document.getElementById('export-close').click()`);
+  await sleep(300);
+
+  // Import opens the file picker.
+  await evalJs(`document.getElementById('settings-btn').click()`);
+  await sleep(600);
+  await evalJs(`(() => {
+    window.__importOpened = false;
+    const input = document.getElementById('import-file');
+    input.addEventListener('click', () => { window.__importOpened = true; }, { once: true });
+    document.querySelector('#settings-body [data-open-import]').click();
+  })()`);
+  await sleep(600);
+  check('the Settings Import button opens the file picker', await evalJs(`window.__importOpened === true`));
+  await evalJs(`document.getElementById('settings-close').click()`);
   await sleep(300);
 
   // The collapsed rail menu opens the same popup.
@@ -156,14 +196,20 @@ try {
   await useDarkMode();
   check('the board view is readable in dark mode', JSON.parse(await lowContrast()).length === 0,
     JSON.parse(await lowContrast()).join(' | '));
+  check('the header has no light borders', JSON.parse(await lightBorders()).length === 0,
+    JSON.parse(await lightBorders()).join(' | '));
   await evalJs(`document.querySelector('[data-layout="board"]').click()`);
   await sleep(600);
   check('the board has no low-contrast text', JSON.parse(await lowContrast()).length === 0,
     JSON.parse(await lowContrast()).join(' | '));
+  check('the board has no light borders', JSON.parse(await lightBorders()).length === 0,
+    JSON.parse(await lightBorders()).join(' | '));
   await evalJs(`document.querySelector('[data-view="calendar"]').click()`);
   await sleep(700);
   check('the calendar has no low-contrast text', JSON.parse(await lowContrast()).length === 0,
     JSON.parse(await lowContrast()).join(' | '));
+  check('the calendar has no light borders', JSON.parse(await lightBorders()).length === 0,
+    JSON.parse(await lightBorders()).join(' | '));
   await evalJs(`document.getElementById('shortcuts-btn').click()`);
   await sleep(500);
   check('the shortcuts popup has no low-contrast text', JSON.parse(await lowContrast()).length === 0,

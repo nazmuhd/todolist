@@ -146,17 +146,24 @@ async function refreshBackups() {
 }
 
 /**
- * The keyboard shortcuts live in their own overlay, which the header button
- * and the collapsed-rail menu both open.
+ * Export and import, in the settings dialog.
+ *
+ * The sidebar has these too, but the sidebar can be collapsed into a rail
+ * where they are hard to reach, so they are here as well.
  */
-function shortcutsSection() {
+function dataSection() {
   return `
     <div class="mb-2 border-t border-td-border pt-4">
-      <div class="text-xs text-td-muted mb-1">Keyboard shortcuts</div>
-      <p class="text-xs text-td-muted mb-2">Press <kbd class="kbd">?</kbd> anywhere to see the full list.</p>
-      <button type="button" class="qa-pick" data-open-shortcuts>
-        <i data-lucide="keyboard" class="w-3.5 h-3.5"></i> Show the keyboard shortcuts
-      </button>
+      <div class="text-xs text-td-muted mb-1">Your data</div>
+      <p class="text-xs text-td-muted mb-2">Export a backup of everything, or restore one you exported earlier.</p>
+      <div class="flex flex-wrap gap-1">
+        <button type="button" class="qa-pick" data-open-export>
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Export
+        </button>
+        <button type="button" class="qa-pick" data-open-import>
+          <i data-lucide="upload" class="w-3.5 h-3.5"></i> Import
+        </button>
+      </div>
     </div>`;
 }
 
@@ -171,14 +178,20 @@ function renderSettings() {
           return `<button type="button" class="qa-pick" data-setting="${def.key}" data-value="${escapeHtml(raw)}" aria-pressed="${active}">${escapeHtml(label)}</button>`;
         }).join('')}
       </div>
-    </div>`).join('') + shortcutsSection() + backupSection() + pushSection();
+    </div>`).join('') + dataSection() + backupSection() + pushSection();
 }
 
 $('#settings-body').addEventListener('click', async (e) => {
   // Open the keyboard shortcuts overlay.
-  if (e.target.closest('[data-open-shortcuts]')) {
+  // Export and import, which live in the sidebar too.
+  if (e.target.closest('[data-open-export]')) {
     closeSettings();
-    document.getElementById('shortcuts-btn')?.click();
+    document.getElementById('export-data-btn')?.click();
+    return;
+  }
+  if (e.target.closest('[data-open-import]')) {
+    closeSettings();
+    document.getElementById('import-data-btn')?.click();
     return;
   }
 

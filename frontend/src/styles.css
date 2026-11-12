@@ -306,6 +306,10 @@ h1, h2, h3 {
 .layout-btn:hover { background: #f6f6f6; color: #202020; }
 .layout-btn:focus-visible { outline: 2px solid #246fe0; outline-offset: -2px; }
 
+/* The separator between the layout buttons was a hard-coded light grey,
+   which showed as a white line in dark mode. */
+[data-theme="dark"] .layout-btn + .layout-btn { border-left-color: #333 !important; }
+
 /* A header button that stands on its own, with a border of its own. */
 .layout-btn-outline {
   border: 1px solid #e5e5e5;
@@ -754,7 +758,7 @@ h1, h2, h3 {
 [data-theme="dark"] .cal-cell:hover { background: #212121 !important; }
 [data-theme="dark"] .cal-cell.other { background: #191919 !important; }
 [data-theme="dark"] .cal-dow,
-[data-theme="dark"] .cal-panel-head { background: #212121 !important; }
+[data-theme="dark"] .cal-panel-head { background: #212121 !important; border-bottom-color: #2f2f2f !important; }
 [data-theme="dark"] .cal-panel { border-color: #2f2f2f !important; }
 [data-theme="dark"] .cal-task { background: #262626 !important; color: #e6e6e6 !important; }
 [data-theme="dark"] .cal-task:hover { background: #2f2f2f !important; }
@@ -777,7 +781,7 @@ h1, h2, h3 {
 
 [data-theme="dark"] .day-group-header { color: #e6e6e6 !important; border-bottom-color: #2f2f2f !important; }
 [data-theme="dark"] .empty-illustration::before { background: #232323 !important; }
-[data-theme="dark"] .empty-illustration-card { background: #1c1c1c !important; }
+[data-theme="dark"] .empty-illustration-card { background: #1c1c1c !important; border-color: #2f2f2f !important; }
 [data-theme="dark"] .due-preset { background: #242424 !important; color: #cfcfcf !important; border-color: #333 !important; }
 [data-theme="dark"] .due-preset:hover { background: #2e2e2e !important; color: #fff !important; }
 

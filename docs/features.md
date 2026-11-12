@@ -91,11 +91,11 @@ other boundaries are listed in `gaps.md`.
 |---|---|---|
 | ✅ | Responsive layout, off-canvas sidebar on phones | Everywhere |
 | ✅ | Dark mode, system theme | Settings |
-| ✅ | Settings (theme, week start, default priority/reminder, date/time format) | Sidebar → gear |
+| ✅ | Settings (theme, week start, default priority/reminder, date/time format, export, import, backups) | Sidebar → gear |
 | ✅ | Deep links (`#/today?q=p1`), back/forward | Address bar |
 | ✅ | Installable PWA, works offline | Manifest + service worker |
-| ✅ | Export: JSON, CSV, Markdown, ICS | Sidebar → Export |
-| ✅ | Import this app's JSON backup, with a pre-import safety copy | Sidebar → Import |
+| ✅ | Export: JSON, CSV, Markdown, ICS | Sidebar → Export, Settings |
+| ✅ | Import this app's JSON backup, with a pre-import safety copy | Sidebar → Import, Settings |
 | ✅ | Import a **Todoist JSON backup** (projects, sections, labels, tasks, notes, reminders) | Sidebar → Import |
 | ✅ | Multi-tab sync | Storage adapter change channel |
 | ✅ | Undo toasts, completion and view animations | Everywhere |
