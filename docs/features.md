@@ -5,6 +5,10 @@ platform limits and intentionally out-of-scope work are listed in `gaps.md`.
 
 Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 
+Counts are not capped: projects, labels, saved filters, comments and
+attachments are all limited only by disk space. The per-file size cap and the
+other boundaries are listed in `gaps.md`.
+
 ## Task management
 
 | | Feature | Where |
@@ -14,6 +18,7 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 | ✅ | Repeat rules ("every Monday", "every 2 weeks", …) | RRULE, due-date dialog |
 | ✅ | Repeat **end conditions** (after N times / on a date) | Due-date dialog (`COUNT` / `UNTIL`) |
 | ✅ | Multiple reminders per task, with preset and custom offsets | Due-date dialog |
+| ✅ | Absolute-time reminders (a specific date and time, not just "N minutes before") | Due-date dialog |
 | ✅ | Notification **Complete** and **Snooze** actions (10m / 1h / tomorrow) | System notifications |
 | ✅ | In-page + system notifications while the tab is open | Reminder scheduler |
 | ✅ | Server-side Web Push reminders with every tab closed | Reminder worker + service worker |
@@ -22,14 +27,13 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 | ✅ | Estimated duration (task duration) | Task modal |
 | ✅ | Sub-tasks, nested more than one level | Task rows |
 | ✅ | Inline title editing | Click a title |
-| ✅ | Attachments stored in SQLite + IndexedDB | Task modal, `/api/blobs` |
+| ✅ | Attachments stored in SQLite + IndexedDB, unlimited count | Task modal, `/api/blobs` |
 | ✅ | Comments per task | Task modal |
 | ✅ | Sections inside projects | Project dialog, project view |
 | ✅ | Quick-add defaults | Quick add |
 | ✅ | Deadlines separate from due dates (date + optional time) | Due-date dialog, task rows |
 | ✅ | Start dates — recurrence skips occurrences before the start date | Due-date dialog |
 | ✅ | Completion-based recurrence ("every!" counts from completion) | Quick add, due-date dialog |
-| ✅ | Absolute-time reminders | Due-date dialog |
 | ✅ | Rich text (safe Markdown subset, checklists) in descriptions and comments | Task modal |
 | ✅ | Reusable task/project templates (saved locally in the browser) | Sidebar → Templates |
 | ✅ | Per-task timezone for due-time reminders | Due-date dialog |
@@ -51,7 +55,7 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 | ✅ | Duration-sized time blocks in week/day views | Calendar |
 | ✅ | Drag an Upcoming/Today task onto a day header to reschedule | Upcoming, Today |
 | ✅ | Filter query language (`p1`, `#project`, `overdue`, `7 days`, `due:`, `created:`, `has:`, `no:`, `!`, `&`, `|`) | Search box |
-| ✅ | Custom / saved filters | Sidebar → My filters |
+| ✅ | Custom / saved filters, no count limit | Sidebar → My filters |
 | ✅ | Sorting (manual, date, priority, name, added), remembered per view | Header menu |
 | ✅ | Section filter in a project; drag a task between section columns | Project view |
 | ✅ | Swipe right to complete, swipe left to open the due editor on touch | Task rows |
@@ -61,7 +65,7 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open
 
 | | Feature | Where |
 |---|---|---|
-| ✅ | Projects with colour, pin, edit, delete, drag-reorder | Sidebar |
+| ✅ | Projects with colour, pin, edit, delete, drag-reorder, no count limit | Sidebar |
 | ✅ | Labels with colour, pin, edit, delete, drag-reorder | Sidebar |
 | ✅ | Move a task to a project or label | Context menu, batch bar |
 | ✅ | Move a task to a section | Context menu, board drag |

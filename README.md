@@ -4,6 +4,10 @@ A local-first todo app: tasks, projects, labels, recurring tasks,
 reminders, a calendar, karma stats, filters, dark mode — and it works
 offline.
 
+Projects, saved filters and attachments are not capped in number; each
+attachment must be 25 MB or smaller. The full list of limits is in
+`docs/gaps.md`.
+
 ```
 todoist/
 ├── frontend/                 the app (Vite, native ES modules)
