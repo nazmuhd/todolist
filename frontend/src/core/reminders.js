@@ -8,15 +8,19 @@
  */
 import { state, persistState } from './state.js';
 import { taskReminders } from './tasks.js';
-import { formatDue, reminderFireDate } from './dates.js';
+import { formatDue, reminderAt } from './dates.js';
 import { showToast } from './toasts.js';
 import { services } from './services.js';
 
-/** Identifies the due date + reminder offsets a task was last fired for. */
+/** Identifies the due date + reminder schedule a task was last fired for. */
 export function reminderKey(t) {
-  if (!t || !t.due) return '';
-  const offsets = taskReminders(t).map(r => r.minutes).sort((a, b) => a - b).join(',');
-  return `${t.due}|${t.dueTime || ''}|${offsets}`;
+  if (!t) return '';
+  const parts = taskReminders(t)
+    .map(r => (r.at ? `at:${r.at}` : `m:${r.minutes}`))
+    .sort()
+    .join(',');
+  if (!parts) return '';
+  return `${t.due || ''}|${t.dueTime || ''}|${t.timeZone || ''}|${parts}`;
 }
 
 export function ensureNotificationPermission() {
@@ -52,14 +56,14 @@ function notifyTask(t) {
  */
 export function checkReminders(now = Date.now()) {
   state.tasks.forEach(t => {
-    if (t.completed || !t.due) return;
+    if (t.completed) return;
     const reminders = taskReminders(t);
     if (!reminders.length) return;
     const key = reminderKey(t);
     if (!key || t.reminderFiredKey === key) return;
     // Fire the earliest reminder that is due.
     const due = reminders
-      .map(r => ({ r, at: reminderFireDate(t, r.minutes) }))
+      .map(r => ({ r, at: reminderAt(t, r) }))
       .filter(x => x.at)
       .sort((a, b) => a.at - b.at);
     const hit = due.find(x => now >= x.at.getTime());

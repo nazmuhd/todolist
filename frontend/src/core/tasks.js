@@ -5,7 +5,7 @@
 import { state, saveState } from './state.js';
 import { requestRender } from './render.js';
 import { settings, uid, cleanRecurrence } from './app.js';
-import { parseDate, toISODate, todayISO, isTaskOverdue, cleanDueTime, cleanDuration, cleanReminderMinutes, formatDue, DATE_RE } from './dates.js';
+import { parseDate, toISODate, todayISO, isTaskOverdue, cleanDueTime, cleanDuration, cleanReminderMinutes, cleanDateTime, cleanTimeZone, formatDue, DATE_RE } from './dates.js';
 import { snapshotData, offerUndo } from './undo.js';
 
 /* The phrases people actually type, checked before rrule's own parser:
@@ -67,7 +67,11 @@ export function addTask(data) {
     description: data.description || '',
     due: data.due || null,
     dueTime: cleanDueTime(data.dueTime),
+    deadline: DATE_RE.test(data.deadline || '') ? data.deadline : null,
+    deadlineTime: cleanDueTime(data.deadlineTime),
     recurrence: cleanRecurrence(data.recurrence),
+    recurrenceMode: cleanRecurrenceMode(data.recurrenceMode),
+    timeZone: cleanTimeZone(data.timeZone || null),
     reminderMinutes: cleanReminderMinutes(
       reminder === undefined || reminder === null ? null : Number(reminder)
     ),
@@ -95,10 +99,14 @@ export function toggleComplete(id) {
   // Recurring tasks roll forward to their next occurrence instead of
   // being marked done, so there is only ever one copy of the task.
   if (!t.completed && t.recurrence && t.due) {
-    // An overdue repeat skips ahead to the next future occurrence rather
-    // than landing back in the past.
-    const anchor = t.due < todayISO() ? todayISO() : t.due;
-    const next = nextRecurrenceISO({ ...t, due: anchor });
+    // Scheduled repeats skip ahead from the due date (or today when overdue).
+    // Completion-based repeats (`every!`) always start from the day the task
+    // was actually completed.
+    const completionBased = t.recurrenceMode === 'completion';
+    const anchor = completionBased
+      ? todayISO()
+      : (t.due < todayISO() ? todayISO() : t.due);
+    const next = nextRecurrenceISO({ ...t, due: anchor, startDate: null });
     if (next) {
       t.due = next;
       t.completed = false;
@@ -148,24 +156,28 @@ export function deleteTask(id) {
 }
 
 /**
- * Turns free text ("every Monday", "every 2 weeks") into a stored RRULE
- * body. Pieces the parser guessed from today's date (e.g. "every 2 weeks"
- * becoming "on Tuesday") are dropped unless the user actually said them,
- * so the rule anchors to the task's own due date.
+ * Turns free text ("every Monday", "every 2 weeks", "every! 3 days") into a
+ * stored RRULE body plus whether the next copy starts from completion.
  */
-export function parseRecurrenceText(text) {
-  const raw = String(text || '').trim().replace(/^repeat\s+/i, '');
-  if (!raw) return null;
-  if (/^FREQ=/i.test(raw)) return cleanRecurrence(raw);
+export function parseRecurrence(text) {
+  let raw = String(text || '').trim().replace(/^repeat\s+/i, '');
+  if (!raw) return { body: null, mode: 'scheduled' };
+
+  // Todoist's `every!` means "count from the day this one is completed".
+  const completion = /(^|\s)every!\s/i.test(raw) || /^every!\s/i.test(raw);
+  if (completion) raw = raw.replace(/(^|\s)every!\s*/i, '$1every ').trim();
+
+  const mode = completion ? 'completion' : 'scheduled';
+  if (/^FREQ=/i.test(raw)) return { body: cleanRecurrence(raw), mode };
   const lower = raw.toLowerCase().replace(/\s+/g, ' ');
-  if (RECURRENCE_ALIASES[lower]) return RECURRENCE_ALIASES[lower];
+  if (RECURRENCE_ALIASES[lower]) return { body: RECURRENCE_ALIASES[lower], mode };
 
   const lib = window.rrule;
-  if (!lib || !lib.RRule || typeof lib.RRule.fromText !== 'function') return null;
+  if (!lib || !lib.RRule || typeof lib.RRule.fromText !== 'function') return { body: null, mode };
 
   let parsed;
-  try { parsed = lib.RRule.fromText(raw); } catch { return null; }
-  if (!parsed || !parsed.options) return null;
+  try { parsed = lib.RRule.fromText(raw); } catch { return { body: null, mode }; }
+  if (!parsed || !parsed.options) return { body: null, mode };
 
   const KEEP = ['freq', 'interval', 'byweekday', 'bymonthday', 'bymonth', 'count', 'until', 'wkst'];
   const opts = {};
@@ -183,10 +195,15 @@ export function parseRecurrenceText(text) {
     // Noon keeps the calendar date identical in every timezone.
     const rule = new lib.RRule({ ...opts, dtstart: new Date(2020, 0, 1, 12, 0, 0, 0) });
     const line = rule.toString().split('\n').find(l => l.startsWith('RRULE:'));
-    return line ? cleanRecurrence(line.slice(6)) : null;
+    return { body: line ? cleanRecurrence(line.slice(6)) : null, mode };
   } catch {
-    return null;
+    return { body: null, mode };
   }
+}
+
+/** The RRULE body only; kept for callers that do not care about the mode. */
+export function parseRecurrenceText(text) {
+  return parseRecurrence(text).body;
 }
 
 /** Human-readable version of a stored RRULE body. */
@@ -285,13 +302,27 @@ export function snoozeTask(task) {
 export function taskReminders(t) {
   if (!t) return [];
   if (Array.isArray(t.reminders) && t.reminders.length) {
-    return t.reminders.filter(r => r && cleanReminderMinutes(r.minutes) !== null);
+    return t.reminders
+      .map(normalizeReminder)
+      .filter(Boolean);
   }
   if (t.reminderMinutes !== null && t.reminderMinutes !== undefined) {
     return [{ id: 'legacy', minutes: t.reminderMinutes }];
   }
   return [];
 }
+
+/** A reminder is either an offset (`minutes`) or a wall-clock time (`at`). */
+export function normalizeReminder(r) {
+  if (!r || typeof r !== 'object') return null;
+  const at = cleanDateTime(r.at);
+  if (at) return { id: r.id || 'r', at };
+  const minutes = cleanReminderMinutes(r.minutes);
+  if (minutes !== null) return { id: r.id || 'r', minutes };
+  return null;
+}
+
+export const cleanRecurrenceMode = (v) => (v === 'completion' ? 'completion' : 'scheduled');
 
 /** { count: n } or { until: 'YYYY-MM-DD' } — how a repeat stops. */
 export function normalizeRecurrenceEnd(v) {

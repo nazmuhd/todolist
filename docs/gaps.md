@@ -23,16 +23,17 @@ Legend: `[x]` shipped · `[~]` partly shipped · `[ ]` active gap · `⏳ later`
 
 ## 1. Task model — active
 
-- [ ] **Deadlines** separate from due dates.
-- [ ] **Start dates** (recurrence anchored to a start date, not just due).
-- [ ] **Completion-based recurrence** — Todoist's `every!` semantics (next occurrence from completion).
-- [ ] **Absolute reminders** — "remind me at 09:00 on Thursday", not only offsets.
-- [ ] **Location reminders** — arrival/leaving. Web cannot do this without a mobile app; likely stays open.
-- [ ] **Rich text** in descriptions/comments — Markdown, checklists, formatting.
-- [ ] **Reusable templates** for tasks and projects (current "templates" are quick-add defaults).
-- [ ] **Per-task timezone** — dates stay in the browser's zone today.
-- [ ] **Attachment UX** — inline image/document previews, drag-and-drop upload.
-- [ ] **Task permalinks** — deep-link directly to a task modal.
+- [x] **Deadlines** separate from due dates (`deadline` + optional `deadlineTime`).
+- [~] **Start dates** — stored and recurrence skips occurrences before it; the
+  next occurrence still anchors to the due date, not the start date.
+- [x] **Completion-based recurrence** — Todoist's `every!` semantics (next occurrence from completion).
+- [x] **Absolute reminders** — "remind me at 09:00 on Thursday", not only offsets.
+- [ ] **Location reminders** — arrival/leaving. Web cannot do this without a mobile app; stays open.
+- [x] **Rich text** in descriptions/comments — safe local Markdown (bold, italics, code, lists, checklists, links).
+- [x] **Reusable templates** for tasks and projects. Stored in `state.templates`; not synced to the server yet.
+- [x] **Per-task timezone** — used when a due-time reminder is converted to an instant.
+- [x] **Attachment UX** — image thumbnails and drag-and-drop upload.
+- [x] **Task permalinks** — `#/task/<id>` opens the task modal.
 - [~] **Assignees** — no owner field; awaits auth.
 
 ## 2. Views and interaction — active
@@ -52,7 +53,7 @@ Legend: `[x]` shipped · `[~]` partly shipped · `[ ]` active gap · `⏳ later`
 - [ ] **Notification actions** — Complete and Snooze straight from the notification.
 - [ ] **Snooze presets** on reminders.
 - [ ] **Custom reminder offsets** — currently fixed (at due, 10m, 30m, 1h, 2h, 1d).
-- [ ] **Timezone-correct server scheduling** — the worker uses the server's local zone.
+- [x] **Timezone-correct server scheduling** — the worker converts due times with the task's `timeZone`.
 - [ ] **Per-device subscription management** — the single-user store cannot target devices.
 - [ ] **Delivery retry and quiet-hours behavior** when push fails or the server is down.
 - [ ] **Email notifications** — none.

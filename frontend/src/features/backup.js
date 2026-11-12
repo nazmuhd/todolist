@@ -32,6 +32,7 @@ function exportData() {
       projects: state.projects,
       labels: state.labels,
       tasks: state.tasks,
+      templates: state.templates || [],
     },
   };
 
@@ -53,7 +54,7 @@ function csvCell(value) {
 }
 
 function csvText() {
-  const header = ['title', 'project', 'labels', 'priority', 'due', 'time', 'repeat', 'completed', 'created'];
+  const header = ['title', 'project', 'labels', 'priority', 'due', 'time', 'deadline', 'start', 'repeat', 'repeat_mode', 'timezone', 'completed', 'created'];
   const rows = state.tasks.map(t => [
     t.title,
     t.projectId ? projectName(t.projectId) : '',
@@ -61,7 +62,11 @@ function csvText() {
     `P${t.priority}`,
     t.due || '',
     t.dueTime || '',
+    t.deadline || '',
+    t.startDate || '',
     t.recurrence ? recurrenceToText(t.recurrence) : '',
+    t.recurrence ? (t.recurrenceMode === 'completion' ? 'completion' : 'due') : '',
+    t.timeZone || '',
     t.completed ? 'yes' : 'no',
     toISODate(new Date(t.createdAt || Date.now())),
   ]);
@@ -87,6 +92,8 @@ function markdownText() {
       .forEach(t => {
         const bits = [];
         if (t.due) bits.push(`@${t.due}${t.dueTime ? ` ${t.dueTime}` : ''}`);
+        if (t.deadline) bits.push(`deadline ${t.deadline}`);
+        if (t.startDate) bits.push(`starts ${t.startDate}`);
         if (t.priority < 4) bits.push(`(P${t.priority})`);
         (t.labels || []).forEach(lid => bits.push(`#${labelName(lid)}`));
         lines.push(`- [${t.completed ? 'x' : ' '}] ${t.title}${bits.length ? ` — ${bits.join(' ')}` : ''}`);
@@ -207,6 +214,7 @@ export function parseBackup(text) {
       projects: data.projects,
       labels: data.labels,
       tasks: data.tasks,
+      templates: data.templates,
     });
   } catch (err) {
     return { error: err.message || 'Could not read that backup.' };

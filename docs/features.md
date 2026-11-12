@@ -24,11 +24,15 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | ✅ | Comments per task | Task modal |
 | ✅ | Sections inside projects | Project dialog, project view |
 | ✅ | Quick-add defaults | Quick add |
-| ⬜ | Deadlines separate from due dates | — |
-| ⬜ | Start dates | — |
-| ⬜ | Completion-based recurrence ("every!") | — |
-| ⬜ | Absolute-time and location reminders | — |
-| ⬜ | Reusable task/project templates | — |
+| ✅ | Deadlines separate from due dates (date + optional time) | Due-date dialog, task rows |
+| ◐ | Start dates — recurrence skips occurrences before the start date | Due-date dialog |
+| ✅ | Completion-based recurrence ("every!" counts from completion) | Quick add, due-date dialog |
+| ◐ | Absolute-time reminders; location reminders need a native app | Due-date dialog |
+| ✅ | Rich text (safe Markdown subset, checklists) in descriptions and comments | Task modal |
+| ✅ | Reusable task/project templates (saved locally in the browser) | Sidebar → Templates |
+| ✅ | Per-task timezone for due-time reminders | Due-date dialog |
+| ✅ | Attachment thumbnails and drag-and-drop upload | Task modal |
+| ✅ | Task permalinks (`#/task/<id>`) | Task modal → Link |
 | ⏳ | Assignees | — |
 
 ## Lists and views
@@ -91,7 +95,7 @@ Legend: ✅ shipped · ◐ partly shipped · ⬜ still open · ⏳ later
 | | Feature | Where |
 |---|---|---|
 | ✅ | Local-first storage behind a swappable adapter | `storage.js` |
-| ✅ | Schema versioning with migrations (v1 → v7) | `MIGRATIONS` |
+| ✅ | Schema versioning with migrations (v1 → v8) | `MIGRATIONS` |
 | ✅ | Documents and blobs in IndexedDB (no 5 MB localStorage cap) | `storage.js` |
 | ✅ | Single-user SQLite backend (`node:sqlite`) | `server/` |
 | ✅ | Per-entity sync with per-record revisions and tombstones | `/api/sync`, `core/sync.js` |

@@ -142,10 +142,98 @@ export function taskReminderDate(t) {
 }
 
 export function reminderFireDate(t, minutes) {
-  const d = taskReminderDate(t);
+  if (!t || !t.due) return null;
+  // A task's own timezone decides which instant its wall-clock due time means.
+  const wall = `${t.due}T${t.dueTime || '09:00'}`;
+  const d = zonedDateTimeToDate(wall, t.timeZone || null) || taskReminderDate(t);
   if (!d) return null;
   d.setMinutes(d.getMinutes() - (minutes || 0));
   return d;
+}
+
+/** A wall-clock datetime such as "2026-11-12T09:00" (no timezone suffix). */
+export const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/;
+
+export const cleanDateTime = (v) => (typeof v === 'string' && DATETIME_RE.test(v) ? v : null);
+
+export function cleanTimeZone(v) {
+  if (typeof v !== 'string' || !v.trim()) return null;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: v });
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Converts a wall-clock datetime in `timeZone` to a real instant.
+ * With no timezone it is the browser's local time.
+ */
+export function zonedDateTimeToDate(local, timeZone) {
+  const match = DATETIME_RE.exec(local || '');
+  if (!match) return null;
+  const [y, mo, d] = local.slice(0, 10).split('-').map(Number);
+  const [h, mi] = local.slice(11, 16).split(':').map(Number);
+  if (!timeZone) return new Date(y, mo - 1, d, h, mi, 0, 0);
+
+  let formatter;
+  try {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+  } catch {
+    // Unknown timezone: fall back to the browser's local time.
+    return new Date(y, mo - 1, d, h, mi, 0, 0);
+  }
+
+  const wall = Date.UTC(y, mo - 1, d, h, mi, 0, 0);
+  let instant = wall;
+  for (let i = 0; i < 4; i++) {
+    const parts = formatter.formatToParts(new Date(instant));
+    const get = (type) => Number(parts.find(p => p.type === type)?.value);
+    const asWall = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
+    const diff = wall - asWall;
+    if (!diff) break;
+    instant += diff;
+  }
+  return new Date(instant);
+}
+
+/** The browser's IANA timezone, used when a task has no explicit zone. */
+export function localTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
+}
+
+/** The instant a reminder fires (absolute or relative to the due date). */
+export function reminderAt(t, reminder) {
+  if (!t || !reminder) return null;
+  if (cleanDateTime(reminder.at)) return zonedDateTimeToDate(reminder.at, t.timeZone || null);
+  if (Number.isInteger(reminder.minutes)) return reminderFireDate(t, reminder.minutes);
+  return null;
+}
+
+/** Human-readable reminder text, e.g. "Nov 12, 09:00" or "30 minutes before". */
+export function formatReminder(t, reminder) {
+  if (!reminder) return '';
+  if (cleanDateTime(reminder.at)) {
+    const d = zonedDateTimeToDate(reminder.at, t && t.timeZone);
+    if (!d) return reminder.at;
+    return `${formatDateShort(d, { year: true })} ${formatTime(reminder.at.slice(11, 16))}`;
+  }
+  return reminder.minutes === 0 ? 'At due time' : `${formatDuration(reminder.minutes)} before`;
+}
+
+/** A deadline has passed once its day is before today. */
+export function isDeadlineOverdue(t) {
+  if (!t || !t.deadline || t.completed) return false;
+  return t.deadline < todayISO();
 }
 
 export const cleanDueTime = (v) => (typeof v === 'string' && TIME_RE.test(v) ? v : null);

@@ -5,7 +5,7 @@
 import { $ } from '../core/app.js';
 import { state } from '../core/state.js';
 import { toISODate, todayISO, formatDue } from '../core/dates.js';
-import { addTask, parseRecurrenceText, recurrenceToText, firstRecurrenceISO, priorityColor, projectName, labelName } from '../core/tasks.js';
+import { addTask, parseRecurrence, recurrenceToText, firstRecurrenceISO, priorityColor, projectName, labelName } from '../core/tasks.js';
 import { escapeHtml } from '../core/text.js';
 
 const qaPlaceholder = $('#quick-add-placeholder');
@@ -74,20 +74,20 @@ const RECURRENCE_TOKEN_RE = new RegExp(
 
 function extractRecurrencePhrase(text) {
   const tokens = text.split(/\s+/);
-  const isRecurrenceToken = (tok) => RECURRENCE_TOKEN_RE.test(tok.replace(/[,;]+$/, ''));
+  const isRecurrenceToken = (tok) => RECURRENCE_TOKEN_RE.test(tok.replace(/[,;!]+$/, ''));
 
   for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i].toLowerCase() !== 'every') continue;
+    if (tokens[i].toLowerCase().replace(/!$/, '') !== 'every') continue;
     // Consume only words that can belong to a repeat phrase. Unknown words
     // (e.g. "with team") stay in the task title.
     let end = i + 1;
     while (end < tokens.length && isRecurrenceToken(tokens[end])) end++;
     for (let len = end - i; len >= 1; len--) {
       const candidate = tokens.slice(i, i + len).join(' ');
-      const body = parseRecurrenceText(candidate);
-      if (body) {
+      const parsed = parseRecurrence(candidate);
+      if (parsed.body) {
         const rest = [...tokens.slice(0, i), ...tokens.slice(i + len)].join(' ');
-        return { body, rest };
+        return { ...parsed, rest };
       }
     }
   }
@@ -96,7 +96,7 @@ function extractRecurrencePhrase(text) {
 
 export function parseQuickAdd(text) {
   let title = text;
-  let due = null, dueTime = null, recurrence = null, priority = 4, projectId = null, labels = [];
+  let due = null, dueTime = null, recurrence = null, recurrenceMode = 'scheduled', priority = 4, projectId = null, labels = [];
 
   // priority: p1..p4
   const pMatch = title.match(/\bp([1-4])\b/i);
@@ -131,6 +131,7 @@ export function parseQuickAdd(text) {
   const rec = extractRecurrencePhrase(title);
   if (rec) {
     recurrence = rec.body;
+    recurrenceMode = rec.mode;
     title = rec.rest.trim();
   }
 
@@ -160,7 +161,7 @@ export function parseQuickAdd(text) {
 
   // cleanup multiple spaces
   title = title.replace(/\s+/g, ' ').trim();
-  return { title, due, dueTime, recurrence, priority, projectId, labels };
+  return { title, due, dueTime, recurrence, recurrenceMode, priority, projectId, labels };
 }
 
 /* ------------------------------------------------------------
@@ -175,6 +176,7 @@ function applyQaOverrides(parsed) {
     due: o.due !== undefined ? o.due : parsed.due,
     dueTime: o.dueTime !== undefined ? o.dueTime : parsed.dueTime,
     recurrence: o.recurrence !== undefined ? o.recurrence : parsed.recurrence,
+    recurrenceMode: o.recurrenceMode !== undefined ? o.recurrenceMode : parsed.recurrenceMode,
     priority: o.priority !== undefined ? o.priority : parsed.priority,
     projectId: o.projectId !== undefined ? o.projectId : parsed.projectId,
     labels: o.labels !== undefined ? o.labels : parsed.labels,
@@ -360,7 +362,9 @@ $('#quick-add-picker').addEventListener('change', (e) => {
   }
   if (e.target.id === 'qa-repeat-input') {
     const raw = e.target.value.trim();
-    qaOverrides.recurrence = raw ? (parseRecurrenceText(raw) || null) : null;
+    const parsed = raw ? parseRecurrence(raw) : { body: null, mode: 'scheduled' };
+    qaOverrides.recurrence = parsed.body;
+    qaOverrides.recurrenceMode = parsed.mode;
     refreshQa();
   }
 });

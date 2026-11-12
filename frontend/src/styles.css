@@ -1078,3 +1078,48 @@ dialog {
   #search-input { width: 6.5rem; }
 }
 
+
+/* ---------- Markdown (descriptions and comments) ---------- */
+.md-inline a { color: #db4c3f; text-decoration: underline; }
+.md-p { margin: 0.15rem 0; }
+.md-h { font-weight: 600; margin: 0.35rem 0 0.15rem; }
+.md-list { margin: 0.2rem 0 0.2rem 1.1rem; list-style: disc; }
+ol.md-list { list-style: decimal; }
+.md-checklist { list-style: none; margin-left: 0.15rem; }
+.md-check { display: flex; align-items: flex-start; gap: 0.35rem; }
+.md-check.is-done { color: #808080; text-decoration: line-through; }
+.md-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.1rem;
+  border: 1px solid #bbb;
+  border-radius: 0.2rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.md-check.is-done .md-box { background: #db4c3f; border-color: #db4c3f; color: #fff; }
+.md-code { background: #f3f3f3; padding: 0.05rem 0.25rem; border-radius: 0.2rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; }
+.md-pre { background: #f3f3f3; padding: 0.5rem; border-radius: 0.35rem; overflow-x: auto; margin: 0.3rem 0; }
+.md-pre code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; }
+.md-quote { border-left: 3px solid #ddd; padding-left: 0.6rem; color: #666; margin: 0.25rem 0; }
+.md-hr { border: 0; border-top: 1px solid #e5e5e5; margin: 0.5rem 0; }
+
+/* ---------- Task attachments ---------- */
+.attachment-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  background: #f3f3f3;
+  overflow: hidden;
+}
+#modal-attachments.is-drop-target {
+  border-color: #db4c3f;
+  background: rgba(219, 76, 63, 0.06);
+}

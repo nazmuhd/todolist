@@ -6,8 +6,8 @@
  * and this module never import each other.
  */
 import { $, $$, uid, modalState, cleanRecurrence } from '../core/app.js';
-import { toISODate, todayISO, formatDue, parseDate } from '../core/dates.js';
-import { taskReminders, parseRecurrenceText, recurrenceToText } from '../core/tasks.js';
+import { toISODate, todayISO, formatDue, parseDate, localTimeZone, cleanDateTime } from '../core/dates.js';
+import { taskReminders, parseRecurrence, recurrenceToText } from '../core/tasks.js';
 import { escapeHtml } from '../core/text.js';
 import { services } from '../core/services.js';
 import { ensureNotificationPermission } from '../core/reminders.js';
@@ -27,14 +27,75 @@ const dueRepeatEndUntil = $('#due-repeat-end-until');
 const dueRepeatEndUnit = $('#due-repeat-end-unit');
 const dueStartWrap = $('#due-start-wrap');
 const dueStartInput = $('#due-start');
+const dueDeadlineInput = $('#due-deadline');
+const dueDeadlineTimeInput = $('#due-deadline-time');
+const dueRepeatMode = $('#due-repeat-mode');
+const dueRepeatModeWrap = $('#due-repeat-mode-wrap');
+const dueTimeZone = $('#due-timezone');
 
 const draft = () => modalState.draft;
+
+function toDateTimeInput(d) {
+  if (!d) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function defaultReminderAt(r) {
+  if (r && r.at) return r.at;
+  const t = draft() || {};
+  if (t.due) return `${t.due}T${t.dueTime || '09:00'}`;
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setMinutes(0, 0, 0);
+  return toDateTimeInput(d);
+}
+
+/** Replaces one reminder with the shape the chosen kind needs. */
+function reminderWithKind(r, kind) {
+  const id = r.id || uid();
+  if (kind === 'absolute') return { id, at: defaultReminderAt(r) };
+  return { id, minutes: Number.isInteger(r.minutes) ? r.minutes : 30 };
+}
 
 dueStartInput.addEventListener('change', () => {
   if (!draft()) return;
   draft().startDate = dueStartInput.value || null;
   services.updateModalChips();
 });
+
+dueDeadlineInput.addEventListener('change', () => {
+  if (!draft()) return;
+  draft().deadline = dueDeadlineInput.value || null;
+  if (!draft().deadline) draft().deadlineTime = null;
+  services.updateModalChips();
+});
+
+dueDeadlineTimeInput.addEventListener('change', () => {
+  if (!draft()) return;
+  draft().deadlineTime = dueDeadlineTimeInput.value || null;
+  services.updateModalChips();
+});
+
+dueTimeZone.addEventListener('change', () => {
+  if (!draft()) return;
+  draft().timeZone = dueTimeZone.value || null;
+  renderDueReminders();
+  services.updateModalChips();
+});
+
+function fillTimeZones() {
+  if (dueTimeZone.options.length) return;
+  const local = localTimeZone();
+  dueTimeZone.innerHTML = `<option value="">Browser timezone${local ? ` (${escapeHtml(local)})` : ''}</option>`;
+  let zones = [];
+  try {
+    if (typeof Intl.supportedValuesOf === 'function') zones = Intl.supportedValuesOf('timeZone');
+  } catch { /* older browsers */ }
+  if (!zones.length) {
+    zones = ['UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Istanbul', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney'];
+  }
+  dueTimeZone.insertAdjacentHTML('beforeend', zones.map(z => `<option value="${escapeHtml(z)}">${escapeHtml(z)}</option>`).join(''));
+}
 
 const REMINDER_OPTIONS = [
   [0, 'At time of due date'],
@@ -48,21 +109,35 @@ const REMINDER_OPTIONS = [
 function setDraftReminders(list) {
   if (!draft()) return;
   draft().reminders = list;
-  // The first reminder stays the "primary" one for the scheduler.
-  draft().reminderMinutes = list.length ? list[0].minutes : null;
+  // The first relative reminder stays the "primary" one for older code.
+  const relative = list.find(r => Number.isInteger(r.minutes));
+  draft().reminderMinutes = relative ? relative.minutes : null;
 }
 
 function renderDueReminders() {
   const list = taskReminders(draft());
-  dueRemindersBox.innerHTML = list.length ? list.map(r => `
-    <div class="flex items-center gap-1" data-reminder-id="${escapeHtml(r.id)}">
-      <select class="flex-1 text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" data-reminder-minutes aria-label="Reminder">
-        ${REMINDER_OPTIONS.map(([v, l]) => `<option value="${v}" ${Number(r.minutes) === v ? 'selected' : ''}>${l}</option>`).join('')}
-      </select>
-      <button type="button" class="text-td-muted hover:text-red-600 p-1" data-reminder-remove title="Remove reminder" aria-label="Remove reminder">
-        <i data-lucide="x" class="w-3.5 h-3.5"></i>
-      </button>
-    </div>`).join('')
+  dueRemindersBox.innerHTML = list.length ? list.map(r => {
+    const absolute = Boolean(r.at);
+    return `
+    <div class="rounded border border-td-border p-1.5 space-y-1" data-reminder-id="${escapeHtml(r.id)}">
+      <div class="flex items-center gap-1">
+        <select class="flex-1 min-w-0 text-xs bg-transparent focus:outline-none" data-reminder-kind aria-label="Reminder type">
+          <option value="relative" ${absolute ? '' : 'selected'}>Relative to due</option>
+          <option value="absolute" ${absolute ? 'selected' : ''}>At a specific time</option>
+        </select>
+        <button type="button" class="text-td-muted hover:text-red-600 p-1" data-reminder-remove title="Remove reminder" aria-label="Remove reminder">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+      ${absolute ? `
+        <input type="datetime-local" data-reminder-at value="${escapeHtml(r.at)}" aria-label="Reminder time"
+          class="w-full text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" />`
+      : `
+        <select class="w-full text-xs border border-td-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-td-red/30" data-reminder-minutes aria-label="Reminder">
+          ${REMINDER_OPTIONS.map(([v, l]) => `<option value="${v}" ${Number(r.minutes) === v ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>`}
+    </div>`;
+  }).join('')
     : '<div class="text-[11px] text-td-muted">No reminders.</div>';
   lucide.createIcons();
 }
@@ -127,13 +202,28 @@ dueRepeatEndCount.addEventListener('change', applyDueRepeatEnd);
 dueRepeatEndUntil.addEventListener('change', applyDueRepeatEnd);
 
 dueRemindersBox.addEventListener('change', (e) => {
+  const row = e.target.closest('[data-reminder-id]');
+  if (!row) return;
+  const list = taskReminders(draft());
+  if (e.target.matches('[data-reminder-kind]')) {
+    const kind = e.target.value;
+    setDraftReminders(list.map(r => (r.id === row.dataset.reminderId ? reminderWithKind(r, kind) : r)));
+    renderDueReminders();
+    services.updateModalChips();
+    return;
+  }
+  if (e.target.matches('[data-reminder-at]')) {
+    const at = cleanDateTime(e.target.value);
+    setDraftReminders(list.map(r => (r.id === row.dataset.reminderId
+      ? (at ? { id: r.id, at } : r)
+      : r)));
+    return;
+  }
   const select = e.target.closest('[data-reminder-minutes]');
   if (!select) return;
-  const row = select.closest('[data-reminder-id]');
-  const list = taskReminders(draft()).map(r => (r.id === row.dataset.reminderId
-    ? { ...r, minutes: Number(select.value) }
-    : r));
-  setDraftReminders(list);
+  setDraftReminders(list.map(r => (r.id === row.dataset.reminderId
+    ? { id: r.id, minutes: Number(select.value) }
+    : r)));
 });
 
 dueRemindersBox.addEventListener('click', (e) => {
@@ -184,12 +274,18 @@ function syncDueDateControls() {
 
 export function syncDueEditor() {
   const t = draft() || {};
+  fillTimeZones();
   dueTimeInput.value = t.dueTime || '';
   dueAllDayInput.checked = !t.dueTime;
   dueTimeInput.disabled = !t.dueTime;
   dueRepeatInput.value = t.recurrence ? recurrenceToText(t.recurrence) : '';
   dueStartInput.value = t.startDate || '';
   dueStartWrap.classList.toggle('hidden', !t.recurrence);
+  dueRepeatMode.value = t.recurrenceMode === 'completion' ? 'completion' : 'scheduled';
+  dueRepeatModeWrap.classList.toggle('hidden', !t.recurrence);
+  dueDeadlineInput.value = t.deadline || '';
+  dueDeadlineTimeInput.value = t.deadlineTime || '';
+  dueTimeZone.value = t.timeZone || '';
   dueRepeatStatus.textContent = '';
   dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-td-muted';
   setDraftReminders(taskReminders(t));
@@ -203,7 +299,8 @@ function setDueDate(iso) {
   if (!iso) {
     draft().dueTime = null;
     draft().recurrence = null;
-    setDraftReminders([]);
+    // Absolute reminders do not need a due date; relative ones do.
+    setDraftReminders(taskReminders(draft()).filter(r => r.at));
   }
   syncDueEditor();
   services.updateModalChips();
@@ -254,7 +351,7 @@ function initDueCalendar() {
       if (!dateStr) {
         draft().dueTime = null;
         draft().recurrence = null;
-        setDraftReminders([]);
+        setDraftReminders(taskReminders(draft()).filter(r => r.at));
         dueTimeInput.value = '';
         dueAllDayInput.checked = true;
         dueTimeInput.disabled = true;
@@ -274,7 +371,12 @@ export function openDueEditor() {
   dueEditorSnapshot = {
     due: draft().due,
     dueTime: draft().dueTime,
+    deadline: draft().deadline,
+    deadlineTime: draft().deadlineTime,
     recurrence: draft().recurrence,
+    recurrenceMode: draft().recurrenceMode,
+    timeZone: draft().timeZone,
+    startDate: draft().startDate,
     reminders: taskReminders(draft()).map(r => ({ ...r })),
     reminderMinutes: draft().reminderMinutes,
   };
@@ -297,14 +399,16 @@ function parseDueRepeatField() {
     syncDueRepeatEnd();
     return true;
   }
-  const body = parseRecurrenceText(raw);
-  if (!body) {
+  const parsed = parseRecurrence(raw);
+  if (!parsed.body) {
     dueRepeatStatus.textContent = 'Not sure what that means — try “every Monday”.';
     dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-red-600';
     return false;
   }
   // Keep any end condition the user already chose.
-  draft().recurrence = recurrenceWithEnd(body, recurrenceEndFromBody(draft().recurrence));
+  draft().recurrence = recurrenceWithEnd(parsed.body, recurrenceEndFromBody(draft().recurrence));
+  draft().recurrenceMode = parsed.mode;
+  dueRepeatMode.value = parsed.mode;
   if (!draft().due) setDueDate(todayISO());
   dueRepeatInput.value = draft().recurrence ? recurrenceToText(draft().recurrence) : '';
   dueRepeatStatus.textContent = `Repeats: ${recurrenceToText(draft().recurrence)}`;
@@ -313,13 +417,18 @@ function parseDueRepeatField() {
   return true;
 }
 
+dueRepeatMode.addEventListener('change', () => {
+  if (!draft()) return;
+  draft().recurrenceMode = dueRepeatMode.value === 'completion' ? 'completion' : 'scheduled';
+});
+
 export function commitDueEdits() {
   if (!draft()) return false;
   if (dueModal.open && !parseDueRepeatField()) return false;
   if (!draft().due) {
     draft().dueTime = null;
     draft().recurrence = null;
-    setDraftReminders([]);
+    setDraftReminders(taskReminders(draft()).filter(r => r.at));
   }
   services.updateModalChips();
   return true;
@@ -412,7 +521,12 @@ dueModal.addEventListener('close', () => {
   if (!dueEditorCommitted && dueEditorSnapshot && draft()) {
     draft().due = dueEditorSnapshot.due;
     draft().dueTime = dueEditorSnapshot.dueTime;
+    draft().deadline = dueEditorSnapshot.deadline;
+    draft().deadlineTime = dueEditorSnapshot.deadlineTime;
     draft().recurrence = dueEditorSnapshot.recurrence;
+    draft().recurrenceMode = dueEditorSnapshot.recurrenceMode;
+    draft().timeZone = dueEditorSnapshot.timeZone;
+    draft().startDate = dueEditorSnapshot.startDate;
     setDraftReminders((dueEditorSnapshot.reminders || []).map(r => ({ ...r })));
     draft().reminderMinutes = dueEditorSnapshot.reminderMinutes;
     services.updateModalChips();

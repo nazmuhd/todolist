@@ -28,8 +28,8 @@ let renderMainView = () => {};
 /* ============================================================
    SIDEBAR SECTIONS (collapse Projects / Labels)
 ============================================================ */
-export const SECTION_NAMES = ['filters', 'projects', 'labels'];
-const sectionCollapsed = { filters: false, projects: false, labels: false };
+export const SECTION_NAMES = ['filters', 'projects', 'labels', 'templates'];
+const sectionCollapsed = { filters: false, projects: false, labels: false, templates: false };
 
 export function setSectionCollapsed(name, collapsed) {
   const list = $(`#${name}-list`);

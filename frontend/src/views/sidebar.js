@@ -5,6 +5,7 @@ import { state, saveState } from '../core/state.js';
 import { todayISO, isTaskOverdue } from '../core/dates.js';
 import { escapeHtml } from '../core/text.js';
 import { projectName, labelName } from '../core/tasks.js';
+import { renderTemplates } from '../features/templates.js';
 import { snapshotData, offerUndo } from '../core/undo.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
@@ -103,6 +104,8 @@ export function renderSidebar() {
       services.openRowMenu(btn, btn.dataset.menuType, btn.dataset.menuId);
     };
   });
+
+  renderTemplates();
 
   document.querySelectorAll('.project-quick-add').forEach(btn => {
     btn.onclick = (e) => {

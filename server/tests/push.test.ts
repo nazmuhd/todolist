@@ -8,7 +8,7 @@ const { createApp } = await import('../src/index.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { getDb } = await import('../src/db/index.ts');
 const { replaceEntities, markReminderFired, getCursor } = await import('../src/db/repository.ts');
-const { dueReminders, reminderKey } = await import('../src/services/reminders.ts');
+const { dueReminders, reminderKey, taskReminderList, reminderAt, zonedDateTimeToDate } = await import('../src/services/reminders.ts');
 await migrate();
 
 const app = createApp({ serveApp: false });
@@ -99,8 +99,7 @@ test('due reminders are computed once and recorded', () => {
   assert.notEqual(reminderKey(changed), key);
 });
 
-test('completed tasks and far-past reminders are skipped', () => {
-  const now = Date.now();
+test('completed tasks and far-past reminders are skipped', () => {  const now = Date.now();
   const old = new Date(now - 48 * 60 * 60 * 1000);
   const due = [
     old.getFullYear(),
@@ -153,4 +152,53 @@ test('cleanup rejects an invalid age', async () => {
     const res = await fetch(`${base}/api/blobs/cleanup?olderThanHours=0`, { method: 'POST' });
     assert.equal(res.status, 400);
   });
+});
+
+/** Local wall-clock datetime `minutesAgo` in the past, `YYYY-MM-DDTHH:mm`. */
+function localDateTimeMinutesAgo(minutesAgo: number): string {
+  const d = new Date(Date.now() - minutesAgo * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+test('absolute reminders fire without a due date', () => {
+  const at = localDateTimeMinutesAgo(5);
+  const task = {
+    id: 'absolute-reminder',
+    title: 'Absolute',
+    due: null,
+    completed: false,
+    reminders: [{ id: 'r1', at }],
+  };
+  replaceEntities({ tasks: [task] }, getCursor());
+
+  const due_list = dueReminders(Date.now());
+  assert.equal(due_list.length, 1);
+  assert.equal(due_list[0]?.task.id, 'absolute-reminder');
+
+  // The key encodes the wall-clock time, so a later time is a new reminder.
+  assert.equal(reminderKey(task), `|||at:${at}`);
+  assert.notEqual(reminderKey({ ...task, reminders: [{ id: 'r1', at: localDateTimeMinutesAgo(1) }] }), reminderKey(task));
+});
+
+test('relative and absolute reminders normalize into one list', () => {
+  assert.deepEqual(
+    taskReminderList({ id: 'x', title: 'x', reminders: [{ id: 'a', minutes: 30 }, { id: 'b', at: '2026-11-12T09:00' }, { id: 'c' }] }),
+    [{ id: 'a', minutes: 30 }, { id: 'b', at: '2026-11-12T09:00' }],
+  );
+  assert.deepEqual(
+    taskReminderList({ id: 'x', title: 'x', reminders: [], reminderMinutes: 10 }),
+    [{ minutes: 10 }],
+  );
+});
+
+test('wall-clock times convert using the task timezone', () => {
+  // Standard time (January): New York is UTC-5.
+  assert.equal(zonedDateTimeToDate('2026-01-15T09:00', 'America/New_York')?.toISOString(), '2026-01-15T14:00:00.000Z');
+  // Daylight saving (July): New York is UTC-4.
+  assert.equal(zonedDateTimeToDate('2026-07-15T09:00', 'America/New_York')?.toISOString(), '2026-07-15T13:00:00.000Z');
+
+  const task = { id: 'tz', title: 'TZ', due: '2026-11-12', dueTime: '09:00', timeZone: 'Asia/Tokyo' };
+  // 09:00 Tokyo (UTC+9) is 00:00 UTC.
+  assert.equal(reminderAt(task, { minutes: 0 })?.toISOString(), '2026-11-12T00:00:00.000Z');
 });

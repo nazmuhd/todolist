@@ -174,6 +174,94 @@ try {
   await waitFor(`document.getElementById('quick-add-editor').classList.contains('hidden')`, 'quick add closed by Escape');
   check('Escape closes quick add', true);
 
+  // ---- Section 1: completion repetition, deadlines, timezone, reminders,
+  // templates and task permalinks. ----
+  await evalJs(`document.getElementById('quick-add-placeholder').click()`);
+  await waitFor(`!document.getElementById('quick-add-editor').classList.contains('hidden')`, 'quick add for repeat');
+  await evalJs(`(() => {
+    const t = document.getElementById('quick-add-input');
+    t.value = 'Daily standup every! 2 days';
+    t.dispatchEvent(new Event('input', {bubbles:true}));
+  })()`);
+  await sleep(120);
+  await evalJs(`document.getElementById('quick-add-submit').click()`);
+  await waitFor(`document.getElementById('task-list').textContent.includes('Daily standup')`, 'repeat task added');
+  check('quick add understands every!', await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Daily standup'));
+    return !!li && !!li.querySelector('[data-lucide="refresh-cw"]');
+  })()`));
+
+  const dailyId = await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Daily standup'));
+    return li ? li.dataset.taskId : null;
+  })()`);
+
+  // Permalink: #/task/<id> opens the dialog and closing restores the view.
+  await evalJs(`location.hash = '#/task/${dailyId}'`);
+  await waitFor(`document.getElementById('task-modal').open`, 'permalink opens task');
+  check('task permalink opens the right task', await evalJs(`document.getElementById('modal-title').value === 'Daily standup'`));
+  await evalJs(`document.getElementById('task-modal').close()`);
+  await waitFor(`!document.getElementById('task-modal').open`, 'permalink modal closed');
+  await waitFor(`!location.hash.startsWith('#/task/')`, 'permalink closes back to the view');
+  check('closing a permalink restores the view hash', await evalJs(`!location.hash.startsWith('#/task/')`));
+
+  // Deadline + timezone + an absolute reminder, saved through the due editor.
+  await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Daily standup'));
+    li.querySelector('.task-edit').click();
+  })()`);
+  await waitFor(`document.getElementById('task-modal').open`, 'repeat task modal');
+  await evalJs(`document.getElementById('meta-due').click()`);
+  await waitFor(`document.getElementById('due-modal').open`, 'repeat due modal');
+  await evalJs(`(() => {
+    const d = document.getElementById('due-deadline');
+    d.value = '2026-12-31';
+    d.dispatchEvent(new Event('change', {bubbles:true}));
+    const z = document.getElementById('due-timezone');
+    z.value = 'Asia/Tokyo';
+    z.dispatchEvent(new Event('change', {bubbles:true}));
+    document.getElementById('due-add-reminder').click();
+  })()`);
+  await waitFor(`!!document.querySelector('#due-reminders [data-reminder-kind]')`, 'reminder row added');
+  await evalJs(`(() => {
+    const kind = document.querySelector('#due-reminders [data-reminder-kind]');
+    kind.value = 'absolute';
+    kind.dispatchEvent(new Event('change', {bubbles:true}));
+  })()`);
+  await waitFor(`!!document.querySelector('#due-reminders [data-reminder-at]')`, 'absolute reminder input');
+  check('absolute reminder uses a datetime input', await evalJs(`document.querySelector('#due-reminders [data-reminder-at]').type === 'datetime-local'`));
+  await evalJs(`document.getElementById('due-done').click()`);
+  await waitFor(`!document.getElementById('due-modal').open`, 'repeat due modal closed');
+  await evalJs(`document.getElementById('modal-save').click()`);
+  await waitFor(`!document.getElementById('task-modal').open`, 'repeat task saved');
+  check('deadline and reminder badges render', await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Daily standup'));
+    return !!li && !!li.querySelector('[data-lucide="octagon-alert"]') && !!li.querySelector('[data-lucide="bell"]');
+  })()`));
+
+  // Save the task as a reusable template and apply it.
+  await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Daily standup'));
+    li.querySelector('.task-edit').click();
+  })()`);
+  await waitFor(`document.getElementById('task-modal').open`, 'template source modal');
+  await evalJs(`document.getElementById('modal-save-template').click()`);
+  await evalJs(`document.getElementById('task-modal').close()`);
+  await waitFor(`document.getElementById('templates-list').textContent.includes('Daily standup')`, 'template saved');
+  check('task template appears in the sidebar', true);
+  const beforeTemplate = await evalJs(`document.querySelectorAll('#task-list li[data-task-id]').length`);
+  await evalJs(`document.querySelector('#templates-list [data-template-apply]').click()`);
+  await waitFor(`document.querySelectorAll('#task-list li[data-task-id]').length > ${beforeTemplate}`, 'template applied');
+  check('applying a template creates a task', true);
+
+  // Completing a completion-based repeat rolls it forward instead of closing.
+  await evalJs(`(() => {
+    const li = [...document.querySelectorAll('#task-list li[data-task-id]')].find(x => x.textContent.includes('Daily standup'));
+    li.querySelector('.task-check').click();
+  })()`);
+  await sleep(200);
+  check('completion-based repeat rolls forward', await evalJs(`document.getElementById('task-list').textContent.includes('Daily standup')`));
+
   const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   check('no console errors', realErrors.length === 0, realErrors.join(' | '));
 } catch (err) {

@@ -8,12 +8,13 @@ import { formatDue } from './core/dates.js';
 import { showToast } from './core/toasts.js';
 import { services } from './core/services.js';
 import { setRenderer } from './core/render.js';
-import { isKnownView, syncHash, navigateTo } from './core/router.js';
+import { isKnownView, syncHash, navigateTo, taskIdFromHash } from './core/router.js';
 import { startReminders } from './core/reminders.js';
 import { initSync, scheduleSync } from './core/sync.js';
 import { loadSavedFilters, initFilterEditor } from './features/filters.js';
 import { initSelection } from './features/selection.js';
 import { initCalendar } from './features/calendar.js';
+import { initTemplates } from './features/templates.js';
 import { renderMain, renderSortMenu, supportsBoard, initListView, completionDayLabel } from './views/list.js';
 import { renderSidebar } from './views/sidebar.js';
 import { initBoard } from './views/board.js';
@@ -133,19 +134,26 @@ async function init() {
 
   if (location.hash.length > 1) {
     const raw = location.hash.replace(/^#\/?/, '');
-    const [viewPart, queryPart] = raw.split('?');
-    const view = decodeURIComponent(viewPart || 'inbox');
-    const q = queryPart ? (new URLSearchParams(queryPart).get('q') || '') : '';
-    if (isKnownView(view)) {
-      state.ui.view = view;
-      state.ui.search = q;
-      $('#search-input').value = q;
+    if (!taskIdFromHash()) {
+      const [viewPart, queryPart] = raw.split('?');
+      const view = decodeURIComponent(viewPart || 'inbox');
+      const q = queryPart ? (new URLSearchParams(queryPart).get('q') || '') : '';
+      if (isKnownView(view)) {
+        state.ui.view = view;
+        state.ui.search = q;
+        $('#search-input').value = q;
+      }
     }
   }
 
   render();
   $('#loading-skeleton').classList.add('hidden');
   applySidebarState();
+
+  const linkedTaskId = taskIdFromHash();
+  if (linkedTaskId && state.tasks.some(t => t.id === linkedTaskId)) {
+    openTaskModal(linkedTaskId);
+  }
 
   // Persist right away on first run, or right after a migration.
   if (loaded.storedVersion !== SCHEMA_VERSION) saveState();
@@ -161,6 +169,7 @@ async function init() {
 /* The views and features wire their own event handlers. */
 initSelection();
 initCalendar();
+initTemplates();
 initBoard();
 initFilterEditor();
 initListView(() => renderMain());

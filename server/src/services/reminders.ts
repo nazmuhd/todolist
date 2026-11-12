@@ -8,9 +8,52 @@ export interface ReminderTask {
   title: string;
   due?: string | null;
   dueTime?: string | null;
+  timeZone?: string | null;
   completed?: boolean;
-  reminders?: { minutes?: number | null }[];
+  reminders?: { id?: string; minutes?: number | null; at?: string | null }[];
   reminderMinutes?: number | null;
+}
+
+const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/;
+
+function validMinutes(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 10080;
+}
+
+/** Converts a wall-clock datetime in `timeZone` to a real instant. */
+export function zonedDateTimeToDate(local: string, timeZone?: string | null): Date | null {
+  if (!DATETIME_RE.test(local)) return null;
+  const [y, mo, d] = local.slice(0, 10).split('-').map(Number) as [number, number, number];
+  const [h, mi] = local.slice(11, 16).split(':').map(Number) as [number, number];
+  if (!timeZone) return new Date(y, mo - 1, d, h, mi, 0, 0);
+
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+  } catch {
+    // Unknown timezone: fall back to the server's local time.
+    return new Date(y, mo - 1, d, h, mi, 0, 0);
+  }
+
+  const wall = Date.UTC(y, mo - 1, d, h, mi, 0, 0);
+  let instant = wall;
+  for (let i = 0; i < 4; i++) {
+    const parts = formatter.formatToParts(new Date(instant));
+    const get = (type: string) => Number(parts.find(p => p.type === type)?.value);
+    const asWall = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
+    const diff = wall - asWall;
+    if (!diff) break;
+    instant += diff;
+  }
+  return new Date(instant);
 }
 
 function parseDate(iso: string): Date {
@@ -35,32 +78,59 @@ export function taskDueDate(task: ReminderTask): Date | null {
 
 /** All-day reminders are treated as 9am, like the client. */
 export function reminderFireDate(task: ReminderTask, minutes: number): Date | null {
-  const d = taskDueDate(task);
-  if (!d) return null;
-  if (!task.dueTime) d.setHours(9, 0, 0, 0);
+  if (!task.due) return null;
+  // A task's own timezone decides which instant its wall-clock due time means.
+  const wall = `${task.due}T${task.dueTime || '09:00'}`;
+  const d = zonedDateTimeToDate(wall, task.timeZone) ?? taskDueDate(task);
+  if (!d || Number.isNaN(d.getTime())) return null;
   d.setMinutes(d.getMinutes() - (minutes || 0));
   return d;
 }
 
 /** The reminder offsets of a task, tolerating the old single-reminder shape. */
 export function taskReminderMinutes(task: ReminderTask): number[] {
-  const valid = (value: unknown): value is number =>
-    Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 10080;
+  return taskReminderList(task)
+    .map(r => r.minutes)
+    .filter((value): value is number => validMinutes(value));
+}
 
+export interface ServerReminder {
+  id?: string;
+  minutes?: number;
+  at?: string;
+}
+
+/** Normalizes both reminder shapes into one list. */
+export function taskReminderList(task: ReminderTask): ServerReminder[] {
   if (Array.isArray(task.reminders) && task.reminders.length) {
-    return task.reminders.map(r => r && r.minutes).filter(valid);
+    return task.reminders.flatMap((r): ServerReminder[] => {
+      if (!r || typeof r !== 'object') return [];
+      if (typeof r.at === 'string' && DATETIME_RE.test(r.at)) return [{ id: r.id, at: r.at }];
+      if (validMinutes(r.minutes)) return [{ id: r.id, minutes: r.minutes }];
+      return [];
+    });
   }
-  if (task.reminderMinutes !== null && task.reminderMinutes !== undefined && valid(task.reminderMinutes)) {
-    return [task.reminderMinutes];
+  if (task.reminderMinutes !== null && task.reminderMinutes !== undefined && validMinutes(task.reminderMinutes)) {
+    return [{ minutes: task.reminderMinutes }];
   }
   return [];
 }
 
+/** The instant a reminder fires, honouring an absolute time and timezone. */
+export function reminderAt(task: ReminderTask, reminder: ServerReminder): Date | null {
+  if (reminder.at) return zonedDateTimeToDate(reminder.at, task.timeZone);
+  if (validMinutes(reminder.minutes)) return reminderFireDate(task, reminder.minutes);
+  return null;
+}
+
 /** Mirrors the client's reminderKey so both sides agree on what fired. */
 export function reminderKey(task: ReminderTask): string {
-  if (!task.due) return '';
-  const offsets = taskReminderMinutes(task).sort((a, b) => a - b).join(',');
-  return `${task.due}|${task.dueTime || ''}|${offsets}`;
+  const parts = taskReminderList(task)
+    .map(r => (r.at ? `at:${r.at}` : `m:${r.minutes}`))
+    .sort()
+    .join(',');
+  if (!parts) return '';
+  return `${task.due || ''}|${task.dueTime || ''}|${task.timeZone || ''}|${parts}`;
 }
 
 export interface DueReminder {
@@ -77,15 +147,15 @@ export function dueReminders(now = Date.now()): DueReminder[] {
   const due: DueReminder[] = [];
 
   for (const task of tasks) {
-    if (!task || !task.id || task.completed || !task.due) continue;
-    const minutes = taskReminderMinutes(task);
-    if (!minutes.length) continue;
+    if (!task || !task.id || task.completed) continue;
+    const reminders = taskReminderList(task);
+    if (!reminders.length) continue;
 
     const key = reminderKey(task);
     if (!key || reminderAlreadyFired(task.id, key)) continue;
 
-    const earliest = minutes
-      .map(m => reminderFireDate(task, m))
+    const earliest = reminders
+      .map(r => reminderAt(task, r))
       .filter((d): d is Date => Boolean(d))
       .sort((a, b) => a.getTime() - b.getTime())[0];
     if (!earliest) continue;

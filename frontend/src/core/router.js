@@ -7,7 +7,28 @@
 import { state, saveState } from './state.js';
 import { savedFilters } from './saved-filters.js';
 import { requestRender } from './render.js';
-import { $ } from './app.js';
+import { $, modalState } from './app.js';
+import { services } from './services.js';
+
+/** Parses `#/task/<id>` into a task id, or null for a normal view. */
+export function taskIdFromHash(hash = location.hash) {
+  const raw = String(hash || '').replace(/^#\/?/, '');
+  const match = /^task\/([^?]+)/.exec(raw);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** Makes a task modal deep-linkable without changing the current view. */
+export function setTaskHash(id) {
+  const next = `#/task/${encodeURIComponent(id)}`;
+  if (location.hash !== next) location.hash = next;
+}
+
+/** Restores the normal view hash after a task modal closes. */
+export function clearTaskHash() {
+  if (!taskIdFromHash()) return;
+  const next = currentHash();
+  if (location.hash !== next) location.hash = next;
+}
 
 export function isKnownView(view) {
   if (['inbox', 'today', 'upcoming', 'calendar', 'completed', 'no-date', 'no-priority'].includes(view)) return true;
@@ -28,6 +49,12 @@ export function syncHash() {
 }
 
 export function applyHash() {
+  const taskId = taskIdFromHash();
+  if (taskId) {
+    if (modalState.editingTaskId === taskId) return;
+    if (state.tasks.some(t => t.id === taskId)) services.openTaskModal(taskId);
+    return;
+  }
   const raw = location.hash.replace(/^#\/?/, '');
   if (!raw) return;
   const [viewPart, queryPart] = raw.split('?');

@@ -5,9 +5,9 @@
 import { uid, cleanRecurrence } from './app.js';
 import { store } from './store.js';
 import { showToast } from './toasts.js';
-import { taskReminders, normalizeRecurrenceEnd } from './tasks.js';
-import { reminderFireDate } from './dates.js';
-import { cleanDueTime, cleanDuration, cleanReminderMinutes, DATE_RE } from './dates.js';
+import { taskReminders, normalizeRecurrenceEnd, normalizeReminder, cleanRecurrenceMode } from './tasks.js';
+import { reminderAt } from './dates.js';
+import { cleanDueTime, cleanDuration, cleanReminderMinutes, cleanTimeZone, DATE_RE } from './dates.js';
 import { asText, cleanColor, clampPriority, PROJECT_COLORS, LABEL_COLORS } from './text.js';
 import { savedFilterIds } from './saved-filters.js';
 import { services } from './services.js';
@@ -31,12 +31,12 @@ export function persistState() {
 export function reminderSchedule() {
   const items = [];
   state.tasks.forEach(t => {
-    if (t.completed || !t.due) return;
+    if (t.completed) return;
     taskReminders(t).forEach(r => {
-      const at = reminderFireDate(t, r.minutes);
+      const at = reminderAt(t, r);
       if (!at) return;
       items.push({
-        id: `${t.id}:${r.minutes}`,
+        id: `${t.id}:${r.id || r.at || r.minutes}`,
         taskId: t.id,
         title: t.title,
         at: at.getTime(),
@@ -64,7 +64,7 @@ export let redoSnapshot = null;
 export function setPendingUndo(value) { pendingUndo = value; }
 export function setRedoSnapshot(value) { redoSnapshot = value; }
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 
 export const MIGRATIONS = {
@@ -131,6 +131,19 @@ export const MIGRATIONS = {
     });
     return s;
   },
+  // v7 -> v8 (deadlines, completion-based repeats, per-task timezone,
+  // absolute reminders and reusable templates).
+  7: (s) => {
+    (Array.isArray(s.tasks) ? s.tasks : []).forEach((t) => {
+      if (!t || typeof t !== 'object') return;
+      if (t.deadline === undefined) t.deadline = null;
+      if (t.deadlineTime === undefined) t.deadlineTime = null;
+      if (t.recurrenceMode === undefined) t.recurrenceMode = 'scheduled';
+      if (t.timeZone === undefined) t.timeZone = null;
+    });
+    if (!Array.isArray(s.templates)) s.templates = [];
+    return s;
+  },
 };
 
 
@@ -145,6 +158,7 @@ export function defaultState() {
       { id: 'lbl_urgent', name: 'urgent', color: '#db4c3f' },
     ],
     tasks: [],
+    templates: [],
     ui: { view: 'inbox', activeId: null, search: '', layout: 'list', sort: 'manual' },
     updatedAt: 0,
   };
@@ -198,7 +212,11 @@ export function normalizeState(s) {
       description: asText(t.description),
       due: typeof t.due === 'string' && DATE_RE.test(t.due) ? t.due : null,
       dueTime: cleanDueTime(t.dueTime),
+      deadline: DATE_RE.test(asText(t.deadline)) ? asText(t.deadline) : null,
+      deadlineTime: cleanDueTime(t.deadlineTime),
       recurrence: cleanRecurrence(t.recurrence),
+      recurrenceMode: cleanRecurrenceMode(t.recurrenceMode),
+      timeZone: cleanTimeZone(t.timeZone),
       reminderMinutes: cleanReminderMinutes(t.reminderMinutes),
       reminderFiredKey: asText(t.reminderFiredKey) || null,
       durationMinutes: cleanDuration(t.durationMinutes),
@@ -220,8 +238,8 @@ export function normalizeState(s) {
           createdAt: typeof c.createdAt === 'number' ? c.createdAt : Date.now(),
         })),
       reminders: (Array.isArray(t.reminders) ? t.reminders : [])
-        .filter(r => r && typeof r === 'object' && cleanReminderMinutes(r.minutes) !== null)
-        .map(r => ({ id: asText(r.id) || uid(), minutes: cleanReminderMinutes(r.minutes) })),
+        .map(normalizeReminder)
+        .filter(Boolean),
       skippedDates: (Array.isArray(t.skippedDates) ? t.skippedDates : [])
         .map(asText)
         .filter(d => DATE_RE.test(d)),
@@ -257,11 +275,54 @@ export function normalizeState(s) {
     (view.startsWith('filter:') && savedFilterIds().includes(view.slice(7)));
   if (!knownView) view = 'inbox';
 
+  const templates = (Array.isArray(s.templates) ? s.templates : [])
+    .filter(t => t && typeof t === 'object')
+    .map((t) => {
+      const kind = t.kind === 'project' ? 'project' : 'task';
+      const base = {
+        id: asText(t.id) || 'tpl_' + uid(),
+        kind,
+        name: asText(t.name).trim() || asText(t.title).trim() || 'Template',
+      };
+      if (kind === 'project') {
+        return {
+          ...base,
+          color: cleanColor(t.color, PROJECT_COLORS[0]),
+          sections: (Array.isArray(t.sections) ? t.sections : [])
+            .map(x => ({ name: asText(x && x.name).trim() }))
+            .filter(x => x.name),
+          tasks: (Array.isArray(t.tasks) ? t.tasks : [])
+            .filter(x => x && typeof x === 'object' && asText(x.title))
+            .map(x => ({
+              title: asText(x.title).trim(),
+              description: asText(x.description),
+              priority: clampPriority(x.priority),
+              labels: [...new Set((Array.isArray(x.labels) ? x.labels : []).map(asText).filter(lid => labelIds.has(lid)))],
+              section: asText(x.section) || null,
+              durationMinutes: cleanDuration(x.durationMinutes),
+            })),
+        };
+      }
+      return {
+        ...base,
+        title: asText(t.title).trim() || base.name,
+        description: asText(t.description),
+        priority: clampPriority(t.priority),
+        projectId: projectIds.has(t.projectId) ? t.projectId : null,
+        labels: [...new Set((Array.isArray(t.labels) ? t.labels : []).map(asText).filter(lid => labelIds.has(lid)))],
+        durationMinutes: cleanDuration(t.durationMinutes),
+        recurrence: cleanRecurrence(t.recurrence),
+        recurrenceMode: cleanRecurrenceMode(t.recurrenceMode),
+        timeZone: cleanTimeZone(t.timeZone),
+      };
+    });
+
   return {
     version: SCHEMA_VERSION,
     projects,
     labels,
     tasks,
+    templates,
     ui: {
       view,
       activeId: asText(rawUi.activeId) || null,

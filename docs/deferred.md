@@ -29,8 +29,8 @@ Push** for reliable delivery.
   pushed to `/api/sync` when the connection returns.
 - [ ] **Web Worker** for heavy search/indexing if the task list gets very large
   (not needed at current scale).
-- [ ] **Timezone-correct scheduling** — the reminder worker uses the server's
-  local timezone.
+- [x] **Timezone-correct scheduling** — done: the worker converts due/reminder
+  wall-clock times with each task's `timeZone`.
 
 ---
 
@@ -65,14 +65,16 @@ writes sync to a single-user SQLite backend.
 Active or later gaps from `gaps.md`; none block single-user use.
 
 ### Task model
-- [ ] Deadlines separate from due dates.
-- [ ] Start dates.
-- [ ] Completion-based recurrence (`every!` semantics).
-- [ ] Absolute-time and location reminders.
-- [ ] Rich text (Markdown/checklists) in descriptions and comments.
-- [ ] Reusable task/project templates (current "templates" are quick-add defaults).
-- [ ] Task permalinks (deep-link to a task modal).
-- [ ] Attachment previews and drag-and-drop upload.
+- [x] Deadlines separate from due dates.
+- [~] Start dates (stored; recurrence skips earlier occurrences, but the next
+  occurrence still anchors to the due date).
+- [x] Completion-based recurrence (`every!` semantics).
+- [~] Absolute-time reminders; location reminders still need a native app.
+- [x] Rich text (Markdown/checklists) in descriptions and comments.
+- [x] Reusable task/project templates (local to the browser; not synced).
+- [x] Task permalinks (deep-link to a task modal).
+- [x] Attachment previews and drag-and-drop upload.
+- [ ] Assignees (await auth).
 
 ### Views and interaction
 - [x] Board / Kanban view (priority columns; drag between columns).
@@ -120,9 +122,10 @@ Active or later gaps from `gaps.md`; none block single-user use.
 ### Recurrence refinements
 - [x] End conditions in the UI (count / until date).
 - [x] Multiple reminders.
+- [x] Completion-based repeats (`every!`).
+- [x] Separate start date distinct from the due date (filtering, not anchoring).
 - [ ] Exceptions and skips ("every Monday except holidays").
-- [ ] Separate start date distinct from the due date.
-- [ ] Snooze presets.
+- [ ] Snooze presets and custom reminder offsets.
 
 ---
 

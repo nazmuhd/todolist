@@ -11,12 +11,15 @@ import { store } from '../core/store.js';
 import { cleanDuration, formatDue } from '../core/dates.js';
 import { taskReminders, priorityColor, priorityLabel, projectName, labelName, removeTask } from '../core/tasks.js';
 import { escapeHtml } from '../core/text.js';
+import { renderMarkdown, renderMarkdownInline } from '../core/markdown.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { showToast } from '../core/toasts.js';
 import { reminderKey, ensureNotificationPermission } from '../core/reminders.js';
 import { positionMetaMenu } from '../ui/menus.js';
 import { commitDueEdits, recurrenceEndFromBody, closeDueEditor, isDueEditorOpen } from './due-editor.js';
+import { saveTaskTemplate } from './templates.js';
+import { setTaskHash, clearTaskHash } from '../core/router.js';
 
 const modal = $('#task-modal');
 const priorityMenu = $('#priority-menu');
@@ -37,6 +40,26 @@ export function closeTaskModal() {
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 // Blobs added in this dialog but not saved are cleaned up when it closes.
 const pendingAttachments = new Set();
+const attachmentUrls = new Map();
+
+function revokeAttachmentUrls() {
+  attachmentUrls.forEach(url => URL.revokeObjectURL(url));
+  attachmentUrls.clear();
+}
+
+function isImageAttachment(a) {
+  return /^image\//i.test(a && a.type || '');
+}
+
+function fileToObjectUrl(id) {
+  if (attachmentUrls.has(id)) return Promise.resolve(attachmentUrls.get(id));
+  return store.getBlob(id).then((blob) => {
+    if (!blob) return null;
+    const url = URL.createObjectURL(blob);
+    attachmentUrls.set(id, url);
+    return url;
+  }).catch(() => null);
+}
 
 function formatFileSize(bytes) {
   const n = Number(bytes) || 0;
@@ -48,27 +71,39 @@ function formatFileSize(bytes) {
 function renderModalAttachments() {
   const list = (draft() && Array.isArray(draft().attachments)) ? draft().attachments : [];
   $('#modal-attachments').classList.toggle('hidden', !list.length && !modalState.editingTaskId);
-  $('#modal-attachment-list').innerHTML = list.map(a => `
+  $('#modal-attachment-list').innerHTML = list.map(a => {
+    const image = isImageAttachment(a);
+    return `
     <li class="flex items-center gap-2 text-xs">
-      <i data-lucide="paperclip" class="w-3 h-3 text-td-muted flex-shrink-0"></i>
+      ${image
+        ? `<span class="attachment-thumb flex-shrink-0" data-attachment-thumb="${escapeHtml(a.id)}"><i data-lucide="image" class="w-3 h-3 text-td-muted"></i></span>`
+        : '<i data-lucide="paperclip" class="w-3 h-3 text-td-muted flex-shrink-0"></i>'}
       <button type="button" class="flex-1 text-left truncate hover:underline" data-attachment-open="${escapeHtml(a.id)}" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</button>
       <span class="text-td-muted flex-shrink-0">${formatFileSize(a.size)}</span>
       <button type="button" class="text-td-muted hover:text-red-600 flex-shrink-0" data-attachment-remove="${escapeHtml(a.id)}" title="Remove attachment" aria-label="Remove attachment">
         <i data-lucide="x" class="w-3 h-3"></i>
       </button>
-    </li>`).join('');
+    </li>`;
+  }).join('');
   lucide.createIcons();
+  // Thumbnails are loaded asynchronously from IndexedDB into object URLs.
+  list.filter(isImageAttachment).forEach((a) => {
+    fileToObjectUrl(a.id).then((url) => {
+      if (!url || !modal.open) return;
+      const holder = $(`[data-attachment-thumb="${a.id}"]`);
+      if (!holder) return;
+      holder.innerHTML = `<img src="${url}" alt="${escapeHtml(a.name)}" class="w-6 h-6 object-cover rounded" />`;
+    });
+  });
 }
 
-$('#modal-attachment-add').onclick = () => $('#modal-attachment-input').click();
-
-$('#modal-attachment-input').addEventListener('change', async (e) => {
-  const files = [...(e.target.files || [])];
-  e.target.value = '';
-  if (!files.length || !draft()) return;
-
+/** Stores the chosen/dropped files and adds them to the draft. */
+async function addAttachmentFiles(files) {
+  const list = [...(files || [])];
+  if (!list.length || !draft()) return;
   if (!Array.isArray(draft().attachments)) draft().attachments = [];
-  for (const file of files) {
+
+  for (const file of list) {
     if (file.size > MAX_ATTACHMENT_BYTES) {
       showToast(`${file.name} is larger than 25 MB`, 'error');
       continue;
@@ -90,6 +125,35 @@ $('#modal-attachment-input').addEventListener('change', async (e) => {
     });
   }
   renderModalAttachments();
+}
+
+$('#modal-attachment-add').onclick = () => $('#modal-attachment-input').click();
+
+$('#modal-attachment-input').addEventListener('change', async (e) => {
+  const files = [...(e.target.files || [])];
+  e.target.value = '';
+  await addAttachmentFiles(files);
+});
+
+// Drag-and-drop: drop files anywhere on the attachments area.
+const attachmentDropZone = $('#modal-attachments');
+['dragenter', 'dragover'].forEach((type) => {
+  attachmentDropZone.addEventListener(type, (e) => {
+    if (!draft() || !e.dataTransfer) return;
+    e.preventDefault();
+    attachmentDropZone.classList.add('is-drop-target');
+  });
+});
+['dragleave', 'dragend'].forEach((type) => {
+  attachmentDropZone.addEventListener(type, () => {
+    attachmentDropZone.classList.remove('is-drop-target');
+  });
+});
+attachmentDropZone.addEventListener('drop', async (e) => {
+  attachmentDropZone.classList.remove('is-drop-target');
+  if (!draft() || !e.dataTransfer) return;
+  e.preventDefault();
+  await addAttachmentFiles(e.dataTransfer.files);
 });
 
 $('#modal-attachment-list').addEventListener('click', async (e) => {
@@ -123,6 +187,8 @@ $('#modal-attachment-list').addEventListener('click', async (e) => {
 });
 
 export function openTaskModal(id) {
+  // Reopening replaces the previous dialog's thumbnails.
+  revokeAttachmentUrls();
   modalState.editingTaskId = id;
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
@@ -137,6 +203,9 @@ export function openTaskModal(id) {
 
   $('#modal-title').value = t.title;
   $('#modal-desc').value = t.description || '';
+  $('#modal-desc-preview').innerHTML = renderMarkdown(t.description || '');
+  $('#modal-desc-preview').classList.add('hidden');
+  $('#modal-desc').classList.remove('hidden');
   $('#modal-duration').value = t.durationMinutes || '';
   updateModalChips();
   renderPriorityMenu();
@@ -145,10 +214,32 @@ export function openTaskModal(id) {
   renderModalComments();
   renderModalSections();
   renderModalAttachments();
+  setTaskHash(id);
   modal.showModal();
   // Don't open the on-screen keyboard on phones: it would cover the dialog.
   if (!services.isMobileSidebar()) setTimeout(() => $('#modal-title').focus(), 50);
 }
+
+$('#modal-desc-preview-btn').onclick = () => {
+  const preview = $('#modal-desc-preview');
+  const desc = $('#modal-desc');
+  const showing = !preview.classList.contains('hidden');
+  if (showing) {
+    preview.classList.add('hidden');
+    desc.classList.remove('hidden');
+    $('#modal-desc-preview-btn').textContent = 'Preview';
+  } else {
+    preview.innerHTML = renderMarkdown(desc.value);
+    preview.classList.remove('hidden');
+    desc.classList.add('hidden');
+    $('#modal-desc-preview-btn').textContent = 'Edit';
+  }
+};
+$('#modal-desc').addEventListener('input', () => {
+  if (!$('#modal-desc-preview').classList.contains('hidden')) {
+    $('#modal-desc-preview').innerHTML = renderMarkdown($('#modal-desc').value);
+  }
+});
 
 /* ---------- Task modal: comments and sections ---------- */
 function renderModalComments() {
@@ -156,7 +247,7 @@ function renderModalComments() {
   $('#modal-comments').classList.remove('hidden');
   $('#modal-comment-list').innerHTML = list.map(c => `
     <li class="flex items-start gap-2 text-xs">
-      <span class="flex-1">${escapeHtml(c.text)}</span>
+      <span class="flex-1 md-inline">${renderMarkdownInline(c.text)}</span>
       <button type="button" class="text-td-muted hover:text-red-600" data-comment-remove="${escapeHtml(c.id)}" title="Delete comment" aria-label="Delete comment">
         <i data-lucide="x" class="w-3 h-3"></i>
       </button>
@@ -328,12 +419,18 @@ document.addEventListener('click', (e) => {
 
 $$('.close-modal').forEach(b => b.onclick = () => modal.close());
 modal.addEventListener('close', () => {
+  // A rapid close-then-reopen dispatches the old close event late; keep the
+  // new dialog's state and permalink in that case.
+  if (modal.open) return;
   modalState.editingTaskId = null;
   modalState.draft = null;
   // Files added in the dialog but never saved are thrown away.
   pendingAttachments.forEach(id => store.deleteBlob(id).catch(() => {}));
   pendingAttachments.clear();
+  revokeAttachmentUrls();
+  $('#modal-attachments').classList.remove('is-drop-target');
   if (isDueEditorOpen()) closeDueEditor();
+  clearTaskHash();
 });
 
 $('#modal-save').onclick = () => {
@@ -352,11 +449,15 @@ $('#modal-save').onclick = () => {
   t.description = $('#modal-desc').value.trim();
   t.due = modalDraft.due;
   t.dueTime = modalDraft.dueTime;
+  t.deadline = modalDraft.deadline || null;
+  t.deadlineTime = modalDraft.deadlineTime || null;
   t.recurrence = modalDraft.recurrence;
   t.recurrenceEnd = recurrenceEndFromBody(modalDraft.recurrence);
+  t.recurrenceMode = modalDraft.recurrenceMode || 'scheduled';
+  t.timeZone = modalDraft.timeZone || null;
   t.startDate = modalDraft.startDate || null;
-  t.reminders = taskReminders(modalDraft).map(r => ({ id: r.id, minutes: r.minutes }));
-  t.reminderMinutes = t.reminders.length ? t.reminders[0].minutes : null;
+  t.reminders = taskReminders(modalDraft).map(r => (r.at ? { id: r.id, at: r.at } : { id: r.id, minutes: r.minutes }));
+  t.reminderMinutes = t.reminders.find(r => Number.isInteger(r.minutes))?.minutes ?? null;
   t.comments = (modalDraft.comments || []).map(c => ({ ...c }));
   t.attachments = (modalDraft.attachments || []).map(a => ({ ...a }));
   // The files now belong to the task, so the close handler must not remove them.
@@ -371,6 +472,22 @@ $('#modal-save').onclick = () => {
   saveState();
   requestRender();
   modal.close();
+};
+
+$('#modal-save-template').onclick = () => {
+  if (!draft()) return;
+  saveTaskTemplate(draft());
+};
+
+$('#modal-copy-link').onclick = async () => {
+  if (!modalState.editingTaskId) return;
+  const link = `${location.origin}${location.pathname}#/task/${encodeURIComponent(modalState.editingTaskId)}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    showToast('Task link copied', 'success');
+  } catch {
+    showToast(link, 'info');
+  }
 };
 
 $('#modal-delete').onclick = () => {

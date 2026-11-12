@@ -7,9 +7,10 @@
  * service registry rather than an import (which would be a cycle).
  */
 import { state, saveState } from '../core/state.js';
-import { addTask, toggleComplete, deleteTask, subtasksOf, priorityColor, priorityLabel, projectName, labelName } from '../core/tasks.js';
-import { formatDue, isTaskOverdue, todayISO, formatDuration } from '../core/dates.js';
+import { addTask, toggleComplete, deleteTask, subtasksOf, priorityColor, priorityLabel, projectName, labelName, taskReminders } from '../core/tasks.js';
+import { formatDue, isTaskOverdue, isDeadlineOverdue, todayISO, formatDuration } from '../core/dates.js';
 import { escapeHtml, highlightHtml } from '../core/text.js';
+import { renderMarkdownInline } from '../core/markdown.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { selectTask, renderSelection } from './selection.js';
@@ -48,8 +49,12 @@ export function renderTaskRow(t, isSub, opts = {}) {
   const dueBadge = t.due ? `
     <span class="flex items-center gap-1 ${isTaskOverdue(t) ? 'text-red-600' : t.due === todayISO() ? 'text-green-700' : 'text-td-muted'}">
       <i data-lucide="calendar" class="w-3 h-3"></i>${escapeHtml(formatDue(t.due, t.dueTime))}
-      ${t.recurrence ? '<i data-lucide="repeat" class="w-3 h-3 ml-0.5"></i>' : ''}
-      ${t.reminderMinutes !== null && t.reminderMinutes !== undefined ? '<i data-lucide="bell" class="w-3 h-3 ml-0.5"></i>' : ''}
+      ${t.recurrence ? `<i data-lucide="${t.recurrenceMode === 'completion' ? 'refresh-cw' : 'repeat'}" class="w-3 h-3 ml-0.5" title="${t.recurrenceMode === 'completion' ? 'Repeats from completion' : 'Repeats from due date'}"></i>` : ''}
+      ${taskReminders(t).length ? '<i data-lucide="bell" class="w-3 h-3 ml-0.5"></i>' : ''}
+    </span>` : '';
+  const deadlineBadge = t.deadline ? `
+    <span class="flex items-center gap-1 ${isDeadlineOverdue(t) ? 'text-red-600' : 'text-td-muted'}" title="Deadline">
+      <i data-lucide="octagon-alert" class="w-3 h-3"></i>${escapeHtml(formatDue(t.deadline, t.deadlineTime))}
     </span>` : '';
   const projBadge = t.projectId ? `
     <span class="flex items-center gap-1 text-td-muted">
@@ -75,9 +80,9 @@ export function renderTaskRow(t, isSub, opts = {}) {
         </button>
         <div class="task-content flex-1 min-w-0">
           <div class="task-title cursor-pointer text-sm ${completedClass}" tabindex="0">${priorityMarker(t.priority)}${highlightHtml(t.title, searchTerm())}</div>
-          ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2">${highlightHtml(t.description, searchTerm())}</div>` : ''}
+          ${t.description ? `<div class="text-xs text-td-muted mt-0.5 truncate-2 md-inline">${renderMarkdownInline(t.description)}</div>` : ''}
           <div class="flex flex-wrap items-center gap-2 text-xs mt-1">
-            ${parentBadge}${dueBadge}${durationBadge(t)}${projBadge}${labelBadges}
+            ${parentBadge}${dueBadge}${deadlineBadge}${durationBadge(t)}${projBadge}${labelBadges}
             ${t.startDate && t.startDate !== t.due ? `<span class="flex items-center gap-1 text-td-muted"><i data-lucide="flag" class="w-3 h-3"></i>starts ${escapeHtml(formatDue(t.startDate))}</span>` : ''}
             ${(t.attachments || []).length ? `<span class="flex items-center gap-1 text-td-muted"><i data-lucide="paperclip" class="w-3 h-3"></i>${t.attachments.length}</span>` : ''}
           </div>

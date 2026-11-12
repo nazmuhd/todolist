@@ -7,6 +7,7 @@ import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { savedFilters, deleteFilter, openFilterEditor } from '../features/filters.js';
 import { openProjectModal, openLabelModal, deleteProject, deleteLabel } from '../features/projects.js';
+import { saveProjectTemplate } from '../features/templates.js';
 import { positionBelowTrigger } from './menus.js';
 
 const rowMenu = $('#row-menu');
@@ -36,6 +37,9 @@ export function openRowMenu(trigger, type, id) {
     <button type="button" data-row-action="edit" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
       <i data-lucide="pencil" class="w-3.5 h-3.5 text-td-muted"></i>Edit ${isProject ? 'project' : 'label'}
     </button>
+    ${isProject ? `<button type="button" data-row-action="template" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="copy-plus" class="w-3.5 h-3.5 text-td-muted"></i>Save as template
+    </button>` : ''}
     <button type="button" data-row-action="delete" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2 text-red-600">
       <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Delete ${isProject ? 'project' : 'label'}
     </button>`;
@@ -75,6 +79,9 @@ rowMenu.addEventListener('click', (e) => {
     if (type === 'project') openProjectModal(id);
     else if (type === 'filter') openFilterEditor(id);
     else openLabelModal(id);
+  } else if (btn.dataset.rowAction === 'template') {
+    closeRowMenu();
+    saveProjectTemplate(id);
   } else if (btn.dataset.rowAction === 'delete') {
     if (type === 'project') deleteProject(id);
     else if (type === 'filter') deleteFilter(id);
