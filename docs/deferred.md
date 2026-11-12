@@ -4,8 +4,8 @@ This is a personal, single-user todo app. No further parity work is planned.
 
 The remaining limits are platform-blocked or deliberate: location reminders
 and email notifications, plus accounts/sharing, which are out of scope for a
-single-user app. There is also no table layout, no activity log and no
-scheduled automatic backup. See `gaps.md` for the full list.
+single-user app. There is also no table layout, no AI features, no activity
+log and no scheduled automatic backup. See `gaps.md` for the full list.
 
 Delivered instead:
 

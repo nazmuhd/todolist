@@ -5,8 +5,9 @@ reminders, a calendar, karma stats, filters, dark mode — and it works
 offline.
 
 Projects, saved filters and attachments are not capped in number; each
-attachment must be 25 MB or smaller. The full list of limits is in
-`docs/gaps.md`.
+attachment must be 25 MB or smaller. There are no AI features: nothing is
+sent to a model provider, and the app needs no API key to work. The full
+list of limits is in `docs/gaps.md`.
 
 ```
 todoist/

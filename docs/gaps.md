@@ -21,6 +21,9 @@ limits. The shipped checklist lives in `features.md`.
 
 ## Not built
 
+- **AI features** — there is no AI anywhere in the app: no task assist, no
+  email assist, and no meeting-notes ("ramble") capture. Nothing is sent to
+  a model provider, and the app needs no API key or account to work.
 - **Activity history** — the Karma view counts completions per day, streaks
   and totals from the tasks themselves. It is not an audit log: there is no
   record of edits, and a deleted task leaves no trace.

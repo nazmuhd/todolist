@@ -24,14 +24,14 @@ other boundaries are listed in `gaps.md`.
 | ✅ | Server-side Web Push reminders with every tab closed | Reminder worker + service worker |
 | ✅ | Per-device push management (labelled, last seen, removable) | Settings |
 | ✅ | Push retry with backoff and server quiet hours | Reminder worker |
-| ✅ | Estimated duration (task duration) | Task modal |
+| ✅ | Estimated duration (task duration), shown as a chip and used for calendar blocks | Task modal |
+| ✅ | Deadlines separate from due dates (date + optional time) | Due-date dialog, task rows |
 | ✅ | Sub-tasks, nested more than one level | Task rows |
 | ✅ | Inline title editing | Click a title |
 | ✅ | Attachments stored in SQLite + IndexedDB, unlimited count | Task modal, `/api/blobs` |
 | ✅ | Comments per task | Task modal |
 | ✅ | Sections inside projects | Project dialog, project view |
 | ✅ | Quick-add defaults | Quick add |
-| ✅ | Deadlines separate from due dates (date + optional time) | Due-date dialog, task rows |
 | ✅ | Start dates — recurrence skips occurrences before the start date | Due-date dialog |
 | ✅ | Completion-based recurrence ("every!" counts from completion) | Quick add, due-date dialog |
 | ✅ | Rich text (safe Markdown subset, checklists) in descriptions and comments | Task modal |
