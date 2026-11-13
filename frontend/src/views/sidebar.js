@@ -43,18 +43,18 @@ export function renderSidebar() {
       const active = state.ui.view === `project:${p.id}`;
       return `
       <div class="group relative" data-entry-id="${escapeHtml(p.id)}">
-        <a href="#" data-view="project:${p.id}" title="${escapeHtml(p.name)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-12 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
-          <i data-lucide="hash" class="w-4 h-4 flex-shrink-0" style="color:${p.color}"></i>
+        <a href="#" data-view="project:${escapeHtml(p.id)}" title="${escapeHtml(p.name)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-12 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
+          <i data-lucide="hash" class="w-4 h-4 flex-shrink-0" style="color:${escapeHtml(p.color)}"></i>
           <span class="sidebar-hide truncate flex-1">${escapeHtml(p.name)}</span>
           ${p.pinned ? '<i data-lucide="star" class="sidebar-hide w-3 h-3 flex-shrink-0 text-amber-500" fill="currentColor" title="Pinned"></i>' : ''}
           <span class="sidebar-hide text-xs text-td-muted">${count || ''}</span>
         </a>
         <button type="button" class="project-quick-add sidebar-hide absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
-          data-project-id="${p.id}" title="Add task to ${escapeHtml(p.name)}" aria-label="Add task to ${escapeHtml(p.name)}">
+          data-project-id="${escapeHtml(p.id)}" title="Add task to ${escapeHtml(p.name)}" aria-label="Add task to ${escapeHtml(p.name)}">
           <i data-lucide="plus" class="w-3.5 h-3.5"></i>
         </button>
         <button type="button" class="sidebar-hide row-menu-btn absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
-          data-menu-type="project" data-menu-id="${p.id}" title="Project actions" aria-label="Project actions">
+          data-menu-type="project" data-menu-id="${escapeHtml(p.id)}" title="Project actions" aria-label="Project actions">
           <i data-lucide="more-horizontal" class="w-4 h-4"></i>
         </button>
       </div>`;
@@ -87,13 +87,13 @@ export function renderSidebar() {
       const active = state.ui.view === `label:${l.id}`;
       return `
       <div class="group relative" data-entry-id="${escapeHtml(l.id)}">
-        <a href="#" data-view="label:${l.id}" title="@${escapeHtml(l.name)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-6 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
-          <i data-lucide="tag" class="w-4 h-4 flex-shrink-0" style="color:${l.color}"></i>
+        <a href="#" data-view="label:${escapeHtml(l.id)}" title="@${escapeHtml(l.name)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-6 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
+          <i data-lucide="tag" class="w-4 h-4 flex-shrink-0" style="color:${escapeHtml(l.color)}"></i>
           <span class="sidebar-hide truncate flex-1">@${escapeHtml(l.name)}</span>
           ${l.pinned ? '<i data-lucide="star" class="sidebar-hide w-3 h-3 flex-shrink-0 text-amber-500" fill="currentColor" title="Pinned"></i>' : ''}
         </a>
         <button type="button" class="sidebar-hide row-menu-btn absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
-          data-menu-type="label" data-menu-id="${l.id}" title="Label actions" aria-label="Label actions">
+          data-menu-type="label" data-menu-id="${escapeHtml(l.id)}" title="Label actions" aria-label="Label actions">
           <i data-lucide="more-horizontal" class="w-4 h-4"></i>
         </button>
       </div>`;

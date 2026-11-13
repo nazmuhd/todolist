@@ -67,7 +67,7 @@ export function renderBoard(info) {
       <section class="board-column" ${attrs}>
         <header class="board-column-header">
           <span class="flex items-center gap-1.5 text-sm font-semibold min-w-0">
-            <i data-lucide="${icon}" class="w-3.5 h-3.5 flex-shrink-0" style="color:${color}"></i>
+            <i data-lucide="${escapeHtml(icon)}" class="w-3.5 h-3.5 flex-shrink-0" style="color:${escapeHtml(color)}"></i>
             <span class="truncate">${escapeHtml(column.label)}</span>
           </span>
           <span class="board-count text-xs text-td-muted" title="${tasks.length} tasks">${tasks.length}</span>
@@ -96,12 +96,12 @@ export function renderBoardCard(t) {
     </span>` : '';
   const projBadge = t.projectId ? `
     <span class="flex items-center gap-1 text-td-muted">
-      <i data-lucide="hash" class="w-3 h-3" style="color:${state.projects.find(p => p.id === t.projectId)?.color || '#999'}"></i>${escapeHtml(projectName(t.projectId))}
+      <i data-lucide="hash" class="w-3 h-3" style="color:${escapeHtml(state.projects.find(p => p.id === t.projectId)?.color || '#999')}"></i>${escapeHtml(projectName(t.projectId))}
     </span>` : '';
   const labelBadges = (t.labels || []).map(lid => {
     const l = state.labels.find(x => x.id === lid);
     if (!l) return '';
-    return `<span class="flex items-center gap-0.5 text-td-muted"><i data-lucide="tag" class="w-3 h-3" style="color:${l.color}"></i>@${escapeHtml(l.name)}</span>`;
+    return `<span class="flex items-center gap-0.5 text-td-muted"><i data-lucide="tag" class="w-3 h-3" style="color:${escapeHtml(l.color)}"></i>@${escapeHtml(l.name)}</span>`;
   }).join('');
 
   return `

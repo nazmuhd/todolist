@@ -47,7 +47,7 @@ function cellProject(t) {
   if (!t.projectId) return '<span class="text-td-muted">—</span>';
   const color = state.projects.find(p => p.id === t.projectId)?.color || '#999';
   return `<span class="flex items-center gap-1 whitespace-nowrap">
-    <i data-lucide="hash" class="w-3.5 h-3.5" style="color:${color}"></i>${escapeHtml(projectName(t.projectId))}
+    <i data-lucide="hash" class="w-3.5 h-3.5" style="color:${escapeHtml(color)}"></i>${escapeHtml(projectName(t.projectId))}
   </span>`;
 }
 
@@ -55,7 +55,7 @@ function cellLabels(t) {
   const labels = (t.labels || []).map(lid => {
     const l = state.labels.find(x => x.id === lid);
     if (!l) return '';
-    return `<span class="flex items-center gap-0.5 whitespace-nowrap"><i data-lucide="tag" class="w-3 h-3" style="color:${l.color}"></i>@${escapeHtml(l.name)}</span>`;
+    return `<span class="flex items-center gap-0.5 whitespace-nowrap"><i data-lucide="tag" class="w-3 h-3" style="color:${escapeHtml(l.color)}"></i>@${escapeHtml(l.name)}</span>`;
   }).filter(Boolean).join(' ');
   return labels || '<span class="text-td-muted">—</span>';
 }

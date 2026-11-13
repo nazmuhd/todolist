@@ -127,7 +127,7 @@ function priorityMenuHtml(d) {
     const isCurrent = current && current.id === level.id;
     return `
       <button type="button" class="context-item" data-chip-action="priority-set" data-chip-value="${escapeHtml(level.id)}">
-        <i data-lucide="flag" class="w-3.5 h-3.5 flex-shrink-0" style="color:${level.color}"></i>
+        <i data-lucide="flag" class="w-3.5 h-3.5 flex-shrink-0" style="color:${escapeHtml(level.color)}"></i>
         <span class="flex-1 truncate text-left">${escapeHtml(level.name)}</span>
         ${isCurrent ? '<i data-lucide="check" class="w-3.5 h-3.5 flex-shrink-0"></i>' : ''}
       </button>`;
@@ -144,7 +144,7 @@ function priorityMenuHtml(d) {
 function projectMenuHtml(d) {
   const rows = state.projects.map(p => `
     <button type="button" class="context-item" data-chip-action="project-set" data-chip-value="${escapeHtml(p.id)}">
-      <i data-lucide="hash" class="w-3.5 h-3.5 flex-shrink-0" style="color:${p.color}"></i>
+      <i data-lucide="hash" class="w-3.5 h-3.5 flex-shrink-0" style="color:${escapeHtml(p.color)}"></i>
       <span class="flex-1 truncate text-left">${escapeHtml(p.name)}</span>
       ${d.projectId === p.id ? '<i data-lucide="check" class="w-3.5 h-3.5 flex-shrink-0"></i>' : ''}
     </button>`).join('');
@@ -166,7 +166,7 @@ function labelMenuHtml(d) {
     return `
       <button type="button" class="context-item" data-chip-action="label-toggle" data-chip-value="${escapeHtml(l.id)}">
         <span class="w-3.5 h-3.5 flex-shrink-0 flex items-center justify-center">${on ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}</span>
-        <i data-lucide="tag" class="w-3.5 h-3.5 flex-shrink-0" style="color:${l.color}"></i>
+        <i data-lucide="tag" class="w-3.5 h-3.5 flex-shrink-0" style="color:${escapeHtml(l.color)}"></i>
         <span class="flex-1 truncate text-left">@${escapeHtml(l.name)}</span>
       </button>`;
   }).join('');

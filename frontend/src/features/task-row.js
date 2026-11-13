@@ -33,7 +33,7 @@ export function priorityMarker(p) {
 export function taskPriorityMarker(t) {
   const level = taskLevel(t);
   if (level && level.custom) {
-    return `<span class="prio-marker prio-custom" aria-hidden="true" style="background:${level.color};border-color:${level.color}"></span>`;
+    return `<span class="prio-marker prio-custom" aria-hidden="true" style="background:${escapeHtml(level.color)};border-color:${escapeHtml(level.color)}"></span>`;
   }
   return priorityMarker(t && t.priority);
 }
@@ -74,12 +74,12 @@ export function renderTaskRow(t, isSub, opts = {}) {
     </span>` : '';
   const projBadge = t.projectId ? `
     <span class="flex items-center gap-1 text-td-muted">
-      <i data-lucide="hash" class="w-3 h-3" style="color:${state.projects.find(p => p.id === t.projectId)?.color || '#999'}"></i>${escapeHtml(projectName(t.projectId))}
+      <i data-lucide="hash" class="w-3 h-3" style="color:${escapeHtml(state.projects.find(p => p.id === t.projectId)?.color || '#999')}"></i>${escapeHtml(projectName(t.projectId))}
     </span>` : '';
   const labelBadges = (t.labels || []).map(lid => {
     const l = state.labels.find(x => x.id === lid);
     if (!l) return '';
-    return `<span class="flex items-center gap-0.5 text-td-muted"><i data-lucide="tag" class="w-3 h-3" style="color:${l.color}"></i>@${escapeHtml(l.name)}</span>`;
+    return `<span class="flex items-center gap-0.5 text-td-muted"><i data-lucide="tag" class="w-3 h-3" style="color:${escapeHtml(l.color)}"></i>@${escapeHtml(l.name)}</span>`;
   }).join('');
 
   const level = taskLevel(t);
