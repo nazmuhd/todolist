@@ -25,6 +25,7 @@ const schema = z.object({
   EMAIL_FROM: z.preprocess(v => v === '' ? undefined : v, z.string().optional()),
   BASE_URL: z.preprocess(v => v === '' ? undefined : v, z.string().optional()),
   // Automatic backups: how often to take one, and how many to keep.
+  AUTH_RATE_MAX: z.coerce.number().int().positive().max(10000).default(10),
   BACKUP_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
   BACKUP_KEEP: z.coerce.number().int().positive().default(24),
 }).superRefine((env, ctx) => {
@@ -52,6 +53,7 @@ export const config = {
     start: env.QUIET_HOURS_START || null,
     end: env.QUIET_HOURS_END || null,
   },
+  authRateMax: env.AUTH_RATE_MAX,
   backupIntervalMinutes: env.BACKUP_INTERVAL_MINUTES,
   backupKeep: env.BACKUP_KEEP,
 };

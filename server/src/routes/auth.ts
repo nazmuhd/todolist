@@ -13,7 +13,7 @@ import { config } from '../config.ts';
 
 const router = express.Router();
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: process.env.AUTH_RATE_MAX ? Number(process.env.AUTH_RATE_MAX) : 10, message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' }, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: config.authRateMax, message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' }, standardHeaders: true, legacyHeaders: false });
 
 let stmts: any;
 function getStmts() {
@@ -47,14 +47,26 @@ router.get('/health', (_req, res) => res.json({ ok: true }));
 
 function invalidateUserSessions(userId: number, exceptSid?: string) {
   const db = getDb();
+  const uid = Number(userId);
   // sess stores {"passport":{"user":<id>},...}
   try {
-    if (exceptSid) db.prepare(`DELETE FROM sessions WHERE sid != ? AND CAST(json_extract(sess, '$.passport.user') AS INTEGER) = ?`).run(exceptSid, userId);
-    else db.prepare(`DELETE FROM sessions WHERE CAST(json_extract(sess, '$.passport.user') AS INTEGER) = ?`).run(userId);
-  } catch {
-    const like = `%"user":${Number(userId)}%`;
-    if (exceptSid) db.prepare(`DELETE FROM sessions WHERE sid != ? AND sess LIKE ?`).run(exceptSid, like);
-    else db.prepare(`DELETE FROM sessions WHERE sess LIKE ?`).run(like);
+    if (exceptSid) db.prepare(`DELETE FROM sessions WHERE sid != ? AND CAST(json_extract(sess, '$.passport.user') AS INTEGER) = ?`).run(exceptSid, uid);
+    else db.prepare(`DELETE FROM sessions WHERE CAST(json_extract(sess, '$.passport.user') AS INTEGER) = ?`).run(uid);
+    return;
+  } catch {}
+
+  // Fallback: narrow candidates, then verify by parsing JSON to avoid LIKE overmatch.
+  const like = `%"user":${uid}%`;
+  const rows: any[] = (exceptSid
+    ? db.prepare(`SELECT sid, sess FROM sessions WHERE sid != ? AND sess LIKE ?`).all(exceptSid, like)
+    : db.prepare(`SELECT sid, sess FROM sessions WHERE sess LIKE ?`).all(like)) as any[];
+  const del = db.prepare('DELETE FROM sessions WHERE sid = ?');
+  for (const row of rows) {
+    try {
+      const sess = JSON.parse(String(row.sess || ''));
+      const sidUser = Number(sess?.passport?.user);
+      if (sidUser === uid) del.run(row.sid);
+    } catch {}
   }
 }
 
@@ -64,14 +76,19 @@ router.post('/register', authLimiter, async (req, res) => {
     if (!email || typeof email !== 'string' || !email.includes('@')) return res.status(400).json({ error: 'A valid email address is required.' });
     if (!password || typeof password !== 'string' || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     const ne = email.toLowerCase().trim();
-    if (getStmts().findUserByEmail.get(ne)) return res.status(409).json({ error: 'An account with this email already exists.' });
+    const existing = getStmts().findUserByEmail.get(ne);
+    // Always perform password hashing work to reduce timing differences between
+    // existing and new accounts. On conflict we return a generic failure message.
     const h = await argon2.hash(password, { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 4 });
+    if (existing) {
+      return res.status(409).json({ error: 'Registration could not be completed with this email address.' });
+    }
     let r: any;
     try {
       r = getStmts().insertUser.run(ne, name?.trim() || null, h);
     } catch (e: any) {
       if (e?.code === 'ERR_SQLITE_ERROR' && /UNIQUE/i.test(String(e?.message))) {
-        return res.status(409).json({ error: 'An account with this email already exists.' });
+        return res.status(409).json({ error: 'Registration could not be completed with this email address.' });
       }
       throw e;
     }

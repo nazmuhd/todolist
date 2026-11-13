@@ -57,7 +57,8 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   }));
 
   // CSRF mitigation for cookie-authenticated API/auth requests: require same-origin
-  // or an allowed Origin/Referer on state-changing methods.
+  // or an allowed Origin/Referer on state-changing methods. In production, reject
+  // unsafe requests that provide neither (defense-in-depth alongside SameSite cookies).
   app.use((req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
     const allowed = new Set(config.corsOrigins);
@@ -72,6 +73,7 @@ export function createApp(options: { serveApp?: boolean } = {}) {
       try { return allowed.has(new URL(referer).origin) ? next() : res.status(403).json({ error: 'Forbidden origin' }); }
       catch { return res.status(403).json({ error: 'Forbidden origin' }); }
     }
+    if (config.isProduction) return res.status(403).json({ error: 'Forbidden origin' });
     return next();
   });
   // Blobs arrive as a raw body; mount this before the JSON parser so a

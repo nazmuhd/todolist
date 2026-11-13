@@ -131,6 +131,32 @@ store.onChange(async (key) => {
    INIT
 ============================================================ */
 async function init() {
+  // Require an authenticated session before loading app data.
+  try {
+    const res = await fetch('/auth/me', { credentials: 'include' });
+    if (!res.ok) {
+      window.location.href = '/login.html';
+      return;
+    }
+    const me = await res.json().catch(() => null);
+    const user = me?.user;
+    if (user) {
+      const displayName = user.name || user.email || 'Account';
+      const displaySub = user.email || 'Signed in';
+      const nameEl = document.getElementById('user-menu-name');
+      const jobEl = document.getElementById('user-menu-job');
+      const navName = document.getElementById('nav-name');
+      const navJob = document.getElementById('nav-job');
+      if (nameEl) nameEl.textContent = displayName;
+      if (jobEl) jobEl.textContent = displaySub;
+      if (navName) navName.textContent = displayName;
+      if (navJob) navJob.textContent = displaySub;
+    }
+  } catch {
+    window.location.href = '/login.html';
+    return;
+  }
+
   // The state loads from IndexedDB, so show a placeholder while it does.
   $('#loading-skeleton').classList.remove('hidden');
 

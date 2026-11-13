@@ -217,7 +217,7 @@ if (userMenuBtn && userMenu) {
     else openUserMenu();
   };
 
-  userMenu.addEventListener('click', (e) => {
+  userMenu.addEventListener('click', async (e) => {
     const item = e.target.closest('[id^="user-menu-"]');
     if (!item) return;
     if (item.id === 'user-menu-settings') {
@@ -243,6 +243,14 @@ if (userMenuBtn && userMenu) {
     if (item.id === 'user-menu-import') {
       closeUserMenu();
       document.getElementById('import-data-btn')?.click();
+      return;
+    }
+    if (item.id === 'user-menu-logout') {
+      closeUserMenu();
+      try {
+        await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+      } catch {}
+      window.location.href = '/login.html';
     }
   });
 
