@@ -1,3 +1,6 @@
+import './landing.css';
+import './lucide-setup.js';
+
 const params = new URLSearchParams(location.search);
 document.getElementById('email').value = params.get('email') || '';
 const token = params.get('token') || '';
@@ -45,3 +48,4 @@ async function handleReset(e) {
 }
 
 document.getElementById('reset-form')?.addEventListener('submit', handleReset);
+if (window.lucide?.createIcons) lucide.createIcons();

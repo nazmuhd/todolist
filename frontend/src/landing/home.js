@@ -1,3 +1,6 @@
+import './landing.css';
+import './lucide-setup.js';
+
 function escapeHtml(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')

@@ -60,16 +60,13 @@ export function createApp(options: { serveApp?: boolean } = {}) {
         "object-src": ["'none'"],
         "script-src": [
           "'self'",
-          "https://cdn.tailwindcss.com",
-          "https://cdn.jsdelivr.net",
           ...(config.isProduction ? [] : ["'unsafe-eval'", "ws:", "wss:", "http:", "https:"]),
         ],
         "style-src": [
           "'self'",
           "'unsafe-inline'",
-          "https://fonts.googleapis.com",
         ],
-        "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
+        "font-src": ["'self'", "data:"],
         "img-src": ["'self'", "data:", "blob:", "https:"],
         "connect-src": [
           "'self'",
@@ -168,7 +165,7 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
 
   // Landing pages at root.
-  const landing = resolve(frontendRoot, 'public/landing');
+  const landing = resolve(frontendRoot, serveApp ? 'dist/landing' : 'landing');
   app.get('/', (_req, res) => res.sendFile(resolve(landing, 'home.html')));
   app.get('/registration.html', (_req, res) => res.sendFile(resolve(landing, 'registration.html')));
   app.get('/login.html', (_req, res) => res.sendFile(resolve(landing, 'login.html')));

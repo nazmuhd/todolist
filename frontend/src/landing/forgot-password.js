@@ -1,24 +1,12 @@
+import './landing.css';
+import './lucide-setup.js';
+
 (async () => {
   try {
     const res = await fetch('/auth/me', { credentials: 'include' });
     if (res.ok) window.location.replace('/app/v1/#/inbox');
   } catch {}
 })();
-
-function togglePasswordVisibility() {
-  const input = document.getElementById('auth-password');
-  const icon = document.getElementById('eye-icon');
-  if (input.type === 'password') {
-    input.type = 'text';
-    icon.setAttribute('data-lucide', 'eye-off');
-  } else {
-    input.type = 'password';
-    icon.setAttribute('data-lucide', 'eye');
-  }
-  if (window.lucide?.createIcons) lucide.createIcons();
-}
-
-function updatePasswordHint() {}
 
 async function getCsrfToken() {
   const res = await fetch('/auth/csrf', { credentials: 'include' });
@@ -30,10 +18,7 @@ async function handleAuthSubmit(e) {
   e.preventDefault();
   clearErrors();
 
-  const firstName = (document.getElementById('auth-first-name')?.value || '').trim();
-  const lastName = (document.getElementById('auth-last-name')?.value || '').trim();
   const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   if (!emailValid) {
@@ -42,29 +27,22 @@ async function handleAuthSubmit(e) {
     return;
   }
 
-  if (password.length < 8) {
-    document.getElementById('password-wrap').classList.add('error');
-    document.getElementById('password-error').classList.remove('hidden');
-    return;
-  }
-
   const btn = document.getElementById('auth-submit-btn');
   btn.disabled = true;
   try {
     const csrfToken = await getCsrfToken();
-    const res = await fetch('/auth/register', {
+    const res = await fetch('/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) },
       credentials: 'include',
-      body: JSON.stringify({ firstName, lastName, email, password }),
+      body: JSON.stringify({ email }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      showAlert(data.error || 'Registration failed.', false);
+      showAlert(data.error || 'Unable to process request.', false);
       return;
     }
-    showAlert('Account created! Redirecting...', true);
-    setTimeout(() => { window.location.href = '/app/v1/#/inbox'; }, 600);
+    showAlert(data.message || 'If an account with that email exists, a password reset link has been sent.', true);
   } catch (err) {
     showAlert('Unable to reach the server. Please try again.', false);
   } finally {
@@ -76,8 +54,6 @@ function clearErrors() {
   document.getElementById('auth-alert').classList.add('hidden');
   document.getElementById('email-wrap').classList.remove('error');
   document.getElementById('email-error').classList.add('hidden');
-  document.getElementById('password-wrap').classList.remove('error');
-  document.getElementById('password-error').classList.add('hidden');
 }
 
 function showAlert(message, isSuccess = false) {
@@ -90,15 +66,5 @@ function showAlert(message, isSuccess = false) {
   alertBox.classList.remove('hidden');
 }
 
-function handleOAuth(provider) {
-  showAlert(`${provider} sign-in is not available yet.`, false);
-}
-
 document.getElementById('auth-form')?.addEventListener('submit', handleAuthSubmit);
-document.getElementById('auth-password')?.addEventListener('input', updatePasswordHint);
-document.querySelector('button[aria-label="Toggle password visibility"]')?.addEventListener('click', togglePasswordVisibility);
-document.querySelectorAll('[data-oauth-provider]').forEach(btn => {
-  btn.addEventListener('click', () => handleOAuth(btn.dataset.oauthProvider || 'Provider'));
-});
-
 if (window.lucide?.createIcons) lucide.createIcons();

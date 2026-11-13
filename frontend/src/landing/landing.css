@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/inter/800.css";
+
+@theme {
+  --color-td-red: #e44232;
+  --color-td-redhover: #c93425;
+  --color-td-redsoft: #ffefe5;
+  --color-td-text: #202020;
+  --color-td-secondary: #575757;
+  --color-td-muted: #737373;
+  --color-td-cream: #faf6f1;
+  --color-td-sand: #f5efe6;
+  --color-td-border: #e5e5e5;
+  --color-td-blue: #246fe0;
+  --color-td-green: #058527;
+  --color-td-orange: #eb8909;
+  --color-td-purple: #692fc2;
+
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #202020;
+  background-color: #ffffff;
+}

@@ -1,3 +1,4 @@
+import './vendor-shims.js';
 import './styles.css';
 
 import { $, settings, modalState } from './core/app.js';
@@ -62,7 +63,7 @@ async function loadState() {
 ============================================================ */
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
+    navigator.serviceWorker.register('/sw.js')
       .catch(err => console.warn('Service worker registration failed:', err));
   });
 }

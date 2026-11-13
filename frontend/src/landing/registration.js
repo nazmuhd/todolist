@@ -1,3 +1,6 @@
+import './landing.css';
+import './lucide-setup.js';
+
 (async () => {
   try {
     const res = await fetch('/auth/me', { credentials: 'include' });
@@ -18,6 +21,8 @@ function togglePasswordVisibility() {
   if (window.lucide?.createIcons) lucide.createIcons();
 }
 
+function updatePasswordHint() {}
+
 async function getCsrfToken() {
   const res = await fetch('/auth/csrf', { credentials: 'include' });
   const data = await res.json().catch(() => ({}));
@@ -28,6 +33,8 @@ async function handleAuthSubmit(e) {
   e.preventDefault();
   clearErrors();
 
+  const firstName = (document.getElementById('auth-first-name')?.value || '').trim();
+  const lastName = (document.getElementById('auth-last-name')?.value || '').trim();
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -48,18 +55,18 @@ async function handleAuthSubmit(e) {
   btn.disabled = true;
   try {
     const csrfToken = await getCsrfToken();
-    const res = await fetch('/auth/login', {
+    const res = await fetch('/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) },
       credentials: 'include',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ firstName, lastName, email, password }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      showAlert(data.error || 'Login failed.', false);
+      showAlert(data.error || 'Registration failed.', false);
       return;
     }
-    showAlert('Logged in successfully. Redirecting...', true);
+    showAlert('Account created! Redirecting...', true);
     setTimeout(() => { window.location.href = '/app/v1/#/inbox'; }, 600);
   } catch (err) {
     showAlert('Unable to reach the server. Please try again.', false);
@@ -91,6 +98,7 @@ function handleOAuth(provider) {
 }
 
 document.getElementById('auth-form')?.addEventListener('submit', handleAuthSubmit);
+document.getElementById('auth-password')?.addEventListener('input', updatePasswordHint);
 document.querySelector('button[aria-label="Toggle password visibility"]')?.addEventListener('click', togglePasswordVisibility);
 document.querySelectorAll('[data-oauth-provider]').forEach(btn => {
   btn.addEventListener('click', () => handleOAuth(btn.dataset.oauthProvider || 'Provider'));

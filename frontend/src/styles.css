@@ -1,8 +1,25 @@
-/* ============================================================
-   Todoist Clone — custom styles
-   (Tailwind handles the bulk of the styling; this file holds
-   the extras Tailwind utilities don't cover.)
-============================================================ */
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "flatpickr/dist/flatpickr.min.css";
+
+@theme {
+  --color-td-red: #db4c3f;
+  --color-td-redhover: #c53727;
+  --color-td-bg: #fafafa;
+  --color-td-sidebar: #fafafa;
+  --color-td-border: #e5e5e5;
+  --color-td-text: #202020;
+  --color-td-muted: #808080;
+  --color-td-p1: #db4c3f;
+  --color-td-p2: #eb8909;
+  --color-td-p3: #246fe0;
+  --color-td-p4: #999999;
+
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
 
 body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
 
