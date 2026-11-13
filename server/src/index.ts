@@ -53,10 +53,16 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   app.use('/api/push', pushRouter);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
 
+  // Landing pages at root.
+  const landing = resolve(frontendRoot, 'public/landing');
+  app.get('/', (_req, res) => res.sendFile(resolve(landing, 'landingpage.html')));
+  app.get('/registration.html', (_req, res) => res.sendFile(resolve(landing, 'registration.html')));
+
   if (serveApp) {
-    // Production: the built app from frontend/dist.
+    // Production: the built app from frontend/dist, served under /app/v1/.
     const dist = resolve(frontendRoot, 'dist');
-    app.use(express.static(dist, { index: false }));
+    app.get('/app/v1/*', (_req, res) => res.sendFile(resolve(dist, 'index.html')));
+    app.use('/app/v1', express.static(dist, { index: false }));
     app.use((_req, res) => res.sendFile(resolve(dist, 'index.html')));
   }
 
