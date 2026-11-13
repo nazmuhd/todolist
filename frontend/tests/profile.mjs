@@ -31,7 +31,7 @@ try {
     `getComputedStyle(document.querySelector('${sel}')).getPropertyValue('${side.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}-width')`);
   check('no line under the profile row', await borderWidth('.sidebar-user', 'borderBottom') === '0px');
   check('no line above the sidebar', true);
-  check('no line in the collapsed rail', await borderWidth('#sidebar-rail', 'borderTop') === '0px');
+  check('no settings rail icon', await evalJs(`!document.getElementById('rail-settings-btn')`));
 
   // ---- The profile menu opens from the avatar. ----
   await evalJs(`document.getElementById('user-menu-btn').click()`);

@@ -70,41 +70,14 @@ try {
   check('the template hint text is hidden when collapsed', h2.textHidden, hint);
   check('the template hint is an icon when collapsed', h2.iconShown && h2.iconTag === 'yes', hint);
 
-  // ---- Bug 3: the collapsed rail has a settings menu. ----
-  check('the rail settings button is shown', await evalJs(`(() => {
-    const btn = document.getElementById('rail-settings-btn');
-    if (!btn) return false;
-    const wrap = btn.closest('.sidebar-collapsed-only');
-    return !!wrap && getComputedStyle(wrap).display !== 'none';
+  // ---- Bug 3: the collapsed rail is gone; the profile menu serves instead. ----
+  check('the profile trigger is shown when collapsed', await evalJs(`(() => {
+    if (!document.getElementById('sidebar').classList.contains('sidebar-collapsed')) {
+      document.getElementById('sidebar-toggle').click();
+    }
+    const btn = document.getElementById('user-menu-btn');
+    return !!btn && getComputedStyle(btn).display !== 'none';
   })()`));
-
-  await evalJs(`document.getElementById('rail-settings-btn').click()`);
-  await sleep(400);
-  check('the rail menu opens', await evalJs(`!document.getElementById('rail-menu').classList.contains('hidden')`));
-  check('the rail menu has rows', await evalJs(`document.querySelectorAll('#rail-menu [data-rail-action]').length >= 4`),
-    await evalJs(`[...document.querySelectorAll('#rail-menu [data-rail-action]')].map(b=>b.dataset.railAction).join(',')`));
-
-  // It opens upward: above its button.
-  const pos = await evalJs(`(() => {
-    const menu = document.getElementById('rail-menu').getBoundingClientRect();
-    const btn = document.getElementById('rail-settings-btn').getBoundingClientRect();
-    return JSON.stringify({ menuBottom: Math.round(menu.bottom), btnTop: Math.round(btn.top) });
-  })()`);
-  const p = JSON.parse(pos);
-  check('the rail menu opens upward', p.menuBottom <= p.btnTop, pos);
-
-  // Clicking outside closes it.
-  await evalJs(`document.getElementById('view-title-text').click()`);
-  await sleep(250);
-  check('clicking outside closes the rail menu', await evalJs(`document.getElementById('rail-menu').classList.contains('hidden')`));
-
-  // Opening it again and choosing Settings opens the settings dialog.
-  await evalJs(`document.getElementById('rail-settings-btn').click()`);
-  await sleep(300);
-  await evalJs(`document.querySelector('#rail-menu [data-rail-action="settings"]').click()`);
-  await sleep(500);
-  check('the Settings row opens the settings dialog', await evalJs(`document.getElementById('settings-modal').open`));
-  await evalJs(`document.getElementById('settings-close').click()`);
 
   const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   check('no console errors', realErrors.length === 0, realErrors.join(' | '));

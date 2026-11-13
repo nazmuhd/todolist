@@ -169,21 +169,23 @@ try {
   await evalJs(`document.getElementById('settings-close').click()`);
   await sleep(300);
 
-  // The collapsed rail menu opens the same popup.
+  // The profile menu opens the same popup in the collapsed state.
   await evalJs(`document.getElementById('settings-close').click()`);
   await sleep(300);
   if (!await evalJs(`document.getElementById('sidebar').classList.contains('sidebar-collapsed')`)) {
     await evalJs(`document.getElementById('sidebar-toggle').click()`);
     await sleep(600);
   }
-  await evalJs(`document.getElementById('rail-settings-btn').click()`);
+  await evalJs(`document.getElementById('user-menu-btn').click()`);
   await sleep(500);
-  check('the rail menu opens', await evalJs(`!document.getElementById('rail-menu').classList.contains('hidden')`));
-  await evalJs(`document.querySelector('#rail-menu [data-rail-action="shortcuts"]').click()`);
+  check('the profile menu opens', await evalJs(`!document.getElementById('user-menu').classList.contains('hidden')`));
+  await evalJs(`document.getElementById('user-menu-shortcuts').click()`);
   await sleep(600);
-  check('the rail menu opens the shortcuts popup', await evalJs(`document.getElementById('shortcuts-modal').open`));
+  check('the profile menu opens the shortcuts popup', await evalJs(`document.getElementById('shortcuts-modal').open`));
   await evalJs(`document.getElementById('shortcuts-close').click()`);
   await sleep(300);
+  await evalJs(`document.getElementById('sidebar-toggle').click()`);
+  await sleep(600);
 
   // ---- The keyboard button is the last control in the header. ----
   const order = await evalJs(`(() => {

@@ -152,24 +152,7 @@ try {
   const calendarIcon = await evalJs(`document.querySelector('[data-view="calendar"] [data-lucide]').getAttribute('data-lucide')`);
   check('Today has its own icon', todayIcon !== calendarIcon, `today=${todayIcon} calendar=${calendarIcon}`);
 
-  // ---- The bottom bars line up. ----
-  const align = () => evalJs(`(() => {
-    const qa = document.getElementById('quick-add-bar').getBoundingClientRect();
-    const aside = document.getElementById('sidebar');
-    const bar = aside.classList.contains('sidebar-collapsed')
-      ? document.getElementById('sidebar-rail')
-      : aside.querySelector('.sidebar-footer:not(.sidebar-collapsed-only)');
-    const b = bar.getBoundingClientRect();
-    return JSON.stringify({ qa: Math.round(qa.top), bar: Math.round(b.top) });
-  })()`);
-
-  const expanded = JSON.parse(await align());
-  check('the bottom bars line up when expanded', expanded.qa === expanded.bar, JSON.stringify(expanded));
-
-  await evalJs(`document.getElementById('sidebar-toggle').click()`);
-  await sleep(600);
-  const collapsed = JSON.parse(await align());
-  check('the bottom bars line up when collapsed', collapsed.qa === collapsed.bar, JSON.stringify(collapsed));
+  // (The sidebar no longer has a bottom bar; export/import live in the profile menu.)
 
   const realErrors = errors.filter((e) => !/\/api\//.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   check('no console errors', realErrors.length === 0, realErrors.join(' | '));
