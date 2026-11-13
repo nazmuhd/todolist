@@ -32,7 +32,7 @@ export const DEFAULT_PROFILE = {
   name: 'Todolist',
   job: 'Local workspace',
   status: 'online',
-  avatar: AVATARS[0].src,
+  avatar: AVATARS[1].src,
 };
 
 /** Fills in anything the stored profile is missing or holds a bad value. */
