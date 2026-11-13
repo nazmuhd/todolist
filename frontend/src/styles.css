@@ -474,6 +474,9 @@ h1, h2, h3 {
 }
 
 .qa-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 8px;
   font-size: 11px;
   color: #202020;
