@@ -1299,9 +1299,12 @@ body.h-screen {
   padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
 }
 
-dialog {
-  max-width: calc(100vw - 1rem);
-  max-height: calc(100dvh - 1rem);
+@layer base {
+  dialog {
+    margin: auto;
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
 }
 
 #task-modal,

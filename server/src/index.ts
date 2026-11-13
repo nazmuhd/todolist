@@ -44,8 +44,9 @@ export const frontendRoot = resolve(root, 'frontend');
  * `serveApp` is false in development, where Vite is mounted in middleware
  * mode instead and serves the app with hot reloading.
  */
-export function createApp(options: { serveApp?: boolean } = {}) {
+export function createApp(options: { serveApp?: boolean; vite?: any } = {}) {
   const serveApp = options.serveApp ?? true;
+  const vite = options.vite;
   const app = express();
   app.set('trust proxy', 1);
 
@@ -166,19 +167,48 @@ export function createApp(options: { serveApp?: boolean } = {}) {
 
   // Landing pages at root.
   const landing = resolve(frontendRoot, serveApp ? 'dist/landing' : 'landing');
-  app.get('/', (_req, res) => res.sendFile(resolve(landing, 'home.html')));
-  app.get('/registration.html', (_req, res) => res.sendFile(resolve(landing, 'registration.html')));
-  app.get('/login.html', (_req, res) => res.sendFile(resolve(landing, 'login.html')));
-  app.get('/forgot-password.html', (_req, res) => res.sendFile(resolve(landing, 'forgot-password.html')));
-  app.get('/reset-password', (_req, res) => res.sendFile(resolve(landing, 'reset-password.html')));
-  app.get('/reset-password.html', (_req, res) => res.sendFile(resolve(landing, 'reset-password.html')));
+  const sendLanding = async (req: any, res: any, file: string) => {
+    const filePath = resolve(landing, file);
+    if (vite) {
+      const fs = await import('node:fs/promises');
+      let html = await fs.readFile(filePath, 'utf-8');
+      html = await vite.transformIndexHtml(req.originalUrl, html);
+      res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      return;
+    }
+    res.sendFile(filePath);
+  };
+  app.get('/', (req, res, next) => void sendLanding(req, res, 'home.html').catch(next));
+  app.get('/registration.html', (req, res, next) => void sendLanding(req, res, 'registration.html').catch(next));
+  app.get('/login.html', (req, res, next) => void sendLanding(req, res, 'login.html').catch(next));
+  app.get('/forgot-password.html', (req, res, next) => void sendLanding(req, res, 'forgot-password.html').catch(next));
+  app.get('/reset-password', (req, res, next) => void sendLanding(req, res, 'reset-password.html').catch(next));
+  app.get('/reset-password.html', (req, res, next) => void sendLanding(req, res, 'reset-password.html').catch(next));
 
   if (serveApp) {
-    // Production: the built app from frontend/dist, served under /app/v1/.
+    // Production: serve built assets/files and the SPA from frontend/dist.
     const dist = resolve(frontendRoot, 'dist');
+    // Root-level assets referenced by landing and SPA (/assets/*, /images/*, /sw.js, etc.)
+    app.use(express.static(dist, { index: false }));
+    app.get('/app/v1', (_req, res) => res.sendFile(resolve(dist, 'index.html')));
     app.get('/app/v1/*', (_req, res) => res.sendFile(resolve(dist, 'index.html')));
-    app.use('/app/v1', express.static(dist, { index: false }));
+    // Fallback for unknown root paths (preserves previous behavior).
     app.use((_req, res) => res.sendFile(resolve(dist, 'index.html')));
+  } else if (vite) {
+    // Development SPA: let Vite transform the HTML entry.
+    const sendSpa = async (req: any, res: any, next: any) => {
+      try {
+        const fs = await import('node:fs/promises');
+        let html = await fs.readFile(resolve(frontendRoot, 'index.html'), 'utf-8');
+        html = await vite.transformIndexHtml(req.originalUrl, html);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (e) {
+        vite.ssrFixStacktrace?.(e as Error);
+        next(e);
+      }
+    };
+    app.get('/app/v1', sendSpa);
+    app.get('/app/v1/*', sendSpa);
   }
 
   app.use(errorHandler);

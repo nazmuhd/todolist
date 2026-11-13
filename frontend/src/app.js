@@ -1,5 +1,4 @@
 import './vendor-shims.js';
-import './styles.css';
 
 import { $, settings, modalState } from './core/app.js';
 import { store } from './core/store.js';

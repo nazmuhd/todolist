@@ -1,4 +1,3 @@
-import './landing.css';
 import './lucide-setup.js';
 
 const params = new URLSearchParams(location.search);

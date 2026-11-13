@@ -7,25 +7,20 @@ import { startBackupWorker } from './services/backups.ts';
 // The API is useless without its tables; apply pending migrations on boot.
 await migrate();
 
-const app = createApp({ serveApp: config.isProduction });
-
+let app;
 if (!config.isProduction) {
-  // Serve the app at /app/v1 so / can be the landing page.
-  const { resolve } = await import('node:path');
-  const { fileURLToPath } = await import('node:url');
-  const __dirname = resolve(fileURLToPath(import.meta.url), '..');
-  const frontendRoot = resolve(__dirname, '../..', 'frontend');
-  app.get('/app/v1/*', (_req, res) => res.sendFile(resolve(frontendRoot, 'index.html')));
-  app.get('/app/v1', (_req, res) => res.sendFile(resolve(frontendRoot, 'index.html')));
-
   // Vite in middleware mode: one process, one port, hot reloading.
   const { createServer } = await import('vite');
   const vite = await createServer({
     root: frontendRoot,
     server: { middlewareMode: true },
-    appType: 'spa',
+    appType: 'custom',
   });
+  app = createApp({ serveApp: false, vite });
+  // Vite asset/module/HMR middleware (after app routes that need transformIndexHtml).
   app.use(vite.middlewares);
+} else {
+  app = createApp({ serveApp: true });
 }
 
 const server = app.listen(config.PORT, () => {

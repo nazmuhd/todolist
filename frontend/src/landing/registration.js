@@ -1,4 +1,3 @@
-import './landing.css';
 import './lucide-setup.js';
 
 (async () => {
