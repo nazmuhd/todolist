@@ -581,11 +581,12 @@ app.listen(PORT, () => {
 ## 9. Verification Status & Remaining Hardening Tasks
 
 - **Automated verification:** Server test suite passes (including auth/CSRF/sync coverage) and dependency audit is clean at the time of the latest remediation commits.
-- **Smoke verification (non-browser):** CSRF endpoint issuance and key response security headers (CSP, Referrer-Policy, COOP, CORP) were verified via local app smoke checks.
-- **Pending manual/browser verification:** Full SPA and landing/reset/auth flow verification under CSP+CSRF in a browser (console/network/CSP violation checks, login/register/forgot/reset/logout/profile/password change/sync) is still recommended.
+- **Automated/smoke verification:** Server test suite passes (45/45). Local app smoke checks verified CSRF endpoint issuance, key response security headers (CSP, Referrer-Policy, COOP, CORP), and focused auth/API flows under origin+CSRF enforcement (register/login/logout, `/auth/me`, profile update, password change session invalidation + re-login, API auth gating and CSRF rejection/acceptance for unsafe state updates). Forgot-password request flow was exercised in non-production (dev reset-link path when Resend is unavailable).
+- **Pending manual/browser verification:** Full SPA and landing/reset/auth flow verification in a real browser is still recommended (UI wiring, console/network/CSP violations, cookies/navigation/redirect behavior, and end-to-end sync UX).
 - **Hardening progress (latest pass):**
   - Added a **SQLite-backed rate-limit store** for the general `/api` limiter (`server/src/middleware/rateLimitStore.ts`) to improve persistence and shared-database multi-process behavior (true distributed deployments may still require a dedicated shared store such as Redis).
-  - Continued targeted SPA output-safety fixes (escaped additional attribute/style values in dynamic UI rendering paths). Existing markdown/comment rendering and many UI sinks escape untrusted content, but a full exhaustive sink audit remains advisable.
+  - Preserved CSRF token across login/register session regeneration and included refreshed token in auth responses to reduce client-side CSRF/session edge-case failures; hardened forgot-password handling when email delivery is unavailable in non-production.
+  - Continued targeted SPA output-safety fixes (including task-row priority label attribute escaping and other dynamic attribute/style value escaping). Existing markdown/comment rendering and many UI sinks escape untrusted content, but a full exhaustive sink audit remains advisable.
   - Request validation is implemented across key auth/API routes with Zod schemas; further centralization/edge-case tuning can be done incrementally.
 - **Remaining hardening work:**
   - Comprehensive SPA XSS sink audit/refactor for any remaining untrusted render paths.
