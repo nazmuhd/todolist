@@ -67,6 +67,11 @@
 <div id="app" class="flex h-full">
   <!-- SIDEBAR -->
   <aside id="sidebar" class="w-72 bg-td-sidebar border-r border-td-border flex flex-col flex-shrink-0">
+    <div class="sidebar-top px-2 py-2 flex items-center justify-end flex-shrink-0">
+      <button id="sidebar-toggle" class="text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
+        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+      </button>
+    </div>
     <nav class="px-2 pt-2 overflow-y-auto scrollbar-thin flex-1 pb-4">
       <!-- Smart lists -->
       <div class="space-y-0.5">
@@ -191,9 +196,6 @@
           <span id="nav-job" class="truncate text-[11px] text-td-muted">Local workspace</span>
         </span>
         <i data-lucide="chevrons-up-down" class="sidebar-hide h-4 w-4 flex-shrink-0 text-td-muted"></i>
-      </button>
-      <button id="sidebar-toggle" class="text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
-        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
       </button>
     </div>
 
