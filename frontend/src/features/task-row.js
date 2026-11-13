@@ -91,8 +91,8 @@ export function renderTaskRow(t, isSub, opts = {}) {
       <div class="flex items-start gap-2 py-2 px-1 border-b border-gray-100 hover:bg-gray-50 rounded">
         <button class="task-check mt-0.5 flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center"
           style="border-color:${t.completed ? '#808080' : checkColor}; ${t.completed ? 'background:#808080;' : ''}"
-          title="${t.completed ? 'Reopen task' : 'Complete task'} · ${level ? level.name : 'No priority'}"
-          aria-label="${t.completed ? 'Reopen task' : 'Complete task'} · ${level ? level.name : 'No priority'}">
+          title="${t.completed ? 'Reopen task' : 'Complete task'} · ${escapeHtml(level ? level.name : 'No priority')}"
+          aria-label="${t.completed ? 'Reopen task' : 'Complete task'} · ${escapeHtml(level ? level.name : 'No priority')}">
           ${t.completed ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : ''}
         </button>
         <div class="task-content flex-1 min-w-0">

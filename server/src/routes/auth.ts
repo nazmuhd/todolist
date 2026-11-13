@@ -302,9 +302,18 @@ router.post('/register', authLimiter, async (req, res) => {
       throw e;
     }
     const newUser = { id: Number(r.lastInsertRowid), email: ne, name: fullName, first_name: fn || null, last_name: ln || null, avatar_url: null, email_verified: 0 };
+    const csrfToken = (req as any).session?.csrfToken || crypto.randomBytes(32).toString('hex');
     (req as any).session.regenerate((re: any) => {
       if (re) return res.status(500).json({ error: 'Account created, but automatic login failed.' });
-      (req as any).login(newUser, (err: any) => { if (err) return res.status(500).json({ error: 'Account created, but automatic login failed.' }); return res.status(201).json({ message: 'Registration successful.', user: newUser }); });
+      (req as any).session.csrfToken = csrfToken;
+      (req as any).login(newUser, (err: any) => {
+        if (err) return res.status(500).json({ error: 'Account created, but automatic login failed.' });
+        (req as any).session.csrfToken = csrfToken;
+        (req as any).session.save((se: any) => {
+          if (se) return res.status(500).json({ error: 'Account created, but automatic login failed.' });
+          return res.status(201).json({ message: 'Registration successful.', user: newUser, csrfToken });
+        });
+      });
     });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error.' }); }
 });
@@ -313,7 +322,20 @@ router.post('/login', authLimiter, (req, res, next) => {
   passport.authenticate('local', (err: any, user: any, info: any) => {
     if (err) return next(err);
     if (!user) return res.status(401).json({ error: info?.message || 'Invalid email or password.' });
-    (req as any).session.regenerate((e: any) => { if (e) return next(e); (req as any).login(user, (le: any) => { if (le) return next(le); const u = getStmts().findUserById.get(user.id) || user; res.json({ message: 'Logged in successfully.', user: { id: u.id, email: u.email, name: u.name, first_name: u.first_name ?? null, last_name: u.last_name ?? null, avatar_url: u.avatar_url } }); }); });
+    const csrfToken = (req as any).session?.csrfToken || crypto.randomBytes(32).toString('hex');
+    (req as any).session.regenerate((e: any) => {
+      if (e) return next(e);
+      (req as any).session.csrfToken = csrfToken;
+      (req as any).login(user, (le: any) => {
+        if (le) return next(le);
+        (req as any).session.csrfToken = csrfToken;
+        const u = getStmts().findUserById.get(user.id) || user;
+        (req as any).session.save((se: any) => {
+          if (se) return next(se);
+          res.json({ message: 'Logged in successfully.', user: { id: u.id, email: u.email, name: u.name, first_name: u.first_name ?? null, last_name: u.last_name ?? null, avatar_url: u.avatar_url }, csrfToken });
+        });
+      });
+    });
   })(req, res, next);
 });
 
@@ -337,10 +359,14 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     try { baseUrl = new URL(baseUrl).origin + new URL(baseUrl).pathname.replace(/\/$/, ''); } catch { baseUrl = String(baseUrl).replace(/\/$/, ''); }
     const resetLink = `${baseUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
     if (process.env.EMAIL_DRY_RUN === '1' && !config.isProduction) return res.json({ ...generic, dev_reset_link: resetLink });
+    if (!config.RESEND_API_KEY) {
+      if (config.isProduction) return res.status(502).json({ error: 'Unable to send reset email at this time.' });
+      return res.json({ ...generic, dev_reset_link: resetLink });
+    }
     const appUrl = baseUrl;
     const userName = user.first_name || user.name || 'there';
     const appName = 'Todolist';
-    const resend = new Resend(config.RESEND_API_KEY!);
+    const resend = new Resend(config.RESEND_API_KEY);
     const logoPath = getLogoPath();
     const logoContentId = 'todolist-logo';
     const logoUrl = logoPath ? `cid:${logoContentId}` : `${baseUrl}/images/logo.png`;
