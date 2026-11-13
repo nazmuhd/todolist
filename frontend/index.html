@@ -305,14 +305,14 @@
     <!-- Quick Add (floating card, no divider above) -->
     <div id="quick-add-bar" class="px-3 sm:px-6 py-3 flex-shrink-0">
       <div id="quick-add-wrapper" class="max-w-3xl mx-auto">
-        <div id="quick-add-card" class="quick-add-card px-4 py-1.5">
+        <div id="quick-add-card" class="quick-add-card px-3 py-1">
           <div class="flex items-center gap-2.5 py-1.5 text-sm text-td-muted cursor-text group" id="quick-add-placeholder">
             <span class="quick-add-plus w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0">
               <i data-lucide="plus" class="w-3.5 h-3.5"></i>
             </span>
             <span class="font-medium group-hover:text-td-red transition-colors">Add task</span>
           </div>
-          <div id="quick-add-editor" class="hidden pb-2 pt-1">
+          <div id="quick-add-editor" class="hidden pb-1 pt-1">
             <div class="flex items-start gap-2.5">
               <span class="quick-add-plus mt-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0">
                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
@@ -320,14 +320,14 @@
               <div class="relative flex-1">
                 <span class="absolute top-3 left-2 w-2 h-2 rounded-full bg-blue-600"></span>
                 <textarea id="quick-add-input" rows="1" placeholder="e.g. Pay rent tomorrow 9am p1 #Home @finance"
-                  class="quick-add-input w-full resize-none border rounded-md pl-6 pr-3 py-2 text-sm focus:outline-none"></textarea>
+                  class="quick-add-input w-full resize-none border rounded-md pl-6 pr-3 py-1.5 text-sm focus:outline-none"></textarea>
               </div>
             </div>
-            <div id="quick-add-preview" class="ml-9 mt-2 flex flex-wrap items-center gap-1.5 text-xs text-td-muted min-h-[20px]"></div>
-            <div id="quick-add-picker" class="hidden ml-9 mt-2"></div>
-            <div class="ml-9 mt-2 flex items-center gap-2">
-              <button id="quick-add-submit" class="bg-td-red hover:bg-td-redhover text-white text-sm font-semibold px-4 py-1.5 rounded-full shadow-sm">Add task</button>
-              <button id="quick-add-cancel" class="text-sm text-td-muted hover:text-td-text px-2 py-1.5">Cancel</button>
+            <div id="quick-add-preview" class="ml-9 mt-1 flex flex-wrap items-center gap-1.5 text-xs text-td-muted min-h-[16px]"></div>
+            <div id="quick-add-picker" class="hidden ml-9 mt-1"></div>
+            <div class="ml-9 mt-1 flex items-center gap-2">
+              <button id="quick-add-submit" class="bg-td-red hover:bg-td-redhover text-white text-xs font-semibold px-3 py-1 rounded-full shadow-sm">Add task</button>
+              <button id="quick-add-cancel" class="text-xs text-td-muted hover:text-td-text px-2 py-1">Cancel</button>
               <span class="text-xs text-td-muted ml-auto hidden sm:inline">Enter to add • Esc to close</span>
             </div>
           </div>
