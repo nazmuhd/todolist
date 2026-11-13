@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Log in to todolist</title>
+<title>Sign up for a free todolist account</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -56,34 +56,23 @@
 </head>
 <body class="min-h-screen flex flex-col bg-white antialiased selection:bg-td-red/15 selection:text-td-red">
 
-<!-- Top Minimal Header -->
 <header class="w-full max-w-6xl mx-auto px-6 sm:px-10 pt-7 pb-4 flex items-center justify-between">
   <a href="/" class="inline-flex items-center gap-2.5 focus:outline-none">
     <img src="/images/logo.png" alt="todolist" class="w-[30px] h-[30px] rounded-[7px] object-cover" />
     <span class="font-bold text-[22px] tracking-[-0.03em] text-td-red">todolist</span>
   </a>
-
   <a href="/" class="text-xs sm:text-sm font-medium text-td-secondary hover:text-td-text transition">
     ← Back to home
   </a>
 </header>
 
-<!-- Main Split Container -->
 <main class="flex-1 w-full max-w-6xl mx-auto px-6 sm:px-10 py-8 sm:py-12 grid lg:grid-cols-12 gap-12 items-center">
-
-  <!-- Left Column: Auth Form Card -->
   <div class="lg:col-span-5 w-full max-w-[400px] mx-auto lg:mx-0">
+    <h1 class="text-[32px] font-extrabold tracking-[-0.025em] text-td-text mb-6">Sign up</h1>
 
-    <!-- Page Title -->
-    <h1 id="auth-heading" class="text-[32px] font-extrabold tracking-[-0.025em] text-td-text mb-6">
-      Log in
-    </h1>
-
-    <!-- Feedback Alert Banner (Hidden by default) -->
     <div id="auth-alert" class="hidden mb-4 p-3 rounded-lg text-xs font-medium flex items-start gap-2"></div>
 
-    <!-- Social OAuth Providers (Shown on Login & Signup) -->
-    <div id="oauth-section" class="space-y-2.5">
+    <div class="space-y-2.5">
       <button type="button" onclick="handleOAuth('Google')" class="w-full h-11 px-4 rounded-lg border border-td-border hover:bg-gray-50 active:bg-gray-100 transition flex items-center justify-center gap-3 text-[14px] font-semibold text-td-text">
         <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/>
@@ -91,121 +80,69 @@
           <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"/>
           <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"/>
         </svg>
-        <span class="oauth-label">Continue with Google</span>
+        <span>Continue with Google</span>
       </button>
     </div>
 
-    <!-- Divider -->
-    <div id="oauth-divider" class="my-5 flex items-center gap-3">
+    <div class="my-5 flex items-center gap-3">
       <div class="h-[1px] flex-1 bg-gray-200"></div>
       <span class="text-xs text-td-muted uppercase tracking-wider">or</span>
       <div class="h-[1px] flex-1 bg-gray-200"></div>
     </div>
 
-    <!-- Email & Password Form -->
     <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-3.5" novalidate>
-
-      <!-- Name Field (Register Only - Optional/Clean) -->
-      <div id="name-field-group" class="hidden">
+      <div id="name-field-group">
         <div class="auth-input-wrap border border-td-border rounded-lg px-3.5 py-2 transition bg-white">
           <label for="auth-name" class="block text-[11px] font-semibold text-td-text">Your name</label>
-          <input
-            id="auth-name"
-            type="text"
-            placeholder="Enter your name..."
-            class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent"
-          />
+          <input id="auth-name" type="text" placeholder="Enter your name..." class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent" />
         </div>
       </div>
 
-      <!-- Email Field -->
       <div>
         <div id="email-wrap" class="auth-input-wrap border border-td-border rounded-lg px-3.5 py-2 transition bg-white">
           <label for="auth-email" class="block text-[11px] font-semibold text-td-text">Email</label>
-          <input
-            id="auth-email"
-            type="email"
-            required
-            placeholder="Enter your personal or work email..."
-            class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent"
-          />
+          <input id="auth-email" type="email" required placeholder="Enter your personal or work email..." class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent" />
         </div>
         <p id="email-error" class="hidden mt-1 text-[11px] text-td-red font-medium">Please enter a valid email address.</p>
       </div>
 
-      <!-- Password Field (Hidden on Forgot Password mode) -->
-      <div id="password-field-group">
+      <div>
         <div id="password-wrap" class="auth-input-wrap border border-td-border rounded-lg px-3.5 py-2 transition bg-white flex items-center justify-between gap-2">
           <div class="flex-1">
             <label for="auth-password" class="block text-[11px] font-semibold text-td-text">Password</label>
-            <input
-              id="auth-password"
-              type="password"
-              required
-              placeholder="Enter your password..."
-              oninput="updatePasswordHint()"
-              class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent"
-            />
+            <input id="auth-password" type="password" required placeholder="Enter your password..." oninput="updatePasswordHint()" class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent" />
           </div>
-          <button
-            type="button"
-            onclick="togglePasswordVisibility()"
-            aria-label="Toggle password visibility"
-            class="p-1.5 text-td-muted hover:text-td-text rounded-md transition"
-          >
+          <button type="button" onclick="togglePasswordVisibility()" aria-label="Toggle password visibility" class="p-1.5 text-td-muted hover:text-td-text rounded-md transition">
             <i id="eye-icon" data-lucide="eye" class="w-4 h-4"></i>
           </button>
         </div>
         <p id="password-error" class="hidden mt-1 text-[11px] text-td-red font-medium">Password must be at least 8 characters.</p>
-        <p id="password-hint" class="hidden mt-1.5 text-[11px] text-td-muted">
+        <p id="password-hint" class="mt-1.5 text-[11px] text-td-muted">
           Passwords must be at least 8 characters long.
         </p>
       </div>
 
-      <!-- Primary Submit CTA -->
-      <button
-        id="auth-submit-btn"
-        type="submit"
-        class="w-full h-11 bg-td-red hover:bg-td-redhover text-white font-bold text-[15px] rounded-lg transition active:scale-[0.99] mt-1"
-      >
-        Log in
+      <button id="auth-submit-btn" type="submit" class="w-full h-11 bg-td-red hover:bg-td-redhover text-white font-bold text-[15px] rounded-lg transition active:scale-[0.99] mt-1">
+        Sign up with Email
       </button>
     </form>
 
-    <!-- Forgot Password Link (Login Mode) -->
-    <div id="forgot-link-wrap" class="mt-3.5">
-      <button type="button" onclick="setAuthMode('forgot')" class="text-xs text-td-secondary underline hover:text-td-text transition">
-        Forgot your password?
-      </button>
-    </div>
-
-    <!-- Terms & Privacy Legal Notice -->
-    <p id="legal-notice" class="mt-4 text-[12px] leading-relaxed text-td-secondary">
+    <p class="mt-4 text-[12px] leading-relaxed text-td-secondary">
       By continuing with Google or Email, you agree to todolist’s
       <a href="#" class="underline hover:text-td-text">Terms of Service</a> and
       <a href="#" class="underline hover:text-td-text">Privacy Policy</a>.
     </p>
 
-    <!-- Bottom Mode Switcher -->
     <div class="mt-6 pt-5 border-t border-gray-200 text-center text-[13px] text-td-text">
-      <span id="switch-prompt">Don’t have an account?</span>
-      <button
-        id="switch-btn"
-        type="button"
-        onclick="toggleAuthMode()"
-        class="font-semibold underline hover:text-td-red transition ml-1"
-      >
-        Sign up
-      </button>
+      <span>Already signed up?</span>
+      <a href="/login.html" class="font-semibold underline hover:text-td-red transition ml-1">Go to login</a>
     </div>
   </div>
 
   <!-- Right Column: Editorial Illustration & Social Proof (Desktop) -->
   <div class="hidden lg:flex lg:col-span-7 flex-col items-center justify-center pl-8">
     <div class="w-full max-w-lg bg-td-cream border border-[#ebe5dc] rounded-[28px] p-10 relative overflow-hidden">
-      <!-- Decorative todolist App Cards Illustration -->
       <div class="space-y-4">
-        <!-- Floating Card 1 -->
         <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-200/70 flex items-center gap-3.5 transform -rotate-1">
           <div class="w-5 h-5 rounded-full border-2 border-td-red flex items-center justify-center flex-shrink-0">
             <div class="w-2.5 h-2.5 rounded-full bg-td-red"></div>
@@ -218,8 +155,6 @@
           </div>
           <span class="text-[11px] font-semibold bg-blue-50 text-td-blue px-2.5 py-0.5 rounded-full">#Work</span>
         </div>
-
-        <!-- Floating Card 2 -->
         <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-200/70 flex items-center gap-3.5 transform translate-x-4 rotate-1">
           <div class="w-5 h-5 rounded-full bg-td-green text-white flex items-center justify-center flex-shrink-0">
             <i data-lucide="check" class="w-3 h-3"></i>
@@ -230,8 +165,6 @@
           </div>
           <span class="text-[11px] font-semibold bg-amber-50 text-[#eb8909] px-2.5 py-0.5 rounded-full">#Habits</span>
         </div>
-
-        <!-- Floating Card 3 -->
         <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-200/70 flex items-center gap-3.5 transform -rotate-1">
           <div class="w-5 h-5 rounded-full border-2 border-td-blue flex-shrink-0"></div>
           <div class="flex-1">
@@ -241,8 +174,6 @@
           <span class="text-[11px] font-semibold bg-green-50 text-td-green px-2.5 py-0.5 rounded-full">#Personal</span>
         </div>
       </div>
-
-      <!-- Bottom Caption -->
       <div class="mt-9 pt-6 border-t border-[#e5ded4] text-center">
         <p class="text-[15px] font-semibold text-td-text">
           “Before todolist, my to-do lists were scattered all around! Now, everything is in order and in one place.”
@@ -253,85 +184,9 @@
       </div>
     </div>
   </div>
-
 </main>
 
 <script>
-  // Modes: 'login' | 'signup' | 'forgot'
-  let authMode = 'login';
-
-  function setAuthMode(mode) {
-    authMode = mode;
-    clearErrors();
-
-    const heading = document.getElementById('auth-heading');
-    const submitBtn = document.getElementById('auth-submit-btn');
-    const oauthSection = document.getElementById('oauth-section');
-    const oauthDivider = document.getElementById('oauth-divider');
-    const oauthLabels = document.querySelectorAll('.oauth-label');
-    const nameGroup = document.getElementById('name-field-group');
-    const passwordGroup = document.getElementById('password-field-group');
-    const passwordHint = document.getElementById('password-hint');
-    const forgotWrap = document.getElementById('forgot-link-wrap');
-    const legalNotice = document.getElementById('legal-notice');
-    const switchPrompt = document.getElementById('switch-prompt');
-    const switchBtn = document.getElementById('switch-btn');
-
-    if (mode === 'login') {
-      document.title = 'Log in to todolist';
-      heading.textContent = 'Log in';
-      submitBtn.textContent = 'Log in';
-      oauthSection.classList.remove('hidden');
-      oauthDivider.classList.remove('hidden');
-      oauthLabels.forEach(el => {
-        el.textContent = el.textContent.replace('Sign up', 'Continue');
-      });
-      nameGroup.classList.add('hidden');
-      passwordGroup.classList.remove('hidden');
-      passwordHint.classList.add('hidden');
-      forgotWrap.classList.remove('hidden');
-      legalNotice.classList.remove('hidden');
-      switchPrompt.textContent = 'Don’t have an account?';
-      switchBtn.textContent = 'Sign up';
-    } else if (mode === 'signup') {
-      document.title = 'Sign up for a free todolist account';
-      heading.textContent = 'Sign up';
-      submitBtn.textContent = 'Sign up with Email';
-      oauthSection.classList.remove('hidden');
-      oauthDivider.classList.remove('hidden');
-      oauthLabels.forEach(el => {
-        el.textContent = el.textContent.replace('Continue', 'Continue');
-      });
-      nameGroup.classList.remove('hidden');
-      passwordGroup.classList.remove('hidden');
-      passwordHint.classList.remove('hidden');
-      forgotWrap.classList.add('hidden');
-      legalNotice.classList.remove('hidden');
-      switchPrompt.textContent = 'Already signed up?';
-      switchBtn.textContent = 'Go to login';
-    } else if (mode === 'forgot') {
-      document.title = 'Reset your todolist password';
-      heading.textContent = 'Forgot your password?';
-      submitBtn.textContent = 'Reset my password';
-      oauthSection.classList.add('hidden');
-      oauthDivider.classList.add('hidden');
-      nameGroup.classList.add('hidden');
-      passwordGroup.classList.add('hidden');
-      forgotWrap.classList.add('hidden');
-      legalNotice.classList.add('hidden');
-      switchPrompt.textContent = 'Remembered your password?';
-      switchBtn.textContent = 'Go to login';
-    }
-  }
-
-  function toggleAuthMode() {
-    if (authMode === 'login') {
-      setAuthMode('signup');
-    } else {
-      setAuthMode('login');
-    }
-  }
-
   function togglePasswordVisibility() {
     const input = document.getElementById('auth-password');
     const icon = document.getElementById('eye-icon');
@@ -339,48 +194,10 @@
       input.type = 'text';
       icon.setAttribute('data-lucide', 'eye-off');
     } else {
-      input.type = 'password';
+      input.type = 'text';
       icon.setAttribute('data-lucide', 'eye');
     }
     lucide.createIcons();
-  }
-
-  function updatePasswordHint() {
-    if (authMode !== 'signup') return;
-    const val = document.getElementById('auth-password').value;
-    const hint = document.getElementById('password-hint');
-    if (val.length >= 8) {
-      hint.textContent = '✓ Password meets minimum length (8+ characters)';
-      hint.classList.remove('text-td-muted');
-      hint.classList.add('text-td-green', 'font-medium');
-    } else {
-      hint.textContent = 'Passwords must be at least 8 characters long.';
-      hint.classList.add('text-td-muted');
-      hint.classList.remove('text-td-green', 'font-medium');
-    }
-  }
-
-  function clearErrors() {
-    document.getElementById('auth-alert').classList.add('hidden');
-    document.getElementById('email-wrap').classList.remove('error');
-    document.getElementById('email-error').classList.add('hidden');
-    document.getElementById('password-wrap').classList.remove('error');
-    document.getElementById('password-error').classList.add('hidden');
-  }
-
-  function showAlert(message, isSuccess = false) {
-    const alertBox = document.getElementById('auth-alert');
-    alertBox.className = `mb-4 p-3 rounded-lg text-xs font-medium flex items-start gap-2 ${
-      isSuccess
-        ? 'bg-green-50 text-td-green border border-green-200'
-        : 'bg-red-50 text-td-red border border-red-200'
-    }`;
-    alertBox.innerHTML = `<span>${message}</span>`;
-    alertBox.classList.remove('hidden');
-  }
-
-  function handleOAuth(provider) {
-    showAlert(`Redirecting to ${provider} authentication...`, true);
   }
 
   function handleAuthSubmit(e) {
@@ -397,28 +214,34 @@
       return;
     }
 
-    if (authMode === 'forgot') {
-      showAlert(`If an account exists for ${email}, we’ve sent password reset instructions.`, true);
-      return;
-    }
-
     if (password.length < 8) {
       document.getElementById('password-wrap').classList.add('error');
       document.getElementById('password-error').classList.remove('hidden');
       return;
     }
 
-    if (authMode === 'signup') {
-      showAlert(`Account created for ${email}! Preparing your workspace...`, true);
-    } else {
-      showAlert(`Welcome back! Signing in as ${email}...`, true);
-    }
+    showAlert(`Account created for ${email}! Preparing your workspace...`, true);
     setTimeout(() => { window.location.href = '/app/v1/#/inbox'; }, 1200);
   }
 
-  // Support URL hash routing (#signup or #login)
-  if (window.location.hash === '#signup') {
-    setAuthMode('signup');
+  function clearErrors() {
+    document.getElementById('auth-alert').classList.add('hidden');
+    document.getElementById('email-wrap').classList.remove('error');
+    document.getElementById('email-error').classList.add('hidden');
+    document.getElementById('password-wrap').classList.remove('error');
+    document.getElementById('password-error').classList.add('hidden');
+  }
+
+  function showAlert(message, isSuccess = false) {
+    const alertBox = document.getElementById('auth-alert');
+    alertBox.className = `mb-4 p-3 rounded-lg text-xs font-medium flex items-start gap-2 ${isSuccess ? 'bg-green-50 text-td-green border border-green-200' : 'bg-red-50 text-td-red border border-red-200'}`;
+    alertBox.innerHTML = `<span>${message}</span>`;
+    alertBox.classList.remove('hidden');
+  }
+
+  function handleOAuth(provider) {
+    showAlert(`Redirecting to ${provider} authentication...`, true);
+    setTimeout(() => { window.location.href = '/app/v1/#/inbox'; }, 1200);
   }
 
   lucide.createIcons();

@@ -57,6 +57,8 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   const landing = resolve(frontendRoot, 'public/landing');
   app.get('/', (_req, res) => res.sendFile(resolve(landing, 'home.html')));
   app.get('/registration.html', (_req, res) => res.sendFile(resolve(landing, 'registration.html')));
+  app.get('/login.html', (_req, res) => res.sendFile(resolve(landing, 'login.html')));
+  app.get('/forgot-password.html', (_req, res) => res.sendFile(resolve(landing, 'forgot-password.html')));
 
   if (serveApp) {
     // Production: the built app from frontend/dist, served under /app/v1/.
