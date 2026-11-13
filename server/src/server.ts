@@ -10,6 +10,13 @@ const app = createApp({ serveApp: config.isProduction });
 await migrate();
 
 if (!config.isProduction) {
+  // Serve the app at /app so / can be the landing page.
+  const { resolve } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const __dirname = resolve(fileURLToPath(import.meta.url), '..');
+  const frontendRoot = resolve(__dirname, '../..', 'frontend');
+  app.get('/app', (_req, res) => res.sendFile(resolve(frontendRoot, 'index.html')));
+
   // Vite in middleware mode: one process, one port, hot reloading.
   const { createServer } = await import('vite');
   const vite = await createServer({
