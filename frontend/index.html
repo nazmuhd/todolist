@@ -67,24 +67,6 @@
 <div id="app" class="flex h-full">
   <!-- SIDEBAR -->
   <aside id="sidebar" class="w-72 bg-td-sidebar border-r border-td-border flex flex-col flex-shrink-0">
-    <!-- User profile trigger -->
-    <div class="sidebar-user px-2 py-2 flex items-center gap-1">
-      <button id="user-menu-btn" type="button" class="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1.5 text-left hover:bg-gray-200/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-td-red/40" title="Open profile menu" aria-haspopup="menu" aria-expanded="false">
-        <span class="relative flex-shrink-0">
-          <img id="nav-avatar" src="/images/logo.png" alt="Todolist" class="w-8 h-8 rounded-full object-cover bg-white" />
-          <span id="nav-status-dot" class="avatar-status-dot status-online" aria-hidden="true"></span>
-        </span>
-        <span class="sidebar-hide min-w-0 flex-1 flex flex-col leading-tight">
-          <span id="nav-name" class="truncate text-sm font-medium">Todolist</span>
-          <span id="nav-job" class="truncate text-[11px] text-td-muted">Local workspace</span>
-        </span>
-        <i data-lucide="chevrons-up-down" class="sidebar-hide h-4 w-4 flex-shrink-0 text-td-muted"></i>
-      </button>
-      <button id="sidebar-toggle" class="text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
-        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
-      </button>
-    </div>
-
     <nav class="px-2 pt-2 overflow-y-auto scrollbar-thin flex-1 pb-4">
       <!-- Smart lists -->
       <div class="space-y-0.5">
@@ -197,6 +179,24 @@
       <button id="import-data-btn" aria-hidden="true"></button>
       <span id="schema-badge"></span>
     </div>
+
+    <div class="sidebar-user px-2 py-2 flex items-center gap-1">
+      <button id="user-menu-btn" type="button" class="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1.5 text-left hover:bg-gray-200/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-td-red/40" title="Open profile menu" aria-haspopup="menu" aria-expanded="false">
+        <span class="relative flex-shrink-0">
+          <img id="nav-avatar" src="/images/logo.png" alt="Todolist" class="w-8 h-8 rounded-full object-cover bg-white" />
+          <span id="nav-status-dot" class="avatar-status-dot status-online" aria-hidden="true"></span>
+        </span>
+        <span class="sidebar-hide min-w-0 flex-1 flex flex-col leading-tight">
+          <span id="nav-name" class="truncate text-sm font-medium">Todolist</span>
+          <span id="nav-job" class="truncate text-[11px] text-td-muted">Local workspace</span>
+        </span>
+        <i data-lucide="chevrons-up-down" class="sidebar-hide h-4 w-4 flex-shrink-0 text-td-muted"></i>
+      </button>
+      <button id="sidebar-toggle" class="text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
+        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+      </button>
+    </div>
+
 
     <!-- The collapsed rail hides the footer, so the settings button moves
          into the rail and opens the upward menu instead of the dialog. -->
