@@ -70,9 +70,6 @@
     <div class="sidebar-user px-3 py-2 flex items-center gap-2 flex-shrink-0">
       <img src="/images/logo.png" alt="Todolist" class="w-7 h-7 rounded object-cover flex-shrink-0" />
       <span class="sidebar-hide text-sm font-semibold">Todolist</span>
-      <button id="sidebar-toggle" class="ml-auto text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
-        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
-      </button>
     </div>
     <nav class="px-2 pt-2 overflow-y-auto scrollbar-thin flex-1 pb-4">
       <!-- Smart lists -->
@@ -217,6 +214,9 @@
     <!-- Header -->
     <header class="app-topbar border-b border-td-border px-3 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 flex-shrink-0">
       <button id="mobile-menu" class="md:hidden text-td-muted p-1 -ml-1" title="Open menu" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><i data-lucide="menu" class="w-5 h-5"></i></button>
+      <button id="sidebar-toggle" class="text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
+        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+      </button>
       <h1 id="view-title" class="text-lg sm:text-xl font-bold flex items-center gap-2 min-w-0">
         <i id="view-icon" data-lucide="inbox" class="w-5 h-5 text-td-muted flex-shrink-0"></i>
         <span id="view-title-text" class="truncate">Inbox</span>
