@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
     name TEXT,
+    first_name TEXT,
+    last_name TEXT,
     avatar_url TEXT,
     password_hash TEXT,                     -- Nullable for Phase 2 Google OAuth users
     hash_algorithm TEXT DEFAULT 'argon2id', -- 'argon2id' | 'bcrypt'
@@ -79,6 +81,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 ```
+
+`name` is stored as the combined display/full name (derived from `first_name`/`last_name` when provided) for compatibility with UI and auth responses. New registrations collect and persist `first_name`/`last_name`.
 
 ### Table 2: `password_resets`
 ```sql
@@ -111,11 +115,13 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expired ON sessions(expired);
 
 | Method | Endpoint | Auth Required | Rate Limited | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/auth/register` | No | Yes | Validates input, hashes password with `argon2id`, creates user, and initializes session. |
-| `POST` | `/auth/login` | No | Yes | Authenticates via `passport-local` (`argon2id` or `bcrypt` upgrade) and sets cookie. |
-| `POST` | `/auth/forgot-password` | No | Yes | Generates a 32-byte token, stores its SHA-256 hash, and dispatches reset link via Resend. |
-| `POST` | `/auth/reset-password` | No | Yes | Validates token hash & expiration, updates password to `argon2id`, and invalidates active sessions. |
-| `GET` | `/auth/me` | Yes | No | Returns current authenticated user profile (`id`, `email`, `name`, `avatar_url`). |
+| `POST` | `/auth/register` | No | Yes | Validates input, accepts `firstName`/`lastName` (and legacy `name` fallback), hashes password with `argon2id`, creates user, and initializes session. |
+| `POST` | `/auth/login` | No | Yes | Authenticates via `passport-local` (`argon2id` or `bcrypt` upgrade), regenerates session, and sets cookie. |
+| `POST` | `/auth/forgot-password` | No | Yes | Generates a 32-byte token, stores its SHA-256 hash, and dispatches a branded reset email via Resend (HTML + plain text). |
+| `POST` | `/auth/reset-password` | No | Yes | Validates token hash & expiration, updates password to `argon2id`, consumes the reset token, and invalidates active sessions. |
+| `GET` | `/auth/me` | Yes | No | Returns current authenticated user profile (`id`, `email`, `name`, `first_name`, `last_name`, `avatar_url`, `email_verified`, `created_at`). |
+| `PUT` | `/auth/profile` | Yes | No | Updates the authenticated user's profile name fields (`firstName`/`lastName`, with `name` fallback) and persists `first_name`, `last_name`, and combined `name` in the database. |
+| `POST` | `/auth/change-password` | Yes | Yes | Verifies current password, updates password hash to `argon2id`, invalidates all sessions (including current), logs out/destroys session, clears cookie, and requires re-login. |
 | `POST` | `/auth/logout` | Yes | No | Destroys session in SQLite and clears browser cookie. |
 
 ---
@@ -526,9 +532,18 @@ app.listen(PORT, () => {
 
 ---
 
-## 7. Security & Acceptance Criteria
+## 7. Current Implementation Notes (Repository)
 
-1. **Zero Native Compilation:** Running `pnpm install` and `node server.js` works out of the box on Node.js v22.5+ without `node-gyp` or `better-sqlite3`.
-2. **Session Fixation Mitigation:** Logging in regenerates the session identifier (`req.session.regenerate`) before binding `req.user`.
-3. **Cryptographic Reset Tokens:** Raw tokens sent via Resend are never persisted in plaintext; SQLite stores only the SHA-256 digest with a strict 60-minute TTL and atomic transaction cleanup upon consumption.
-4. **Phase 2 Readiness (Google OAuth):** Because `users.password_hash` is nullable and `avatar_url` / `email_verified` columns already exist, adding an `oauth_accounts` table and `passport-google-oauth20` later requires zero breaking migrations to existing user records.
+- **Auth integration:** The app integrates auth into the main server (`server/src/index.ts`, `server/src/routes/auth.ts`, `server/src/db/*`) using `node:sqlite` migrations and session-backed authentication, rather than the standalone `server.js`/`db.js` sample shown above.
+- **Registration/profile:** Registration collects **first name** and **last name** and stores `first_name`, `last_name`, and combined `name`. `GET /auth/me` returns profile name fields, and `PUT /auth/profile` persists profile name updates to the database.
+- **UI:** The frontend includes authenticated landing/auth pages and app-side profile settings. Password changes are handled in a separate **Security** modal (moved out of Profile settings) and call `POST /auth/change-password`.
+- **Password reset email:** Forgot-password sends a branded HTML + plain-text email via Resend. The template includes a centered inline CID logo (loaded from `frontend/public/images/logo.png` when available, with URL fallback), personalized greeting, CTA/reset link, expiry/security messaging, and fallback link text.
+- **Session invalidation:** Password reset invalidates existing sessions. Password change updates credentials, invalidates **all** user sessions (including current), logs out/destroys the current session, clears the auth cookie, and requires the user to log in again.
+
+## 8. Security & Acceptance Criteria
+
+1. **Zero Native Compilation:** Running `pnpm install` and starting the server works on Node.js with built-in `node:sqlite` (no `better-sqlite3`/`node-gyp` dependency).
+2. **Session Fixation Mitigation:** Login/registration flows regenerate session identifiers before establishing authenticated sessions.
+3. **Cryptographic Reset Tokens:** Raw reset tokens are never stored in plaintext; only SHA-256 hashes are persisted with expiration checks and transactional cleanup on use.
+4. **Session Invalidation on Credential Recovery/Change:** Password reset and password change invalidate sessions; password change requires re-authentication (logout + redirect to login in the UI flow).
+5. **Phase 2 Readiness (Google OAuth):** Nullable `password_hash` and existing profile/verification fields keep the schema compatible with future OAuth account-linking additions.
