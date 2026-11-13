@@ -1,7 +1,7 @@
 /* Offline support for the Todolist app.
    Everything the app needs is served from this origin (the libraries are
    vendored locally), so the first visit is enough to work offline. */
-const CACHE = 'todoist-clone-v6';
+const CACHE = 'todoist-clone-v7';
 const DB_NAME = 'todoist-clone-files';
 const DB_VERSION = 2;
 const STORE = 'files';
@@ -11,6 +11,11 @@ const SHELL = [
   './index.html',
   './manifest.webmanifest',
   './icon.svg',
+  './images/logo.png',
+  './images/avatar-1.png',
+  './images/avatar-2.png',
+  './images/avatar-3.png',
+  './images/avatar-4.png',
 ];
 
 /* Cache every same-origin script, stylesheet and icon the shell references

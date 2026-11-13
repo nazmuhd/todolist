@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>User Menu - Fixed Collapse Logic</title>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Lucide Icons -->
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.408.0/dist/umd/lucide.min.js"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ui: {
+            bg: '#111111', card: '#1c1c1c', hover: '#2a2a2a',
+            border: '#333333', text: '#e5e5e5', muted: '#9ca3af', accent: '#3b82f6',
+          }
+        },
+        fontFamily: { sans: ['Inter', 'sans-serif'] }
+      }
+    }
+  }
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #e5e5e5; }
+  .status-sleepy { background-color: #9ca3af; }
+  .status-away { background-color: #f59e0b; }
+  .status-busy { background-color: #ef4444; }
+  .status-online { background-color: #10b981; }
+</style>
+</head>
+<body class="min-h-screen flex items-center justify-center antialiased overflow-hidden">
+
+  <div class="flex items-end gap-8 relative">
+    
+    <!-- ========================================== -->
+    <!-- SIDEBAR WRAPPER (Toggle w-64 / w-20)       -->
+    <!-- ========================================== -->
+    <div id="my-sidebar" class="group relative w-64 bg-ui-bg border border-ui-border rounded-xl p-2 shadow-2xl transition-all duration-300">
+      
+      <!-- DEMO ONLY: Button to toggle sidebar width -->
+      <button onclick="document.getElementById('my-sidebar').classList.toggle('w-20'); document.getElementById('my-sidebar').classList.toggle('w-64');" class="absolute -right-10 top-2 text-xs bg-gray-800 px-2 py-1 rounded">
+        Toggle Width
+      </button>
+
+      <!-- User Profile Trigger -->
+      <button id="user-menu-btn" class="w-full flex items-center justify-start group-[.w-20]:justify-center p-2 rounded-lg hover:bg-ui-hover transition-colors focus:outline-none whitespace-nowrap">
+        <div class="flex items-center gap-3 w-full">
+          
+          <!-- Avatar -->
+          <div class="relative flex-shrink-0">
+            <img id="nav-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="w-9 h-9 rounded-full bg-ui-card object-cover">
+            <span id="nav-status-dot" class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-ui-bg status-online"></span>
+          </div>
+
+          <!-- Text (Hidden ONLY when collapsed) -->
+          <div class="text-left flex flex-col flex-1 group-[.w-20]:hidden">
+            <div id="nav-name" class="text-sm font-semibold text-ui-text leading-tight">shadcn</div>
+            <div id="nav-job" class="text-xs text-ui-muted leading-tight">Product Designer</div>
+          </div>
+          
+          <!-- Arrow (Hidden ONLY when collapsed) -->
+          <div class="flex-shrink-0 group-[.w-20]:hidden">
+            <i data-lucide="chevrons-up-down" class="w-4 h-4 text-ui-muted"></i>
+          </div>
+
+        </div>
+      </button>
+
+      <!-- DROPDOWN MENU -->
+      <div id="dropdown-menu" 
+           class="hidden absolute left-full bottom-0 ml-3 bg-ui-bg border border-ui-border rounded-xl shadow-2xl w-64 overflow-hidden transform transition-all duration-200 opacity-0 translate-y-2 origin-bottom-left z-50">
+        
+        <!-- Header -->
+        <div class="p-4 flex items-center gap-3 border-b border-ui-border">
+          <div class="relative">
+            <img id="menu-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="w-10 h-10 rounded-full bg-ui-card object-cover">
+            <span id="menu-status-dot" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-ui-bg status-online"></span>
+          </div>
+          <div>
+            <div id="menu-name" class="text-sm font-semibold text-ui-text">shadcn</div>
+            <div id="menu-job" class="text-xs text-ui-muted">Product Designer</div>
+          </div>
+        </div>
+
+        <!-- Menu Items -->
+        <div class="p-1">
+          <button class="w-full flex items-center gap-3 px-3 py-2 text-sm text-ui-text hover:bg-ui-hover rounded-md transition-colors">
+            <i data-lucide="sparkles" class="w-4 h-4 text-ui-muted"></i>
+            Upgrade to Pro
+          </button>
+          <button id="account-settings-btn" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-ui-text hover:bg-ui-hover rounded-md transition-colors">
+            <i data-lucide="circle-user" class="w-4 h-4 text-ui-muted"></i>
+            Account
+          </button>
+        </div>
+
+        <div class="border-t border-ui-border p-1">
+          <button class="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-ui-hover rounded-md transition-colors">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+            Log out
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- ACCOUNT SETTINGS MODAL                     -->
+  <!-- ========================================== -->
+  <div id="account-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+    
+    <div class="relative bg-ui-bg border border-ui-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+      
+      <div class="flex items-center justify-between p-5 border-b border-ui-border">
+        <h2 class="text-lg font-semibold text-white">Profile Settings</h2>
+        <button onclick="closeModal()" class="p-1 rounded-md hover:bg-ui-hover text-ui-muted hover:text-white transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-6 max-h-[80vh] overflow-y-auto">
+        
+        <!-- Avatar Section -->
+        <div>
+          <label class="block text-sm font-medium text-ui-muted mb-3">Avatar</label>
+          <div class="flex items-center gap-5">
+            <div class="relative">
+              <img id="modal-preview-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" class="w-16 h-16 rounded-full border-2 border-ui-border object-cover bg-ui-card">
+            </div>
+            
+            <div class="grid grid-cols-6 gap-2 flex-1">
+              <button onclick="changeAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=Felix')" class="w-8 h-8 rounded-full overflow-hidden hover:ring-2 ring-blue-500 transition-all bg-ui-card focus:outline-none focus:ring-2">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar 1" class="w-full h-full object-cover">
+              </button>
+              <button onclick="changeAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka')" class="w-8 h-8 rounded-full overflow-hidden hover:ring-2 ring-blue-500 transition-all bg-ui-card focus:outline-none focus:ring-2">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka" alt="Avatar 2" class="w-full h-full object-cover">
+              </button>
+              <button onclick="changeAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=Jack')" class="w-8 h-8 rounded-full overflow-hidden hover:ring-2 ring-blue-500 transition-all bg-ui-card focus:outline-none focus:ring-2">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Jack" alt="Avatar 3" class="w-full h-full object-cover">
+              </button>
+              <button onclick="changeAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=Mia')" class="w-8 h-8 rounded-full overflow-hidden hover:ring-2 ring-blue-500 transition-all bg-ui-card focus:outline-none focus:ring-2">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Mia" alt="Avatar 4" class="w-full h-full object-cover">
+              </button>
+              <button onclick="changeAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=Leo')" class="w-8 h-8 rounded-full overflow-hidden hover:ring-2 ring-blue-500 transition-all bg-ui-card focus:outline-none focus:ring-2">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Leo" alt="Avatar 5" class="w-full h-full object-cover">
+              </button>
+              <button onclick="changeAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe')" class="w-8 h-8 rounded-full overflow-hidden hover:ring-2 ring-blue-500 transition-all bg-ui-card focus:outline-none focus:ring-2">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe" alt="Avatar 6" class="w-full h-full object-cover">
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Name & Job Title -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-ui-muted mb-1.5">Display Name</label>
+            <input type="text" id="input-name" value="shadcn" class="w-full bg-ui-card border border-ui-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-ui-muted mb-1.5">Job Title</label>
+            <input type="text" id="input-job" value="Product Designer" class="w-full bg-ui-card border border-ui-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all">
+          </div>
+        </div>
+
+        <!-- Status (Pill Shape) -->
+        <div>
+          <label class="block text-sm font-medium text-ui-muted mb-2">Status</label>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="changeStatus('online', this)" class="status-btn flex items-center gap-2 px-3 py-1.5 rounded-full border border-blue-500 ring-1 ring-blue-500 bg-ui-card text-sm text-ui-text hover:bg-ui-hover transition-colors">
+              <span class="w-2 h-2 rounded-full status-online"></span> Online
+            </button>
+            <button onclick="changeStatus('busy', this)" class="status-btn flex items-center gap-2 px-3 py-1.5 rounded-full border border-ui-border bg-ui-card text-sm text-ui-text hover:bg-ui-hover transition-colors">
+              <span class="w-2 h-2 rounded-full status-busy"></span> Busy
+            </button>
+            <button onclick="changeStatus('away', this)" class="status-btn flex items-center gap-2 px-3 py-1.5 rounded-full border border-ui-border bg-ui-card text-sm text-ui-text hover:bg-ui-hover transition-colors">
+              <span class="w-2 h-2 rounded-full status-away"></span> Away
+            </button>
+            <button onclick="changeStatus('sleepy', this)" class="status-btn flex items-center gap-2 px-3 py-1.5 rounded-full border border-ui-border bg-ui-card text-sm text-ui-text hover:bg-ui-hover transition-colors">
+              <span class="w-2 h-2 rounded-full status-sleepy"></span> Sleepy
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="p-5 border-t border-ui-border bg-ui-card/50 flex justify-end gap-3">
+        <button onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-ui-text hover:bg-ui-hover rounded-lg transition-colors">Cancel</button>
+        <button onclick="saveProfile()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    /* =========================================
+       DROPDOWN MENU LOGIC
+       ========================================= */
+    const userMenuBtn = document.getElementById('user-menu-btn');
+    const dropdownMenu = document.getElementById('dropdown-menu');
+    let isMenuOpen = false;
+
+    userMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isMenuOpen = !isMenuOpen;
+      
+      if (isMenuOpen) {
+        dropdownMenu.classList.remove('hidden');
+        setTimeout(() => {
+          dropdownMenu.classList.remove('opacity-0', 'translate-y-2');
+          dropdownMenu.classList.add('opacity-100', 'translate-y-0');
+        }, 10);
+      } else {
+        closeMenu();
+      }
+    });
+
+    function closeMenu() {
+      isMenuOpen = false;
+      dropdownMenu.classList.remove('opacity-100', 'translate-y-0');
+      dropdownMenu.classList.add('opacity-0', 'translate-y-2');
+      setTimeout(() => {
+        dropdownMenu.classList.add('hidden');
+      }, 200);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (isMenuOpen && !dropdownMenu.contains(e.target) && !userMenuBtn.contains(e.target)) {
+        closeMenu();
+      }
+    });
+
+    /* =========================================
+       MODAL & PROFILE LOGIC
+       ========================================= */
+    const accountBtn = document.getElementById('account-settings-btn');
+    const modal = document.getElementById('account-modal');
+    const modalContent = document.getElementById('modal-content');
+    
+    const navAvatar = document.getElementById('nav-avatar');
+    const menuAvatar = document.getElementById('menu-avatar');
+    const modalPreviewAvatar = document.getElementById('modal-preview-avatar');
+    
+    const navStatusDot = document.getElementById('nav-status-dot');
+    const menuStatusDot = document.getElementById('menu-status-dot');
+    
+    const navName = document.getElementById('nav-name');
+    const menuName = document.getElementById('menu-name');
+    const navJob = document.getElementById('nav-job');
+    const menuJob = document.getElementById('menu-job');
+    
+    const inputName = document.getElementById('input-name');
+    const inputJob = document.getElementById('input-job');
+
+    let tempAvatarUrl = navAvatar.src;
+    let tempStatus = 'online';
+
+    accountBtn.addEventListener('click', () => {
+      closeMenu();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      
+      setTimeout(() => {
+        modalContent.classList.remove('scale-95', 'opacity-0');
+        modalContent.classList.add('scale-100', 'opacity-100');
+      }, 10);
+      
+      tempAvatarUrl = navAvatar.src;
+      modalPreviewAvatar.src = tempAvatarUrl;
+      inputName.value = navName.textContent;
+      inputJob.value = navJob.textContent;
+    });
+
+    function closeModal() {
+      modalContent.classList.remove('scale-100', 'opacity-100');
+      modalContent.classList.add('scale-95', 'opacity-0');
+      
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }, 200);
+    }
+
+    function changeAvatar(url) {
+      tempAvatarUrl = url;
+      modalPreviewAvatar.src = url;
+    }
+
+    function changeStatus(status, btnElement) {
+      tempStatus = status;
+      
+      document.querySelectorAll('.status-btn').forEach(btn => {
+        btn.classList.remove('border-blue-500', 'ring-1', 'ring-blue-500');
+        btn.classList.add('border-ui-border');
+      });
+      
+      btnElement.classList.remove('border-ui-border');
+      btnElement.classList.add('border-blue-500', 'ring-1', 'ring-blue-500');
+    }
+
+    function saveProfile() {
+      const newName = inputName.value;
+      const newJob = inputJob.value;
+      
+      navAvatar.src = tempAvatarUrl;
+      menuAvatar.src = tempAvatarUrl;
+      
+      navName.textContent = newName;
+      menuName.textContent = newName;
+      
+      navJob.textContent = newJob;
+      menuJob.textContent = newJob;
+
+      const statusClasses = ['status-online', 'status-busy', 'status-away', 'status-sleepy'];
+      navStatusDot.classList.remove(...statusClasses);
+      menuStatusDot.classList.remove(...statusClasses);
+      
+      navStatusDot.classList.add(`status-${tempStatus}`);
+      menuStatusDot.classList.add(`status-${tempStatus}`);
+
+      closeModal();
+    }
+  </script>
+</body>
+</html>

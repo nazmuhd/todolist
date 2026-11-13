@@ -26,6 +26,7 @@ export const settings = {
   timeFormat: 'system',
   defaultPriority: null,
   defaultReminder: null,
+  profile: null,
 };
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);

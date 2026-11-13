@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Add Task Component</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.408.0/dist/umd/lucide.min.js"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          todoist: {
+            red: '#db4c3f',
+            redhover: '#c53727',
+            text: '#202020',
+            muted: '#808080',
+          }
+        },
+        fontFamily: {
+          sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #fafafa;
+  }
+
+  .task-input {
+    border-color: rgba(219, 76, 63, 0.4);
+  }
+  .task-input:focus {
+    box-shadow: 0 0 0 1px #db4c3f;
+    border-color: #db4c3f;
+  }
+
+  /* Gradient circle */
+  .gradient-circle {
+    background: radial-gradient(circle at 30% 30%, #f06a5e, #db4c3f 60%, #c53727 100%);
+    box-shadow: 0 1px 3px rgba(219, 76, 63, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  }
+  .gradient-circle:hover {
+    background: radial-gradient(circle at 30% 30%, #f47c70, #c53727 60%, #a82b1d 100%);
+  }
+
+  /* Pill card — only transition border-radius + box-shadow */
+  .pill-card {
+    background:
+      linear-gradient(135deg, rgba(255, 245, 244, 0.95) 0%, rgba(255, 255, 255, 1) 45%, rgba(255, 238, 236, 0.95) 100%);
+    border: 1px solid rgba(219, 76, 63, 0.15);
+    border-radius: 2.5rem;          /* was 9999px — much shorter distance */
+    box-shadow:
+      0 10px 20px -8px rgba(219, 76, 63, 0.25),
+      0 4px 10px -4px rgba(0, 0, 0, 0.08),
+      0 1px 0 0 rgba(255, 255, 255, 0.8) inset;
+    transition: border-radius 0.25s ease, box-shadow 0.25s ease;
+  }
+  .pill-card.expanded {
+    border-radius: 1.5rem;
+    box-shadow:
+      0 12px 24px -8px rgba(219, 76, 63, 0.32),
+      0 6px 12px -4px rgba(0, 0, 0, 0.1),
+      0 1px 0 0 rgba(255, 255, 255, 0.8) inset;
+  }
+
+  /* Height animation via grid trick (no display toggle, no layout jump) */
+  .expand-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.25s ease, opacity 0.2s ease;
+    opacity: 0;
+  }
+  .expand-wrapper.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  .expand-inner {
+    overflow: hidden;
+    min-height: 0;
+  }
+</style>
+</head>
+<body class="min-h-screen flex items-start justify-center pt-32 p-4 antialiased text-todoist-text">
+
+  <div id="task-card" class="pill-card w-full max-w-2xl py-2 px-5 relative">
+
+    <!-- Collapsed state -->
+    <div id="collapsed-view" class="flex items-center gap-3 cursor-pointer group py-2" onclick="openTaskModal()">
+      <div class="gradient-circle w-6 h-6 rounded-full flex items-center justify-center text-white transition-all duration-200 flex-shrink-0">
+        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+      </div>
+      <span class="text-sm text-todoist-muted group-hover:text-todoist-red transition-colors font-medium">Add task</span>
+    </div>
+
+    <!-- Expanded state — always in DOM, height animated via grid -->
+    <div id="expand-wrapper" class="expand-wrapper">
+      <div class="expand-inner">
+        <div class="mt-3 pb-2">
+
+          <div class="flex items-start gap-3">
+            <div class="mt-1.5 gradient-circle w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </div>
+
+            <div class="flex-1 relative">
+              <div class="absolute top-2.5 left-2 w-2 h-2 bg-blue-600 rounded-full"></div>
+              <input
+                type="text"
+                id="task-input"
+                placeholder="e.g. Pay rent tomorrow 9am p1 #Home @finance"
+                class="task-input w-full pl-6 pr-3 py-2 text-sm border rounded-md focus:outline-none transition-all placeholder-gray-400 bg-white/70"
+                onkeydown="handleKeyDown(event)"
+              >
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between pl-9">
+            <div class="flex items-center gap-3">
+              <button onclick="addTask()" class="bg-todoist-red hover:bg-todoist-redhover text-white text-sm font-semibold px-4 py-1.5 rounded-full transition-colors shadow-sm">
+                Add task
+              </button>
+              <button onclick="closeTaskModal()" class="text-sm text-todoist-muted hover:text-todoist-text transition-colors px-2 py-1.5">
+                Cancel
+              </button>
+            </div>
+            <div class="text-xs text-todoist-muted hidden sm:block">
+              Enter to add <span class="mx-1">•</span> Esc to close
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    const taskCard = document.getElementById('task-card');
+    const collapsedView = document.getElementById('collapsed-view');
+    const expandWrapper = document.getElementById('expand-wrapper');
+    const taskInput = document.getElementById('task-input');
+
+    function openTaskModal() {
+      collapsedView.classList.add('hidden');
+      taskCard.classList.add('expanded');
+      expandWrapper.classList.add('open');
+      setTimeout(() => taskInput.focus(), 250);
+    }
+
+    function closeTaskModal() {
+      expandWrapper.classList.remove('open');
+      taskCard.classList.remove('expanded');
+      taskInput.value = '';
+      setTimeout(() => collapsedView.classList.remove('hidden'), 250);
+    }
+
+    function addTask() {
+      const val = taskInput.value.trim();
+      if (val) console.log('Task added:', val);
+      closeTaskModal();
+    }
+
+    function handleKeyDown(e) {
+      if (e.key === 'Enter') addTask();
+      else if (e.key === 'Escape') closeTaskModal();
+    }
+  </script>
+</body>
+</html>

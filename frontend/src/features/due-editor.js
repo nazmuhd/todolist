@@ -394,7 +394,7 @@ let dueEditorCommitted = false;
 
 function setDueNlStatus(text, tone) {
   dueNlStatus.textContent = text || '';
-  dueNlStatus.className = `text-[11px] mb-3 min-h-[16px] ${
+  dueNlStatus.className = `text-xs mt-2 ml-1 min-h-[16px] ${
     tone === 'error' ? 'text-red-600' : tone === 'ok' ? 'text-green-700' : 'text-td-muted'
   }`;
 }

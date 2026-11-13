@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Due Date Picker - Custom Select</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.408.0/dist/umd/lucide.min.js"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            red: '#db4c3f',
+            redhover: '#c53727',
+            gray: '#f9fafb',
+            border: '#e5e7eb',
+            text: '#1f2937',
+            muted: '#6b7280'
+          }
+        },
+        fontFamily: {
+          sans: ['Inter', 'sans-serif'],
+        }
+      }
+    }
+  }
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+</style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 antialiased">
+
+  <!-- Main Modal Container -->
+  <div class="bg-white w-full max-w-[700px] rounded-xl shadow-2xl overflow-hidden flex flex-col border border-brand-border">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-brand-border">
+      <h2 class="text-lg font-semibold text-brand-text">Due date</h2>
+      <button class="text-brand-muted hover:text-brand-text transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Content Area -->
+    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+      
+      <!-- LEFT COLUMN: Calendar -->
+      <div>
+        <div class="mb-6">
+          <div class="relative">
+            <i data-lucide="sparkles" class="w-4 h-4 text-brand-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input type="text" placeholder='Try "tomorrow", "next Friday"...' class="w-full pl-9 pr-3 py-2.5 text-sm border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all placeholder:text-gray-400 text-brand-text">
+          </div>
+          <p class="text-xs text-brand-muted mt-2 ml-1">No due date selected</p>
+        </div>
+
+        <div class="border border-brand-border rounded-xl p-4">
+          <div class="flex items-center justify-between mb-4">
+            <button class="p-1.5 hover:bg-brand-gray rounded-md transition-colors text-brand-muted hover:text-brand-text">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <div class="font-semibold text-sm text-brand-text flex items-center gap-1 cursor-pointer hover:bg-brand-gray px-2 py-1 rounded">
+              November 2026 <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-brand-muted"></i>
+            </div>
+            <button class="p-1.5 hover:bg-brand-gray rounded-md transition-colors text-brand-muted hover:text-brand-text">
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-7 gap-1 text-center text-xs font-medium text-brand-muted mb-2">
+            <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+          </div>
+
+          <div class="grid grid-cols-7 gap-1 text-sm text-center">
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-gray-300 hover:bg-brand-gray transition-colors">29</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-gray-300 hover:bg-brand-gray transition-colors">30</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">1</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">2</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">3</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">4</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">5</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">6</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">7</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">8</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">9</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">10</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">11</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center bg-brand-red text-white font-medium shadow-sm transition-transform scale-105">12</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">13</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">14</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">15</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">16</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">17</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">18</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">19</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">20</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">21</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">22</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">23</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">24</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">25</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">26</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">27</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">28</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">29</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-brand-text hover:bg-brand-gray transition-colors">30</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-gray-300 hover:bg-brand-gray transition-colors">1</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-gray-300 hover:bg-brand-gray transition-colors">2</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-gray-300 hover:bg-brand-gray transition-colors">3</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-gray-300 hover:bg-brand-gray transition-colors">4</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-gray-300 hover:bg-brand-gray transition-colors">5</button>
+            <button class="h-8 w-8 mx-auto rounded-full flex items-center justify-center text-gray-300 hover:bg-brand-gray transition-colors">6</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: Settings -->
+      <div class="flex flex-col gap-6">
+        
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-brand-text">Time</label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked class="w-4 h-4 text-brand-red rounded border-gray-300 focus:ring-brand-red accent-brand-red">
+              <span class="text-sm text-brand-muted">All day</span>
+            </label>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1 opacity-50 pointer-events-none">
+              <i data-lucide="clock" class="w-4 h-4 text-brand-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+              <input type="text" value="-- : -- --" disabled class="w-full pl-9 pr-3 py-2 text-sm border border-brand-border rounded-lg bg-brand-gray text-brand-text">
+            </div>
+          </div>
+        </div>
+
+        <!-- REDESIGNED TIMEZONE SELECT -->
+        <div class="relative" id="custom-select-container">
+          <label class="block text-sm font-medium text-brand-text mb-1.5">Time zone</label>
+          
+          <!-- Trigger Button -->
+          <button id="select-trigger" class="w-full flex items-center justify-between px-3 py-2 text-sm border border-brand-border rounded-lg bg-white text-brand-text hover:bg-brand-gray focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all shadow-sm">
+            <span id="selected-value" class="truncate pr-2">Browser timezone (Asia/Kuala_Lumpur)</span>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-brand-muted flex-shrink-0 transition-transform duration-200" id="select-icon"></i>
+          </button>
+
+          <!-- Custom Options Dropdown -->
+          <div id="select-options" class="hidden absolute z-10 w-full mt-1 bg-white border border-brand-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            <ul class="py-1 text-sm text-brand-text">
+              <li class="px-3 py-2 hover:bg-brand-gray cursor-pointer bg-brand-gray/50 font-medium" onclick="selectOption('Browser timezone (Asia/Kuala_Lumpur)', this)">Browser timezone (Asia/Kuala_Lumpur)</li>
+              <li class="px-3 py-2 hover:bg-brand-gray cursor-pointer" onclick="selectOption('UTC (Coordinated Universal Time)', this)">UTC (Coordinated Universal Time)</li>
+              <li class="px-3 py-2 hover:bg-brand-gray cursor-pointer" onclick="selectOption('America/New_York (EST)', this)">America/New_York (EST)</li>
+              <li class="px-3 py-2 hover:bg-brand-gray cursor-pointer" onclick="selectOption('Europe/London (GMT)', this)">Europe/London (GMT)</li>
+              <li class="px-3 py-2 hover:bg-brand-gray cursor-pointer" onclick="selectOption('Asia/Tokyo (JST)', this)">Asia/Tokyo (JST)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button class="flex-1 py-1.5 text-xs font-medium border border-brand-border rounded-md hover:bg-brand-gray transition-colors text-brand-text">Today</button>
+          <button class="flex-1 py-1.5 text-xs font-medium border border-brand-border rounded-md hover:bg-brand-gray transition-colors text-brand-text">Tomorrow</button>
+          <button class="flex-1 py-1.5 text-xs font-medium border border-brand-border rounded-md hover:bg-brand-gray transition-colors text-brand-text">Next week</button>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-brand-text mb-1.5">Repeat</label>
+          <div class="relative">
+            <i data-lucide="repeat" class="w-4 h-4 text-brand-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input type="text" placeholder="e.g. every Monday" class="w-full pl-9 pr-3 py-2 text-sm border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all placeholder:text-gray-400 text-brand-text">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-brand-text mb-1.5">Deadline <span class="text-brand-muted font-normal">(separate from due date)</span></label>
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <i data-lucide="calendar" class="w-4 h-4 text-brand-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+              <input type="text" placeholder="mm/dd/yyyy" class="w-full pl-9 pr-3 py-2 text-sm border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all placeholder:text-gray-400 text-brand-text">
+            </div>
+            <div class="relative w-28">
+              <i data-lucide="clock" class="w-4 h-4 text-brand-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+              <input type="text" placeholder="-- : --" class="w-full pl-9 pr-3 py-2 text-sm border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all text-brand-text">
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-brand-text mb-2">Reminders</label>
+          <p class="text-sm text-brand-muted mb-2">No reminders.</p>
+          <button class="flex items-center gap-1.5 text-sm font-medium text-brand-muted hover:text-brand-text transition-colors group">
+            <i data-lucide="plus" class="w-4 h-4 group-hover:text-brand-red transition-colors"></i> Add reminder
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t border-brand-border bg-brand-gray flex items-center justify-between rounded-b-xl">
+      <button class="text-sm font-medium text-brand-muted hover:text-brand-text transition-colors">Clear</button>
+      <div class="flex gap-3">
+        <button class="px-4 py-2 text-sm font-medium text-brand-text border border-brand-border bg-white rounded-lg hover:bg-gray-50 transition-colors shadow-sm">Cancel</button>
+        <button class="px-5 py-2 text-sm font-medium text-white bg-brand-red hover:bg-brand-redhover rounded-lg transition-colors shadow-sm">Done</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    /* =========================================
+       CUSTOM SELECT LOGIC
+       ========================================= */
+    const selectTrigger = document.getElementById('select-trigger');
+    const selectOptions = document.getElementById('select-options');
+    const selectIcon = document.getElementById('select-icon');
+    const selectedValue = document.getElementById('selected-value');
+
+    // Toggle dropdown
+    selectTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !selectOptions.classList.contains('hidden');
+      
+      if (isOpen) {
+        closeSelect();
+      } else {
+        selectOptions.classList.remove('hidden');
+        selectIcon.style.transform = 'rotate(180deg)';
+      }
+    });
+
+    // Select an option
+    function selectOption(value, element) {
+      selectedValue.textContent = value;
+      
+      // Update active styling
+      document.querySelectorAll('#select-options li').forEach(li => {
+        li.classList.remove('bg-brand-gray/50', 'font-medium');
+      });
+      element.classList.add('bg-brand-gray/50', 'font-medium');
+
+      closeSelect();
+    }
+
+    // Close dropdown
+    function closeSelect() {
+      selectOptions.classList.add('hidden');
+      selectIcon.style.transform = 'rotate(0deg)';
+    }
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!selectTrigger.contains(e.target) && !selectOptions.contains(e.target)) {
+        closeSelect();
+      }
+    });
+  </script>
+</body>
+</html>

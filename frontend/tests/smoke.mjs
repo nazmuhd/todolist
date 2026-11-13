@@ -151,9 +151,10 @@ try {
   await waitFor(`document.getElementById('settings-modal').open`, 'settings modal');
   check('push settings render', await evalJs(`!!document.querySelector('#settings-body [data-push-toggle]')`));
   await evalJs(`document.querySelector('#settings-body [data-setting="theme"][data-value="dark"]').click()`);
-  check('settings apply theme', await evalJs(`document.documentElement.dataset.theme === 'dark'`));
-  await evalJs(`document.getElementById('settings-close').click()`);
+  check('settings preview the theme', await evalJs(`document.documentElement.dataset.theme === 'dark'`));
+  await evalJs(`document.getElementById('settings-save').click()`);
   await waitFor(`!document.getElementById('settings-modal').open`, 'settings closed');
+  check('the saved theme sticks', await evalJs(`document.documentElement.dataset.theme === 'dark'`));
 
   // Shortcuts overlay via "?".
   await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', {key:'?', bubbles:true}))`);

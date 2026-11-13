@@ -5,8 +5,10 @@ import { $, settings } from '../core/app.js';
 import { store } from '../core/store.js';
 import { escapeHtml } from '../core/text.js';
 import { requestRender } from '../core/render.js';
+import { showToast } from '../core/toasts.js';
 import { pushSupported, pushPermission, isPushEnabled, enablePush, disablePush, listPushDevices, removePushDevice } from '../core/push.js';
 import { listBackups, takeBackup, restoreBackup, backupLabel } from '../core/backups.js';
+import { AVATARS, STATUSES, DEFAULT_PROFILE, normaliseProfile } from '../core/profile.js';
 
 const DEFAULT_SETTINGS = {
   theme: 'system',
@@ -15,6 +17,7 @@ const DEFAULT_SETTINGS = {
   timeFormat: 'system',
   defaultPriority: null,
   defaultReminder: null,
+  profile: { ...DEFAULT_PROFILE },
 };
 
 const SETTINGS_DEFS = [
@@ -34,8 +37,10 @@ export async function loadSettings() {
   const raw = await store.getDoc(store.keys.settings);
   if (!raw || typeof raw !== 'object') {
     Object.assign(settings, DEFAULT_SETTINGS);
+    applyProfile();
     return;
   }
+  const rawProfile = raw.profile && typeof raw.profile === 'object' ? raw.profile : {};
   Object.assign(settings, {
     theme: ['light', 'dark', 'system'].includes(raw.theme) ? raw.theme : DEFAULT_SETTINGS.theme,
     startOfWeek: ['mon', 'sun'].includes(raw.startOfWeek) ? raw.startOfWeek : DEFAULT_SETTINGS.startOfWeek,
@@ -45,7 +50,9 @@ export async function loadSettings() {
     defaultReminder: raw.defaultReminder === null || raw.defaultReminder === undefined
       ? null
       : Number(raw.defaultReminder),
+    profile: normaliseProfile(rawProfile),
   });
+  applyProfile();
 }
 
 export function persistSettings() {
@@ -61,6 +68,113 @@ export function applyTheme() {
 
 if (darkMedia.addEventListener) darkMedia.addEventListener('change', applyTheme);
 else if (darkMedia.addListener) darkMedia.addListener(applyTheme); // older Safari
+
+/* ============================================================
+   PROFILE
+============================================================ */
+let profileDraft = null;
+
+/** The profile currently being edited in the settings dialog. */
+function currentProfile() {
+  if (!profileDraft) profileDraft = normaliseProfile(settings.profile || DEFAULT_PROFILE);
+  return profileDraft;
+}
+
+function setStatusDot(el, status) {
+  if (!el) return;
+  STATUSES.forEach(s => el.classList.remove(`status-${s.id}`));
+  el.classList.add(`status-${STATUSES.some(s => s.id === status) ? status : 'online'}`);
+}
+
+/** Paints the saved profile onto the sidebar trigger and the profile menu. */
+export function applyProfile() {
+  const p = settings.profile || DEFAULT_PROFILE;
+  const name = p.name || DEFAULT_PROFILE.name;
+  const job = p.job || '';
+  const avatar = p.avatar || DEFAULT_PROFILE.avatar;
+
+  const navAvatar = $('#nav-avatar');
+  const navName = $('#nav-name');
+  const navJob = $('#nav-job');
+  if (navAvatar) { navAvatar.src = avatar; navAvatar.alt = name; }
+  if (navName) navName.textContent = name;
+  if (navJob) navJob.textContent = job;
+  setStatusDot($('#nav-status-dot'), p.status);
+
+  const menuAvatar = $('#user-menu-avatar');
+  const menuName = $('#user-menu-name');
+  const menuJob = $('#user-menu-job');
+  if (menuAvatar) { menuAvatar.src = avatar; menuAvatar.alt = name; }
+  if (menuName) menuName.textContent = name;
+  if (menuJob) menuJob.textContent = job;
+  setStatusDot($('#user-menu-status-dot'), p.status);
+}
+
+function profileSection() {
+  const p = currentProfile();
+  return `
+    <div class="mb-6">
+      <div class="text-[11px] font-semibold text-td-muted uppercase tracking-wide mb-2">Profile</div>
+      <div class="flex items-center gap-4 mb-4">
+        <img id="settings-preview-avatar" src="${escapeHtml(p.avatar)}" alt="${escapeHtml(p.name)}"
+          class="w-16 h-16 rounded-full object-cover border-2 border-td-border bg-gray-100 flex-shrink-0" />
+        <div class="grid grid-cols-5 gap-2 flex-1 max-w-[15rem]">
+          ${AVATARS.map(option => `
+            <button type="button" class="profile-avatar-option" data-profile-avatar="${escapeHtml(option.src)}"
+              title="${escapeHtml(option.label)}" aria-label="${escapeHtml(option.label)}"
+              aria-pressed="${p.avatar === option.src}">
+              <img src="${escapeHtml(option.src)}" alt="" class="w-full h-full object-cover" />
+            </button>`).join('')}
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        <label class="block">
+          <span class="block text-xs text-td-muted mb-1">Display name</span>
+          <input id="settings-name" type="text" value="${escapeHtml(p.name)}" autocomplete="off"
+            class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </label>
+        <label class="block">
+          <span class="block text-xs text-td-muted mb-1">Job title</span>
+          <input id="settings-job" type="text" value="${escapeHtml(p.job)}" autocomplete="off"
+            class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </label>
+      </div>
+      <div>
+        <div class="text-xs text-td-muted mb-2">Status</div>
+        <div class="flex flex-wrap gap-2">
+          ${STATUSES.map(status => `
+            <button type="button" class="profile-status-btn ${p.status === status.id ? 'active' : ''}"
+              data-profile-status="${escapeHtml(status.id)}" aria-pressed="${p.status === status.id}">
+              <span class="status-dot status-${escapeHtml(status.id)}"></span>${escapeHtml(status.label)}
+            </button>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+/**
+ * The preferences as they were when the dialog opened.
+ *
+ * The dialog previews changes live (the theme switches as you click it), so
+ * cancelling has to put the old values back.
+ */
+let preferencesSnapshot = null;
+
+function saveProfile() {
+  const p = currentProfile();
+  settings.profile = normaliseProfile({
+    name: p.name.trim() || DEFAULT_PROFILE.name,
+    job: p.job.trim(),
+    status: p.status,
+    avatar: p.avatar || DEFAULT_PROFILE.avatar,
+  });
+  persistSettings();
+  applyProfile();
+  applyTheme();
+  preferencesSnapshot = null;
+  profileDraft = null;
+  settingsModal.close();
+}
 
 const settingsModal = $('#settings-modal');
 let pushReady = false;
@@ -168,20 +282,38 @@ function dataSection() {
 }
 
 function renderSettings() {
-  $('#settings-body').innerHTML = SETTINGS_DEFS.map(def => `
-    <div class="mb-4">
-      <div class="text-xs text-td-muted mb-1">${escapeHtml(def.label)}</div>
-      <div class="flex flex-wrap gap-1">
-        ${def.options.map(([value, label]) => {
-          const raw = value === null ? 'null' : String(value);
-          const active = String(settings[def.key] ?? 'null') === raw;
-          return `<button type="button" class="qa-pick" data-setting="${def.key}" data-value="${escapeHtml(raw)}" aria-pressed="${active}">${escapeHtml(label)}</button>`;
-        }).join('')}
-      </div>
-    </div>`).join('') + dataSection() + backupSection() + pushSection();
+  $('#settings-body').innerHTML = profileSection() + `
+    <div class="mb-5">
+      <div class="text-[11px] font-semibold text-td-muted uppercase tracking-wide mb-2">Preferences</div>
+      ${SETTINGS_DEFS.map(def => `
+        <div class="mb-4">
+          <div class="text-xs text-td-muted mb-1">${escapeHtml(def.label)}</div>
+          <div class="flex flex-wrap gap-1">
+            ${def.options.map(([value, label]) => {
+              const raw = value === null ? 'null' : String(value);
+              const active = String(settings[def.key] ?? 'null') === raw;
+              return `<button type="button" class="qa-pick" data-setting="${def.key}" data-value="${escapeHtml(raw)}" aria-pressed="${active}">${escapeHtml(label)}</button>`;
+            }).join('')}
+          </div>
+        </div>`).join('')}
+    </div>` + dataSection() + backupSection() + pushSection();
 }
 
 $('#settings-body').addEventListener('click', async (e) => {
+  // Profile avatar and status choices.
+  const avatarBtn = e.target.closest('[data-profile-avatar]');
+  if (avatarBtn) {
+    currentProfile().avatar = avatarBtn.dataset.profileAvatar;
+    renderSettings();
+    return;
+  }
+  const statusBtn = e.target.closest('[data-profile-status]');
+  if (statusBtn) {
+    currentProfile().status = statusBtn.dataset.profileStatus;
+    renderSettings();
+    return;
+  }
+
   // Open the keyboard shortcuts overlay.
   // Export and import, which live in the sidebar too.
   if (e.target.closest('[data-open-export]')) {
@@ -254,14 +386,25 @@ $('#settings-body').addEventListener('click', async (e) => {
   const def = SETTINGS_DEFS.find(d => d.key === key);
   const option = def && def.options.find(([value]) => (value === null ? 'null' : String(value)) === raw);
   if (!option) return;
+  // The change is applied straight away so the theme previews live, but it
+  // is only written to storage when the dialog is saved. Cancelling puts
+  // the old values back.
   settings[key] = option[0];
-  persistSettings();
   applyTheme();
   renderSettings();
   requestRender();
 });
 
+// Keep the draft in step with what is typed, without re-rendering the dialog.
+$('#settings-body').addEventListener('input', (e) => {
+  if (e.target.id === 'settings-name') currentProfile().name = e.target.value;
+  else if (e.target.id === 'settings-job') currentProfile().job = e.target.value;
+});
+
 $('#settings-btn').onclick = () => {
+  profileDraft = normaliseProfile(settings.profile || DEFAULT_PROFILE);
+  preferencesSnapshot = {};
+  SETTINGS_DEFS.forEach(def => { preferencesSnapshot[def.key] = settings[def.key]; });
   renderSettings();
   if (!settingsModal.open) settingsModal.showModal();
   isPushEnabled().then((enabled) => {
@@ -273,7 +416,19 @@ $('#settings-btn').onclick = () => {
   refreshPushDevices();
   refreshBackups();
 };
-$('#settings-close').onclick = () => settingsModal.close();
+$('#settings-close').onclick = () => closeSettings();
+$('#settings-cancel').onclick = () => closeSettings();
+$('#settings-save').onclick = saveProfile;
+settingsModal.addEventListener('close', () => {
+  // Closing without saving puts the preferences back as they were.
+  if (preferencesSnapshot) {
+    Object.assign(settings, preferencesSnapshot);
+    preferencesSnapshot = null;
+    applyTheme();
+    requestRender();
+  }
+  profileDraft = null;
+});
 
 export function isSettingsOpen() {
   return settingsModal.open;

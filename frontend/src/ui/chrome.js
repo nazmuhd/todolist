@@ -12,6 +12,7 @@ import { undoPending, redoPending } from '../core/undo.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { todayISO } from '../core/dates.js';
+import { showToast } from '../core/toasts.js';
 import { isTaskModalOpen, closeTaskModal } from '../features/task-modal.js';
 import { isDueEditorOpen, closeDueEditor } from '../features/due-editor.js';
 import { isSettingsOpen, closeSettings } from '../features/settings.js';
@@ -91,6 +92,7 @@ export function applySidebarState() {
 
   lucide.createIcons();
   syncBottomBars();
+  closeUserMenu();
 }
 
 export function setSidebarCollapsed(collapsed) {
@@ -160,6 +162,102 @@ $('#mobile-menu').onclick = () => {
 };
 
 $('#sidebar-backdrop').onclick = closeMobileSidebar;
+
+/* ============================================================
+   PROFILE MENU
+   The sidebar avatar opens a small profile menu to the right of the
+   sidebar, the way the reference design does. "Account" opens the
+   profile settings dialog; the gear in the footer opens it too.
+============================================================ */
+const userMenuBtn = $('#user-menu-btn');
+const userMenu = $('#user-menu');
+let userMenuOpen = false;
+
+function positionUserMenu() {
+  if (!userMenuBtn || !userMenu) return;
+  const margin = 8;
+  const anchor = userMenuBtn.getBoundingClientRect();
+  const rect = userMenu.getBoundingClientRect();
+  let left = anchor.right + margin;
+  if (left + rect.width > window.innerWidth - margin) {
+    left = Math.max(margin, anchor.left - margin - rect.width);
+  }
+  let top = anchor.top;
+  if (top + rect.height > window.innerHeight - margin) {
+    top = Math.max(margin, window.innerHeight - rect.height - margin);
+  }
+  userMenu.style.left = `${Math.round(left)}px`;
+  userMenu.style.top = `${Math.round(top)}px`;
+}
+
+export function isUserMenuOpen() {
+  return userMenuOpen;
+}
+
+export function closeUserMenu() {
+  if (!userMenuOpen || !userMenu) return;
+  userMenuOpen = false;
+  userMenu.classList.add('hidden');
+  userMenuBtn?.setAttribute('aria-expanded', 'false');
+}
+
+function openUserMenu() {
+  if (!userMenu || !userMenuBtn) return;
+  userMenuOpen = true;
+  userMenu.classList.remove('hidden');
+  positionUserMenu();
+  userMenuBtn.setAttribute('aria-expanded', 'true');
+  lucide.createIcons();
+}
+
+if (userMenuBtn && userMenu) {
+  userMenuBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (userMenuOpen) closeUserMenu();
+    else openUserMenu();
+  };
+
+  userMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('[id^="user-menu-"]');
+    if (!item) return;
+    if (item.id === 'user-menu-settings') {
+      closeUserMenu();
+      document.getElementById('settings-btn')?.click();
+      return;
+    }
+    if (item.id === 'user-menu-shortcuts') {
+      closeUserMenu();
+      document.getElementById('shortcuts-btn')?.click();
+      return;
+    }
+    if (item.id === 'user-menu-export') {
+      closeUserMenu();
+      document.getElementById('export-data-btn')?.click();
+      return;
+    }
+    if (item.id === 'user-menu-import') {
+      closeUserMenu();
+      document.getElementById('import-data-btn')?.click();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!userMenuOpen) return;
+    if (userMenu.contains(e.target) || userMenuBtn.contains(e.target)) return;
+    closeUserMenu();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && userMenuOpen) {
+      e.preventDefault();
+      closeUserMenu();
+    }
+  });
+
+  window.addEventListener('resize', closeUserMenu);
+  window.addEventListener('scroll', closeUserMenu, true);
+}
+
 
 /* ============================================================
    HEADER: layout, sort menu, search, navigation

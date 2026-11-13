@@ -10,6 +10,7 @@ import { escapeHtml } from '../core/text.js';
 
 const qaPlaceholder = $('#quick-add-placeholder');
 const qaEditor = $('#quick-add-editor');
+const qaCard = $('#quick-add-card');
 const qaInput = $('#quick-add-input');
 const qaPreview = $('#quick-add-preview');
 let quickAddDefaults = {};
@@ -28,6 +29,7 @@ export function openQuickAdd(defaults = {}) {
   renderQaPicker();
   qaPlaceholder.classList.add('hidden');
   qaEditor.classList.remove('hidden');
+  qaCard?.classList.add('expanded');
   qaInput.value = '';
   qaPreview.innerHTML = '';
   qaInput.style.height = 'auto';
@@ -42,6 +44,7 @@ export function closeQuickAdd() {
   renderQaPicker();
   qaPlaceholder.classList.remove('hidden');
   qaEditor.classList.add('hidden');
+  qaCard?.classList.remove('expanded');
 }
 qaPlaceholder.onclick = () => openQuickAdd();
 $('#quick-add-cancel').onclick = closeQuickAdd;
