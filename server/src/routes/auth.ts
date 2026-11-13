@@ -183,7 +183,10 @@ function getLogoPath(): string | null {
 }
 
 const emailSchema = z.string().trim().toLowerCase().email().max(320);
-const passwordSchema = z.string().min(8).max(200);
+const passwordSchema = z.string().min(8).max(200).refine(
+  (v) => /[A-Za-z]/.test(v) && /\d/.test(v),
+  'Password must include at least one letter and one number.'
+);
 const namePartSchema = z.string().trim().max(100);
 const registerSchema = z.object({
   firstName: namePartSchema.optional().nullable(),
@@ -275,7 +278,7 @@ router.post('/register', authLimiter, async (req, res) => {
     const emailParsed = emailSchema.safeParse(email);
     if (!emailParsed.success) return res.status(400).json({ error: 'A valid email address is required.' });
     const pwParsed = passwordSchema.safeParse(password);
-    if (!pwParsed.success) return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    if (!pwParsed.success) return res.status(400).json({ error: pwParsed.error.issues[0]?.message || 'Password must be at least 8 characters long.' });
     const ne = emailParsed.data;
     const existing = getStmts().findUserByEmail.get(ne);
     // Always perform password hashing work to reduce timing differences between
@@ -365,7 +368,8 @@ router.post('/reset-password', authLimiter, async (req, res) => {
     const tokenParsed = z.string().min(1).max(512).safeParse(token);
     const emailParsed = emailSchema.safeParse(email);
     const pwParsed = passwordSchema.safeParse(password);
-    if (!tokenParsed.success || !emailParsed.success || !pwParsed.success) return res.status(400).json({ error: 'Valid token, email, and a password of at least 8 characters are required.' });
+    if (!tokenParsed.success || !emailParsed.success) return res.status(400).json({ error: 'Valid token, email, and a password of at least 8 characters are required.' });
+    if (!pwParsed.success) return res.status(400).json({ error: pwParsed.error.issues[0]?.message || 'Password must be at least 8 characters long.' });
     const ne = emailParsed.data;
     const user: any = getStmts().findUserByEmail.get(ne);
     if (!user) return res.status(400).json({ error: 'Invalid or expired password reset token.' });
@@ -415,7 +419,7 @@ router.post('/change-password', authLimiter, async (req, res) => {
     const { currentPassword, newPassword } = parsed.data;
     if (!currentPassword || typeof currentPassword !== 'string' || currentPassword.length > 200) return res.status(400).json({ error: 'Current password is required.' });
     const newPw = passwordSchema.safeParse(newPassword);
-    if (!newPw.success) return res.status(400).json({ error: 'New password must be at least 8 characters long.' });
+    if (!newPw.success) return res.status(400).json({ error: newPw.error.issues[0]?.message || 'New password must be at least 8 characters long.' });
     const userId = (req as any).user?.id;
     const db = getDb();
     const user: any = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
