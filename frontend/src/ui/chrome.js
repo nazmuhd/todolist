@@ -84,7 +84,7 @@ export function applySidebarState() {
   } else {
     // Swap the toggle icon so the way back is obvious.
     const icon = btn.querySelector('[data-lucide]');
-    if (icon) icon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+    if (icon) icon.setAttribute('data-lucide', 'menu');
     btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
     btn.setAttribute('aria-label', btn.title);
     btn.setAttribute('aria-expanded', String(!collapsed));
