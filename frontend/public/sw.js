@@ -1,7 +1,7 @@
 /* Offline support for the Todolist app.
    Everything the app needs is served from this origin (the libraries are
    vendored locally), so the first visit is enough to work offline. */
-const CACHE = 'todoist-clone-v7';
+const CACHE = 'todoist-clone-v8';
 const DB_NAME = 'todoist-clone-files';
 const DB_VERSION = 2;
 const STORE = 'files';
@@ -22,6 +22,26 @@ const SHELL = [
    (the hashed bundle and the vendored libraries). The install runs after the
    first page load, so without this those files would only be cached on the
    second visit. */
+async function precacheCssAssets(cache, cssUrls) {
+  for (const cssUrl of cssUrls) {
+    try {
+      const res = await fetch(cssUrl, { cache: 'reload' });
+      if (!res.ok) continue;
+      // Ensure the stylesheet itself is cached.
+      await cache.put(cssUrl, res.clone()).catch(() => {});
+      const css = await res.text();
+      const urls = [...css.matchAll(/url\(([^)]+)\)/g)]
+        .map(m => m[1].trim().replace(/^['"]|['"]$/g, ''))
+        .filter(u => u && !u.startsWith('data:') && !u.startsWith('#') && !u.startsWith('//') && !/^[a-z]+:/i.test(u))
+        .map(u => new URL(u, new URL(cssUrl, self.location.origin)).pathname)
+        .filter((u, i, all) => all.indexOf(u) === i);
+      await Promise.all(urls.map(u => cache.add(u).catch(() => {})));
+    } catch {
+      /* Best-effort; runtime fetch handles misses when online. */
+    }
+  }
+}
+
 async function precachePageAssets(cache) {
   try {
     const response = await fetch('./index.html', { cache: 'reload' });
@@ -32,6 +52,9 @@ async function precachePageAssets(cache) {
       .filter(u => u && !u.startsWith('#') && !u.startsWith('//') && !/^[a-z]+:/i.test(u))
       .filter((u, i, all) => all.indexOf(u) === i);
     await Promise.all(urls.map(u => cache.add(u).catch(() => {})));
+
+    const cssUrls = urls.filter(u => /\.css(?:\?|$)/.test(u));
+    await precacheCssAssets(cache, cssUrls);
   } catch {
     /* Offline precache is best-effort; fetch falls back to the cache. */
   }

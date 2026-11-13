@@ -80,7 +80,19 @@ function staticServer(port) {
     const route = parts[1] || '';
     const method = req.method || 'GET';
     if (route === 'me' && method === 'GET') {
-      sendJson(res, 200, { user: { id: 1, email: 'test@example.com', name: 'Test User', avatar_url: null, email_verified: 1 } });
+      sendJson(res, 200, { user: { id: 1, email: 'test@example.com', name: 'Test User', first_name: 'Test', last_name: 'User', avatar_url: null, email_verified: 1 } });
+      return;
+    }
+    if (route === 'csrf' && method === 'GET') {
+      sendJson(res, 200, { csrfToken: 'test-csrf-token' });
+      return;
+    }
+    if (route === 'profile' && (method === 'PUT' || method === 'POST')) {
+      const body = JSON.parse((await readBody(req)).toString() || '{}');
+      const first_name = typeof body.firstName === 'string' ? body.firstName : 'Test';
+      const last_name = typeof body.lastName === 'string' ? body.lastName : 'User';
+      const name = [first_name, last_name].filter(Boolean).join(' ') || 'Test User';
+      sendJson(res, 200, { user: { id: 1, email: 'test@example.com', name, first_name, last_name, avatar_url: null, email_verified: 1 } });
       return;
     }
     if (route === 'logout' && method === 'POST') {
