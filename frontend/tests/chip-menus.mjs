@@ -158,7 +158,7 @@ try {
     const aside = document.getElementById('sidebar');
     const bar = aside.classList.contains('sidebar-collapsed')
       ? document.getElementById('sidebar-rail')
-      : aside.querySelector('.sidebar-bottom:not(.sidebar-collapsed-only)');
+      : aside.querySelector('.sidebar-footer:not(.sidebar-collapsed-only)');
     const b = bar.getBoundingClientRect();
     return JSON.stringify({ qa: Math.round(qa.top), bar: Math.round(b.top) });
   })()`);

@@ -74,6 +74,11 @@
           <img id="nav-avatar" src="/images/logo.png" alt="Todolist" class="w-8 h-8 rounded-full object-cover bg-white" />
           <span id="nav-status-dot" class="avatar-status-dot status-online" aria-hidden="true"></span>
         </span>
+        <span class="sidebar-hide min-w-0 flex-1 flex flex-col leading-tight">
+          <span id="nav-name" class="truncate text-sm font-medium">Todolist</span>
+          <span id="nav-job" class="truncate text-[11px] text-td-muted">Local workspace</span>
+        </span>
+        <i data-lucide="chevrons-up-down" class="sidebar-hide h-4 w-4 flex-shrink-0 text-td-muted"></i>
       </button>
       <button id="sidebar-toggle" class="text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
         <i data-lucide="panel-left-close" class="w-4 h-4"></i>
@@ -185,9 +190,17 @@
       </div>
     </nav>
 
-    <!-- Settings at the bottom of the sidebar. -->
-    <div class="sidebar-bottom px-2 py-2 flex items-center justify-center flex-shrink-0">
-      <button id="settings-btn" class="text-td-muted hover:text-td-text p-1" title="Settings" aria-label="Settings">
+    <!-- Data backup. Export and import are icons; their labels live in the
+         tooltip, and Settings offers both as well. -->
+    <div class="sidebar-footer px-2 py-2 flex items-center gap-1 text-xs flex-shrink-0">
+      <button id="export-data-btn" class="flex-1 flex items-center justify-center p-2 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Export a backup of all tasks" aria-label="Export">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+      </button>
+      <button id="import-data-btn" class="flex-1 flex items-center justify-center p-2 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Import a backup, or a Todoist export" aria-label="Import">
+        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+      </button>
+      <span id="schema-badge" class="ml-1 pr-1 text-[10px] text-td-muted" title="Data schema version"></span>
+      <button id="settings-btn" class="text-td-muted hover:text-td-text p-1 ml-1" title="Settings" aria-label="Settings">
         <i data-lucide="settings" class="w-3.5 h-3.5"></i>
       </button>
     </div>
