@@ -34,6 +34,10 @@ const dueDeadlineTimeInput = $('#due-deadline-time');
 const dueRepeatMode = $('#due-repeat-mode');
 const dueRepeatModeWrap = $('#due-repeat-mode-wrap');
 const dueTimeZone = $('#due-timezone');
+const dueTimeZoneTrigger = $('#due-timezone-trigger');
+const dueTimeZoneIcon = $('#due-timezone-icon');
+const dueTimeZoneOptions = $('#due-timezone-options');
+const dueTimeZoneLabel = $('#due-timezone-label');
 
 const draft = () => modalState.draft;
 
@@ -84,8 +88,42 @@ dueDeadlineTimeInput.addEventListener('change', () => {
 dueTimeZone.addEventListener('change', () => {
   if (!draft()) return;
   draft().timeZone = dueTimeZone.value || null;
+  syncTimeZoneTrigger();
   renderDueReminders();
   services.updateModalChips();
+});
+
+// Custom timezone dropdown (matches design/repeat.html).
+if (dueTimeZoneTrigger) {
+  dueTimeZoneTrigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = !dueTimeZoneOptions.classList.contains('hidden');
+    if (open) {
+      dueTimeZoneOptions.classList.add('hidden');
+      if (dueTimeZoneIcon) dueTimeZoneIcon.style.transform = 'rotate(0deg)';
+    } else {
+      renderTimeZoneOptions();
+      dueTimeZoneOptions.classList.remove('hidden');
+      if (dueTimeZoneIcon) dueTimeZoneIcon.style.transform = 'rotate(180deg)';
+    }
+  });
+}
+if (dueTimeZoneOptions) {
+  dueTimeZoneOptions.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tz-option');
+    if (!btn) return;
+    e.stopPropagation();
+    dueTimeZone.value = btn.dataset.tz;
+    dueTimeZone.dispatchEvent(new Event('change', { bubbles: true }));
+    dueTimeZoneOptions.classList.add('hidden');
+    if (dueTimeZoneIcon) dueTimeZoneIcon.style.transform = 'rotate(0deg)';
+  });
+}
+document.addEventListener('click', (e) => {
+  if (!dueTimeZoneOptions || dueTimeZoneOptions.classList.contains('hidden')) return;
+  if (dueTimeZoneTrigger.contains(e.target) || dueTimeZoneOptions.contains(e.target)) return;
+  dueTimeZoneOptions.classList.add('hidden');
+  if (dueTimeZoneIcon) dueTimeZoneIcon.style.transform = 'rotate(0deg)';
 });
 
 function fillTimeZones() {
@@ -100,6 +138,20 @@ function fillTimeZones() {
     zones = ['UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Istanbul', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney'];
   }
   dueTimeZone.insertAdjacentHTML('beforeend', zones.map(z => `<option value="${escapeHtml(z)}">${escapeHtml(z)}</option>`).join(''));
+  renderTimeZoneOptions();
+}
+
+function renderTimeZoneOptions() {
+  if (!dueTimeZoneOptions) return;
+  dueTimeZoneOptions.innerHTML = [...dueTimeZone.options].map((opt) => `
+    <button type="button" class="tz-option w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${opt.selected ? 'bg-gray-50 font-medium' : ''}"
+      data-tz="${escapeHtml(opt.value)}">${escapeHtml(opt.text)}</button>`).join('');
+}
+
+function syncTimeZoneTrigger() {
+  if (!dueTimeZoneLabel) return;
+  const opt = dueTimeZone.options[dueTimeZone.selectedIndex];
+  dueTimeZoneLabel.textContent = opt ? opt.text : 'Browser timezone';
 }
 
 const REMINDER_OPTIONS = [
@@ -430,6 +482,7 @@ export function syncDueEditor() {
   dueDeadlineInput.value = t.deadline || '';
   dueDeadlineTimeInput.value = t.deadlineTime || '';
   dueTimeZone.value = t.timeZone || '';
+  syncTimeZoneTrigger();
   dueRepeatStatus.textContent = '';
   dueRepeatStatus.className = 'text-[11px] mt-0.5 min-h-[14px] text-td-muted';
   setDraftReminders(taskReminders(t));

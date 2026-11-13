@@ -493,7 +493,14 @@
 
           <div>
             <label for="due-timezone" class="block text-sm font-medium mb-1.5">Time zone</label>
-            <select id="due-timezone" class="w-full text-sm border border-td-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-td-red/20 focus:border-td-red"></select>
+            <div class="relative">
+              <button type="button" id="due-timezone-trigger" class="w-full flex items-center justify-between px-3 py-2 text-sm border border-td-border rounded-lg bg-white text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-td-red/20 focus:border-td-red transition-all">
+                <span id="due-timezone-label" class="truncate pr-2">Browser timezone (Asia/Kuala_Lumpur)</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 text-td-muted flex-shrink-0 transition-transform duration-200" id="due-timezone-icon"></i>
+              </button>
+              <div id="due-timezone-options" class="hidden absolute z-10 w-full mt-1 bg-white border border-td-border rounded-lg shadow-lg max-h-48 overflow-y-auto"></div>
+            </div>
+            <select id="due-timezone" class="hidden" aria-label="Time zone"></select>
           </div>
 
           <div class="flex gap-2">

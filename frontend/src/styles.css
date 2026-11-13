@@ -903,6 +903,11 @@ h1, h2, h3 {
 [data-theme="dark"] .due-preset { background: #242424 !important; color: #cfcfcf !important; border-color: #333 !important; }
 [data-theme="dark"] .due-preset:hover { background: #2e2e2e !important; color: #fff !important; }
 
+[data-theme="dark"] #due-timezone-trigger,
+[data-theme="dark"] #due-timezone-options { background: #242424 !important; border-color: #333 !important; color: #e6e6e6 !important; }
+[data-theme="dark"] .tz-option:hover { background: #2e2e2e !important; }
+[data-theme="dark"] .tz-option { color: #e6e6e6; }
+
 [data-theme="dark"] .avatar-status-dot { border-color: #191919; }
 
 [data-theme="dark"] .user-menu-item { color: #e6e6e6 !important; }
