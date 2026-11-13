@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Resend } from 'resend';
 import { getDb } from '../db/index.ts';
+import { z } from 'zod';
 import { config } from '../config.ts';
 
 const router = express.Router();
@@ -181,6 +182,26 @@ function getLogoPath(): string | null {
   return null;
 }
 
+const emailSchema = z.string().trim().toLowerCase().email().max(320);
+const passwordSchema = z.string().min(8).max(200);
+const namePartSchema = z.string().trim().max(100);
+const registerSchema = z.object({
+  firstName: namePartSchema.optional().nullable(),
+  lastName: namePartSchema.optional().nullable(),
+  name: namePartSchema.optional().nullable(),
+  email: z.string(),
+  password: z.string(),
+}).passthrough();
+const loginSchema = z.object({ email: z.string(), password: z.string() }).passthrough();
+const forgotSchema = z.object({ email: z.string() }).passthrough();
+const resetSchema = z.object({ token: z.string(), email: z.string(), password: z.string() }).passthrough();
+const profileSchema = z.object({
+  firstName: z.union([z.string(), z.null()]).optional(),
+  lastName: z.union([z.string(), z.null()]).optional(),
+  name: z.union([z.string(), z.null()]).optional(),
+}).passthrough();
+const changePasswordSchema = z.object({ currentPassword: z.string(), newPassword: z.string() }).passthrough();
+
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: config.authRateMax, message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' }, standardHeaders: true, legacyHeaders: false });
 
 let stmts: any;
@@ -248,10 +269,14 @@ function invalidateUserSessions(userId: number, exceptSid?: string) {
 
 router.post('/register', authLimiter, async (req, res) => {
   try {
-    const { firstName, lastName, name, email, password } = req.body;
-    if (!email || typeof email !== 'string' || !email.includes('@')) return res.status(400).json({ error: 'A valid email address is required.' });
-    if (!password || typeof password !== 'string' || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
-    const ne = email.toLowerCase().trim();
+    const parsed = registerSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: 'A valid email address is required.' });
+    const { firstName, lastName, name, email, password } = parsed.data;
+    const emailParsed = emailSchema.safeParse(email);
+    if (!emailParsed.success) return res.status(400).json({ error: 'A valid email address is required.' });
+    const pwParsed = passwordSchema.safeParse(password);
+    if (!pwParsed.success) return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    const ne = emailParsed.data;
     const existing = getStmts().findUserByEmail.get(ne);
     // Always perform password hashing work to reduce timing differences between
     // existing and new accounts. On conflict we return a generic failure message.
@@ -291,9 +316,11 @@ router.post('/login', authLimiter, (req, res, next) => {
 
 router.post('/forgot-password', authLimiter, async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Email is required.' });
-    const ne = email.toLowerCase().trim();
+    const parsed = forgotSchema.safeParse(req.body ?? {});
+    if (!parsed.success || typeof parsed.data.email !== 'string') return res.status(400).json({ error: 'Email is required.' });
+    const emailParsed = emailSchema.safeParse(parsed.data.email);
+    if (!emailParsed.success) return res.status(400).json({ error: 'Email is required.' });
+    const ne = emailParsed.data;
     const user: any = getStmts().findUserByEmail.get(ne);
     const generic = { message: 'If an account with that email exists, a password reset link has been sent.' };
     if (!user) return res.json(generic);
@@ -332,9 +359,14 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
 
 router.post('/reset-password', authLimiter, async (req, res) => {
   try {
-    const { token, email, password } = req.body;
-    if (!token || !email || !password || password.length < 8) return res.status(400).json({ error: 'Valid token, email, and a password of at least 8 characters are required.' });
-    const ne = email.toLowerCase().trim();
+    const parsed = resetSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: 'Valid token, email, and a password of at least 8 characters are required.' });
+    const { token, email, password } = parsed.data;
+    const tokenParsed = z.string().min(1).max(512).safeParse(token);
+    const emailParsed = emailSchema.safeParse(email);
+    const pwParsed = passwordSchema.safeParse(password);
+    if (!tokenParsed.success || !emailParsed.success || !pwParsed.success) return res.status(400).json({ error: 'Valid token, email, and a password of at least 8 characters are required.' });
+    const ne = emailParsed.data;
     const user: any = getStmts().findUserByEmail.get(ne);
     if (!user) return res.status(400).json({ error: 'Invalid or expired password reset token.' });
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -355,13 +387,15 @@ router.get('/me', (req, res) => { if (!(req as any).isAuthenticated()) return re
 router.put('/profile', async (req, res) => {
   try {
     if (!(req as any).isAuthenticated()) return res.status(401).json({ error: 'Unauthorized' });
-    const { firstName, lastName, name } = req.body || {};
+    const parsed = profileSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid profile data.' });
+    const { firstName, lastName, name } = parsed.data;
     if (firstName !== undefined && firstName !== null && typeof firstName !== 'string') return res.status(400).json({ error: 'First name must be a string.' });
     if (lastName !== undefined && lastName !== null && typeof lastName !== 'string') return res.status(400).json({ error: 'Last name must be a string.' });
     if (name !== undefined && name !== null && typeof name !== 'string') return res.status(400).json({ error: 'Name must be a string.' });
-    const fn = typeof firstName === 'string' ? firstName.trim() : '';
-    const ln = typeof lastName === 'string' ? lastName.trim() : '';
-    const fallbackName = typeof name === 'string' ? name.trim() : '';
+    const fn = typeof firstName === 'string' ? firstName.trim().slice(0, 100) : '';
+    const ln = typeof lastName === 'string' ? lastName.trim().slice(0, 100) : '';
+    const fallbackName = typeof name === 'string' ? name.trim().slice(0, 200) : '';
     const fullName = ([fn, ln].filter(Boolean).join(' ') || fallbackName) || null;
     const userId = (req as any).user?.id;
     getStmts().updateName.run(fullName, fn || null, ln || null, userId);
@@ -376,9 +410,12 @@ router.put('/profile', async (req, res) => {
 router.post('/change-password', authLimiter, async (req, res) => {
   try {
     if (!(req as any).isAuthenticated()) return res.status(401).json({ error: 'Unauthorized' });
-    const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || typeof currentPassword !== 'string') return res.status(400).json({ error: 'Current password is required.' });
-    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters long.' });
+    const parsed = changePasswordSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: 'Current password is required.' });
+    const { currentPassword, newPassword } = parsed.data;
+    if (!currentPassword || typeof currentPassword !== 'string' || currentPassword.length > 200) return res.status(400).json({ error: 'Current password is required.' });
+    const newPw = passwordSchema.safeParse(newPassword);
+    if (!newPw.success) return res.status(400).json({ error: 'New password must be at least 8 characters long.' });
     const userId = (req as any).user?.id;
     const db = getDb();
     const user: any = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
@@ -387,7 +424,7 @@ router.post('/change-password', authLimiter, async (req, res) => {
     if (user.hash_algorithm === 'argon2id') isValid = await argon2.verify(user.password_hash, currentPassword);
     else if (user.hash_algorithm === 'bcrypt') isValid = await bcrypt.compare(currentPassword, user.password_hash);
     if (!isValid) return res.status(401).json({ error: 'Current password is incorrect.' });
-    const newHash = await argon2.hash(newPassword, { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 4 });
+    const newHash = await argon2.hash(newPw.data, { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 4 });
     getStmts().updatePassword.run(newHash, user.id);
     invalidateUserSessions(user.id);
     await new Promise<void>((resolve) => {
