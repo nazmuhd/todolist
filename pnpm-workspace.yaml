@@ -4,4 +4,6 @@ packages:
 
 # esbuild ships a prebuilt binary through a postinstall script.
 allowBuilds:
+  argon2: true
+  bcrypt: true
   esbuild: true

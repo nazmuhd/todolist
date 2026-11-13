@@ -190,13 +190,13 @@
       input.type = 'text';
       icon.setAttribute('data-lucide', 'eye-off');
     } else {
-      input.type = 'text';
+      input.type = 'password';
       icon.setAttribute('data-lucide', 'eye');
     }
     lucide.createIcons();
   }
 
-  function handleAuthSubmit(e) {
+  async function handleAuthSubmit(e) {
     e.preventDefault();
     clearErrors();
 
@@ -216,8 +216,27 @@
       return;
     }
 
-    showAlert(`Welcome back! Signing in as ${email}...`, true);
-    setTimeout(() => { window.location.href = '/app/v1/#/inbox'; }, 1200);
+    const btn = document.getElementById('auth-submit-btn');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showAlert(data.error || 'Login failed.', false);
+        return;
+      }
+      showAlert('Logged in successfully. Redirecting...', true);
+      setTimeout(() => { window.location.href = '/app/v1/#/inbox'; }, 600);
+    } catch (err) {
+      showAlert('Unable to reach the server. Please try again.', false);
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   function clearErrors() {
@@ -236,8 +255,7 @@
   }
 
   function handleOAuth(provider) {
-    showAlert(`Redirecting to ${provider} authentication...`, true);
-    setTimeout(() => { window.location.href = '/app/v1/#/inbox'; }, 1200);
+    showAlert(`${provider} sign-in is not available yet.`, false);
   }
 
   lucide.createIcons();

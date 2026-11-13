@@ -4,10 +4,10 @@ import { migrate } from './db/migrate.ts';
 import { startReminderWorker } from './services/reminders.ts';
 import { startBackupWorker } from './services/backups.ts';
 
-const app = createApp({ serveApp: config.isProduction });
-
 // The API is useless without its tables; apply pending migrations on boot.
 await migrate();
+
+const app = createApp({ serveApp: config.isProduction });
 
 if (!config.isProduction) {
   // Serve the app at /app/v1 so / can be the landing page.

@@ -149,6 +149,25 @@ function profileSection() {
             </button>`).join('')}
         </div>
       </div>
+      <div class="mt-5 pt-4 border-t border-td-border">
+        <div class="text-xs text-td-muted mb-2">Change password</div>
+        <div id="settings-password-alert" class="hidden mb-2 p-2 rounded-lg text-xs font-medium"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <label class="block sm:col-span-2">
+            <span class="block text-xs text-td-muted mb-1">Current password</span>
+            <input id="settings-current-password" type="password" autocomplete="current-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          </label>
+          <label class="block">
+            <span class="block text-xs text-td-muted mb-1">New password</span>
+            <input id="settings-new-password" type="password" autocomplete="new-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          </label>
+          <label class="block">
+            <span class="block text-xs text-td-muted mb-1">Confirm new password</span>
+            <input id="settings-confirm-password" type="password" autocomplete="new-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+          </label>
+        </div>
+        <button type="button" class="qa-pick" data-change-password>Update password</button>
+      </div>
     </div>`;
 }
 
@@ -363,6 +382,42 @@ $('#settings-body').addEventListener('click', async (e) => {
   if (statusBtn) {
     currentProfile().status = statusBtn.dataset.profileStatus;
     renderSettings();
+    return;
+  }
+
+  const pwBtn = e.target.closest('[data-change-password]');
+  if (pwBtn) {
+    const alertEl = document.getElementById('settings-password-alert');
+    const showPwAlert = (msg, ok = false) => {
+      if (!alertEl) return;
+      alertEl.className = `mb-2 p-2 rounded-lg text-xs font-medium ${ok ? 'bg-green-50 text-td-green border border-green-200' : 'bg-red-50 text-td-red border border-red-200'}`;
+      alertEl.textContent = msg;
+      alertEl.classList.remove('hidden');
+    };
+    alertEl?.classList.add('hidden');
+    const currentPassword = document.getElementById('settings-current-password')?.value || '';
+    const newPassword = document.getElementById('settings-new-password')?.value || '';
+    const confirmPassword = document.getElementById('settings-confirm-password')?.value || '';
+    if (!currentPassword) { showPwAlert('Current password is required.'); return; }
+    if (newPassword.length < 8) { showPwAlert('New password must be at least 8 characters.'); return; }
+    if (newPassword !== confirmPassword) { showPwAlert('New passwords do not match.'); return; }
+    pwBtn.setAttribute('disabled', 'true');
+    try {
+      const res = await fetch('/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showPwAlert(data.error || 'Unable to update password.'); return; }
+      showPwAlert(data.message || 'Password updated successfully.', true);
+      ['settings-current-password','settings-new-password','settings-confirm-password'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    } catch {
+      showPwAlert('Unable to reach the server. Please try again.');
+    } finally {
+      pwBtn.removeAttribute('disabled');
+    }
     return;
   }
 

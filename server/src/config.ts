@@ -20,6 +20,10 @@ const schema = z.object({
   // ends. Set both to the same value (or leave blank) to disable.
   QUIET_HOURS_START: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   QUIET_HOURS_END: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  SESSION_SECRET: z.string().min(16).optional(),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
+  BASE_URL: z.string().optional(),
   // Automatic backups: how often to take one, and how many to keep.
   BACKUP_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
   BACKUP_KEEP: z.coerce.number().int().positive().default(24),
