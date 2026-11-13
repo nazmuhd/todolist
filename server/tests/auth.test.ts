@@ -148,6 +148,9 @@ test('forgot-password prevents enumeration and reset-password handles security c
   assert.equal(missing.status, 200);
   assert.match(missing.data.message, /if an account/i);
 
+  const sessionBeforeReset = await call('POST', '/auth/login', { email: 'user@domain.com', password: 'securepassword123' });
+  assert.equal(sessionBeforeReset.status, 200);
+
   const forgot = await call('POST', '/auth/forgot-password', { email: 'user@domain.com' });
   assert.equal(forgot.status, 200);
   assert.ok(forgot.data.dev_reset_link);
@@ -159,6 +162,9 @@ test('forgot-password prevents enumeration and reset-password handles security c
 
   const reset = await call('POST', '/auth/reset-password', { email: 'user@domain.com', token, password: 'brandnewpassword999' });
   assert.equal(reset.status, 200);
+
+  const oldSessionMe = await call('GET', '/auth/me', undefined, sessionBeforeReset.cookies);
+  assert.equal(oldSessionMe.status, 401, 'password reset must invalidate existing sessions');
 
   const reuseReset = await call('POST', '/auth/reset-password', { email: 'user@domain.com', token, password: 'anotherpassword123' });
   assert.equal(reuseReset.status, 400);

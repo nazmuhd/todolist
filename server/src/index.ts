@@ -55,6 +55,25 @@ export function createApp(options: { serveApp?: boolean } = {}) {
     origin: config.corsOrigins,
     credentials: true,
   }));
+
+  // CSRF mitigation for cookie-authenticated API/auth requests: require same-origin
+  // or an allowed Origin/Referer on state-changing methods.
+  app.use((req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    const allowed = new Set(config.corsOrigins);
+    const host = req.headers.host ? `${req.protocol}://${req.headers.host}` : null;
+    if (host) allowed.add(host);
+    const origin = req.headers.origin;
+    if (origin) {
+      return allowed.has(origin) ? next() : res.status(403).json({ error: 'Forbidden origin' });
+    }
+    const referer = req.headers.referer;
+    if (referer) {
+      try { return allowed.has(new URL(referer).origin) ? next() : res.status(403).json({ error: 'Forbidden origin' }); }
+      catch { return res.status(403).json({ error: 'Forbidden origin' }); }
+    }
+    return next();
+  });
   // Blobs arrive as a raw body; mount this before the JSON parser so a
   // binary attachment is never interpreted as JSON.
   app.use('/api/blobs', express.raw({ type: () => true, limit: '25mb' }));
@@ -63,7 +82,7 @@ export function createApp(options: { serveApp?: boolean } = {}) {
 
   app.use(session({
     store: new NativeSqliteSessionStore(),
-    secret: config.SESSION_SECRET || 'dev-secret-change-me',
+    secret: config.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: { httpOnly: true, sameSite: 'lax', secure: config.isProduction, maxAge: 7*24*60*60*1000 },
@@ -79,12 +98,16 @@ export function createApp(options: { serveApp?: boolean } = {}) {
 
   app.use('/health', healthRouter);
 
-  // The API. There is no auth yet: this is a single-user store.
-  app.use('/api/sync', syncRouter);
-  app.use('/api/state', stateRouter);
-  app.use('/api/docs', docsRouter);
-  app.use('/api/blobs', blobsRouter);
-  app.use('/api/push', pushRouter);
+  // All app data APIs require an authenticated session.
+  const requireApiAuth = (req: any, res: any, next: any) => {
+    if (req.isAuthenticated && req.isAuthenticated()) return next();
+    return res.status(401).json({ error: 'Unauthorized' });
+  };
+  app.use('/api/sync', requireApiAuth, syncRouter);
+  app.use('/api/state', requireApiAuth, stateRouter);
+  app.use('/api/docs', requireApiAuth, docsRouter);
+  app.use('/api/blobs', requireApiAuth, blobsRouter);
+  app.use('/api/push', requireApiAuth, pushRouter);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
 
   // Landing pages at root.

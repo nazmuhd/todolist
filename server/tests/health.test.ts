@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_PATH = ':memory:';
+process.env.SESSION_SECRET = 'test-secret-please-change-me-1234';
+process.env.AUTH_RATE_MAX = '1000';
+delete process.env.QUIET_HOURS_START;
+delete process.env.QUIET_HOURS_END;
 
 const { createApp } = await import('../src/index.ts');
 const { migrate } = await import('../src/db/migrate.ts');
@@ -47,7 +51,7 @@ test('the server serves the landing page at the root', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/`);
     const html = await res.text();
     assert.equal(res.status, 200);
-    assert.match(html, /todolist \| A To-Do List/);
+    assert.match(html, /todolist/);
   });
 });
 

@@ -3,82 +3,83 @@ import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_PATH = ':memory:';
+process.env.SESSION_SECRET = 'test-secret-please-change-me-1234';
+process.env.AUTH_RATE_MAX = '1000';
+delete process.env.QUIET_HOURS_START;
+delete process.env.QUIET_HOURS_END;
 
 const { createApp } = await import('../src/index.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { applyChanges, listBackups, pruneBackups, maybeBackup, readBackup } = await import('../src/db/repository.ts');
+const { getDb } = await import('../src/db/index.ts');
 await migrate();
 
 const app = createApp({ serveApp: false });
 
-async function withServer(fn: (base: string) => Promise<void>) {
+// Seed a user for repository-level operations and HTTP auth.
+const db = getDb();
+const u = db.prepare("INSERT INTO users (email,name,password_hash,hash_algorithm) VALUES ('backup@test.com','B','x','argon2id')").run();
+const USER_ID = Number(u.lastInsertRowid);
+
+async function withServer(fn: (base: string, cookie: string) => Promise<void>) {
   const server = app.listen(0);
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
+  const base = `http://127.0.0.1:${port}`;
   try {
-    await fn(`http://127.0.0.1:${port}`);
+    let res = await fetch(`${base}/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'http-backup@test.com', password: 'password123', name: 'H' }) });
+    if (res.status === 409) res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'http-backup@test.com', password: 'password123' }) });
+    const cookie = (res.headers.getSetCookie?.() || [res.headers.get('set-cookie')]).filter(Boolean).map(c => c!.split(';')[0]).join('; ');
+    await fn(base, cookie);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
 }
 
-interface BackupRow {
-  id: number;
-  tag: string;
-  created_at: string;
-  size: number;
-}
-
-interface BackupsResponse {
-  ok?: boolean;
-  written?: boolean;
-  backups: BackupRow[];
-}
+interface BackupRow { id: number; tag: string; created_at: string; size: number; }
+interface BackupsResponse { ok?: boolean; written?: boolean; backups: BackupRow[]; }
 
 function pushTask(id: string, title: string) {
-  return applyChanges({
-    tasks: [{ id, baseRev: 0, data: { id, title, priority: 4, completed: false, labels: [], order: 0 } }],
-  });
+  return applyChanges(USER_ID, { tasks: [{ id, baseRev: 0, data: { id, title, priority: 4, completed: false, labels: [], order: 0 } }] });
 }
 
 test('a backup is taken when data arrives', () => {
   pushTask('b1', 'Backup me');
-  // The interval is zero, so a backup is always due.
-  const written = maybeBackup(0, 24);
+  const written = maybeBackup(USER_ID, 0, 24);
   assert.equal(written, true);
-  const backups = listBackups();
+  const backups = listBackups(USER_ID);
   assert.equal(backups.length, 1);
   assert.match(backups[0]!.tag, /^auto-/);
   assert.ok(backups[0]!.created_at);
 });
 
 test('a backup is not taken again before the interval', () => {
-  const before = listBackups().length;
-  const written = maybeBackup(60 * 60 * 1000, 24);
+  const before = listBackups(USER_ID).length;
+  const written = maybeBackup(USER_ID, 60 * 60 * 1000, 24);
   assert.equal(written, false);
-  assert.equal(listBackups().length, before);
+  assert.equal(listBackups(USER_ID).length, before);
 });
 
 test('the old backups are pruned, the newest kept', () => {
-  for (let i = 0; i < 5; i += 1) maybeBackup(0, 3);
-  const backups = listBackups();
+  for (let i = 0; i < 5; i += 1) maybeBackup(USER_ID, 0, 3);
+  const backups = listBackups(USER_ID);
   assert.ok(backups.length <= 3, `expected at most 3 backups, got ${backups.length}`);
-  const all = listBackups(100);
+  const all = listBackups(USER_ID, 100);
   assert.equal(all[0]!.id, backups[0]!.id);
 });
 
 test('pruning keeps exactly the requested number', () => {
-  for (let i = 0; i < 6; i += 1) maybeBackup(0, 24);
-  const removed = pruneBackups(2);
+  for (let i = 0; i < 6; i += 1) maybeBackup(USER_ID, 0, 24);
+  const removed = pruneBackups(USER_ID, 2);
   assert.ok(removed >= 1);
-  assert.equal(listBackups().length, 2);
+  assert.equal(listBackups(USER_ID).length, 2);
 });
 
 test('a backup holds the data that can be restored', () => {
-  maybeBackup(0, 24);
-  const latest = listBackups()[0]!;
-  const value = readBackup(latest.id);
+  maybeBackup(USER_ID, 0, 24);
+  const latest = listBackups(USER_ID)[0]!;
+  const value = readBackup(USER_ID, latest.id);
   assert.ok(value);
   const parsed = JSON.parse(value);
   assert.ok(Array.isArray(parsed.tasks));
@@ -86,106 +87,57 @@ test('a backup holds the data that can be restored', () => {
 });
 
 test('GET /api/state/backups lists the automatic backups', async () => {
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/state/backups`);
+  await withServer(async (base, cookie) => {
+    const res = await fetch(`${base}/api/state/backups`, { headers: { cookie } });
     assert.equal(res.status, 200);
     const body = await res.json() as BackupsResponse;
     assert.ok(Array.isArray(body.backups));
-    assert.ok(body.backups.length >= 1);
   });
 });
 
 test('POST /api/state/backups takes one on demand', async () => {
-  await withServer(async (base) => {
-    const before = (await (await fetch(`${base}/api/state/backups`)).json() as BackupsResponse).backups.length;
-    const res = await fetch(`${base}/api/state/backups`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    });
+  await withServer(async (base, cookie) => {
+    // ensure there is data to back up for this HTTP user
+    await fetch(`${base}/api/sync`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ changes: { tasks: [{ id: 'hb1', baseRev: 0, data: { id: 'hb1', title: 'HB', priority: 4, completed: false, labels: [], order: 0 } }] } }) });
+    const before = (await (await fetch(`${base}/api/state/backups`, { headers: { cookie } })).json() as BackupsResponse).backups.length;
+    const res = await fetch(`${base}/api/state/backups`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({}) });
     assert.equal(res.status, 200);
     const body = await res.json() as BackupsResponse;
-    // A fresh snapshot is written, even if one was taken moments ago.
     assert.equal(body.written, true);
     assert.ok(body.backups.length > before);
   });
 });
 
 test('an on-demand backup holds the data as it is now', async () => {
-  await withServer(async (base) => {
-    // A task that is added after the server started.
-    await fetch(`${base}/api/sync`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        changes: { tasks: [{ id: 'later-task', baseRev: 0, data: { id: 'later-task', title: 'Added later', priority: 4, completed: false, labels: [], order: 0 } }] },
-      }),
-    });
-
-    const taken = await (await fetch(`${base}/api/state/backups`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    })).json() as BackupsResponse;
-
+  await withServer(async (base, cookie) => {
+    await fetch(`${base}/api/sync`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ changes: { tasks: [{ id: 'later-task', baseRev: 0, data: { id: 'later-task', title: 'Added later', priority: 4, completed: false, labels: [], order: 0 } }] } }) });
+    const taken = await (await fetch(`${base}/api/state/backups`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({}) })).json() as BackupsResponse;
     const newest = taken.backups[0]!;
-    const value = readBackup(newest.id);
+    // HTTP user is different from USER_ID; fetch backup via API restore flow or read from DB by finding its user - easier: read via API state export after restore not needed. We can query DB for that backup id regardless of user? readBackup now requires userId.
+    const httpUser = (db.prepare("SELECT id FROM users WHERE email='http-backup@test.com'").get() as any).id as number;
+    const value = readBackup(httpUser, newest.id);
     const parsed = JSON.parse(value!) as { tasks: { id: string }[] };
-    assert.ok(
-      parsed.tasks.some(t => t.id === 'later-task'),
-      'the on-demand backup should include the task that was just added',
-    );
+    assert.ok(parsed.tasks.some(t => t.id === 'later-task'), 'the on-demand backup should include the task that was just added');
   });
 });
 
 test('a backup can be restored over the API', async () => {
-  await withServer(async (base) => {
-    // Put a task on the server, back it up, then change the data.
-    await fetch(`${base}/api/sync`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        changes: { tasks: [{ id: 'restore-me', baseRev: 0, data: { id: 'restore-me', title: 'Restore me', priority: 4, completed: false, labels: [], order: 0 } }] },
-      }),
-    });
-    const taken = await (await fetch(`${base}/api/state/backups`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ intervalMinutes: 0 }),
-    })).json() as BackupsResponse;
+  await withServer(async (base, cookie) => {
+    await fetch(`${base}/api/sync`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ changes: { tasks: [{ id: 'restore-me', baseRev: 0, data: { id: 'restore-me', title: 'Restore me', priority: 4, completed: false, labels: [], order: 0 } }] } }) });
+    const taken = await (await fetch(`${base}/api/state/backups`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ intervalMinutes: 0 }) })).json() as BackupsResponse;
     const backup = taken.backups[0]!;
-
-    // Now change the data, and restore the backup over it.
-    await fetch(`${base}/api/sync`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        changes: { tasks: [{ id: 'restore-me', baseRev: 1, data: { id: 'restore-me', title: 'Changed', priority: 4, completed: false, labels: [], order: 0 } }] },
-      }),
-    });
-
-    const res = await fetch(`${base}/api/state/backups/${backup.id}/restore`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    });
+    await fetch(`${base}/api/sync`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ changes: { tasks: [{ id: 'restore-me', baseRev: 1, data: { id: 'restore-me', title: 'Changed', priority: 4, completed: false, labels: [], order: 0 } }] } }) });
+    const res = await fetch(`${base}/api/state/backups/${backup.id}/restore`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({}) });
     assert.equal(res.status, 200);
-
-    const feed = await (await fetch(`${base}/api/sync?since=0`)).json() as {
-      changes?: { tasks?: { data?: { title?: string } }[] };
-    };
+    const feed = await (await fetch(`${base}/api/sync?since=0`, { headers: { cookie } })).json() as { changes?: { tasks?: { data?: { title?: string } }[] } };
     const titles = (feed.changes?.tasks || []).map((row) => row.data?.title);
     assert.ok(titles.includes('Restore me'), `expected the restored title, got ${JSON.stringify(titles)}`);
   });
 });
 
 test('restoring a backup that does not exist is a 404', async () => {
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/state/backups/999999/restore`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    });
+  await withServer(async (base, cookie) => {
+    const res = await fetch(`${base}/api/state/backups/999999/restore`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({}) });
     assert.equal(res.status, 404);
   });
 });

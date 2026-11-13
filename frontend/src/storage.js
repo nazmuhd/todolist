@@ -272,14 +272,21 @@ const CHANNEL = 'todoist-clone-store';
         allHeaders['Content-Type'] = 'application/json';
         body = JSON.stringify(json);
       }
-      return fetch(`${this.baseUrl}${path}`, { method, body, headers: allHeaders });
+      return fetch(`${this.baseUrl}${path}`, { method, body, headers: allHeaders, credentials: 'include' });
     }
 
     /** A request that returns null instead of throwing when offline. */
     async send(path, options) {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
       try {
-        return await this.request(path, options);
+        const res = await this.request(path, options);
+        if (res && res.status === 401) {
+          if (typeof window !== 'undefined' && !/\/login\.html$/.test(window.location.pathname)) {
+            window.location.href = '/login.html';
+          }
+          return null;
+        }
+        return res;
       } catch {
         return null;
       }

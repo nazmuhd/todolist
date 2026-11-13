@@ -45,6 +45,19 @@ passport.deserializeUser((id: any, done: any) => { try { done(null, getStmts().f
 
 router.get('/health', (_req, res) => res.json({ ok: true }));
 
+function invalidateUserSessions(userId: number, exceptSid?: string) {
+  const db = getDb();
+  // sess stores {"passport":{"user":<id>},...}
+  try {
+    if (exceptSid) db.prepare(`DELETE FROM sessions WHERE sid != ? AND CAST(json_extract(sess, '$.passport.user') AS INTEGER) = ?`).run(exceptSid, userId);
+    else db.prepare(`DELETE FROM sessions WHERE CAST(json_extract(sess, '$.passport.user') AS INTEGER) = ?`).run(userId);
+  } catch {
+    const like = `%"user":${Number(userId)}%`;
+    if (exceptSid) db.prepare(`DELETE FROM sessions WHERE sid != ? AND sess LIKE ?`).run(exceptSid, like);
+    else db.prepare(`DELETE FROM sessions WHERE sess LIKE ?`).run(like);
+  }
+}
+
 router.post('/register', authLimiter, async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -53,9 +66,20 @@ router.post('/register', authLimiter, async (req, res) => {
     const ne = email.toLowerCase().trim();
     if (getStmts().findUserByEmail.get(ne)) return res.status(409).json({ error: 'An account with this email already exists.' });
     const h = await argon2.hash(password, { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 4 });
-    const r: any = getStmts().insertUser.run(ne, name?.trim() || null, h);
+    let r: any;
+    try {
+      r = getStmts().insertUser.run(ne, name?.trim() || null, h);
+    } catch (e: any) {
+      if (e?.code === 'ERR_SQLITE_ERROR' && /UNIQUE/i.test(String(e?.message))) {
+        return res.status(409).json({ error: 'An account with this email already exists.' });
+      }
+      throw e;
+    }
     const newUser = { id: Number(r.lastInsertRowid), email: ne, name: name?.trim() || null, avatar_url: null, email_verified: 0 };
-    (req as any).login(newUser, (err: any) => { if (err) return res.status(500).json({ error: 'Account created, but automatic login failed.' }); return res.status(201).json({ message: 'Registration successful.', user: newUser }); });
+    (req as any).session.regenerate((re: any) => {
+      if (re) return res.status(500).json({ error: 'Account created, but automatic login failed.' });
+      (req as any).login(newUser, (err: any) => { if (err) return res.status(500).json({ error: 'Account created, but automatic login failed.' }); return res.status(201).json({ message: 'Registration successful.', user: newUser }); });
+    });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error.' }); }
 });
 
@@ -81,9 +105,10 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     const db = getDb();
     db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(user.id);
     db.prepare('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?, ?, ?)').run(user.id, tokenHash, expiresAt);
-    const baseUrl = config.BASE_URL || `http://localhost:${config.PORT}`;
+    let baseUrl = config.BASE_URL || `http://localhost:${config.PORT}`;
+    try { baseUrl = new URL(baseUrl).origin + new URL(baseUrl).pathname.replace(/\/$/, ''); } catch { baseUrl = String(baseUrl).replace(/\/$/, ''); }
     const resetLink = `${baseUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
-    if (process.env.EMAIL_DRY_RUN === '1') return res.json({ ...generic, dev_reset_link: resetLink });
+    if (process.env.EMAIL_DRY_RUN === '1' && !config.isProduction) return res.json({ ...generic, dev_reset_link: resetLink });
     const resend = new Resend(config.RESEND_API_KEY!);
     const { error } = await resend.emails.send({ from: config.EMAIL_FROM || 'Security <onboarding@resend.dev>', to: user.email, subject: 'Reset Your Password', html: `<p>We received a request to reset your password.</p><p><a href="${resetLink}">Click here to reset your password</a></p><p>This link will expire in 1 hour.</p>` });
     if (error) { console.error(error); return res.status(502).json({ error: 'Unable to send reset email at this time.' }); }
@@ -106,6 +131,7 @@ router.post('/reset-password', authLimiter, async (req, res) => {
     db.exec('BEGIN IMMEDIATE');
     try { getStmts().updatePassword.run(newPasswordHash, user.id); db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(user.id); db.exec('COMMIT'); }
     catch (txErr) { db.exec('ROLLBACK'); throw txErr; }
+    invalidateUserSessions(user.id);
     return res.json({ message: 'Password has been reset successfully. You may now log in.' });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error.' }); }
 });
@@ -128,6 +154,7 @@ router.post('/change-password', authLimiter, async (req, res) => {
     if (!isValid) return res.status(401).json({ error: 'Current password is incorrect.' });
     const newHash = await argon2.hash(newPassword, { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 4 });
     getStmts().updatePassword.run(newHash, user.id);
+    invalidateUserSessions(user.id, (req as any).sessionID);
     return res.json({ message: 'Password updated successfully.' });
   } catch (err) {
     console.error(err);

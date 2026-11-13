@@ -4,6 +4,8 @@ import { scheduleBackup } from '../services/backups.ts';
 
 export const syncRouter = Router();
 
+function uid(req: any): number { return req.user.id; }
+
 syncRouter.get('/', (req, res) => {
   const since = Number(req.query.since ?? 0);
   if (!Number.isInteger(since) || since < 0) {
@@ -11,7 +13,6 @@ syncRouter.get('/', (req, res) => {
     return;
   }
 
-  // `limit` is optional: without it the whole feed comes back (compatibility).
   const rawLimit = req.query.limit;
   let limit: number | undefined;
   if (rawLimit !== undefined) {
@@ -22,7 +23,7 @@ syncRouter.get('/', (req, res) => {
     }
   }
 
-  res.json(changesSince(since, limit));
+  res.json(changesSince(uid(req), since, limit));
 });
 
 syncRouter.post('/', (req, res) => {
@@ -55,20 +56,12 @@ syncRouter.post('/', (req, res) => {
         res.status(400).json({ error: 'invalid_data', entity, id: raw.id });
         return;
       }
-      changes.push({
-        id: raw.id,
-        baseRev: raw.baseRev as number | undefined,
-        deleted,
-        data: raw.data,
-      });
+      changes.push({ id: raw.id, baseRev: raw.baseRev as number | undefined, deleted, data: raw.data });
     }
     input[entity] = changes;
   }
 
-  const result = applyChanges(input);
-  // A change means there is now something worth a backup point. The backup
-  // waits for the writes to settle, so it never captures a half-synced
-  // database.
-  if (result.applied.length) scheduleBackup();
+  const result = applyChanges(uid(req), input);
+  if (result.applied.length) scheduleBackup(uid(req));
   res.json(result);
 });

@@ -410,6 +410,7 @@ $('#settings-body').addEventListener('click', async (e) => {
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { showPwAlert('Please log in to change your password.'); return; }
       if (!res.ok) { showPwAlert(data.error || 'Unable to update password.'); return; }
       showPwAlert(data.message || 'Password updated successfully.', true);
       ['settings-current-password','settings-new-password','settings-confirm-password'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
