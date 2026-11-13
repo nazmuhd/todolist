@@ -28,10 +28,10 @@ let supportsBoard = () => false;
 let renderMainView = () => {};
 
 /* ============================================================
-   SIDEBAR SECTIONS (collapse Projects / Labels)
+   SIDEBAR SECTIONS (collapse sections)
 ============================================================ */
-export const SECTION_NAMES = ['filters', 'projects', 'labels', 'templates'];
-const sectionCollapsed = { filters: false, projects: false, labels: false, templates: false };
+export const SECTION_NAMES = ['favorites', 'filters-labels', 'filters', 'projects', 'labels', 'templates'];
+const sectionCollapsed = { favorites: false, 'filters-labels': false, filters: false, projects: false, labels: false, templates: false };
 
 export function setSectionCollapsed(name, collapsed) {
   const list = $(`#${name}-list`);
