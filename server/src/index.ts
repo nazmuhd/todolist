@@ -55,7 +55,7 @@ export function createApp(options: { serveApp?: boolean } = {}) {
 
   // Landing pages at root.
   const landing = resolve(frontendRoot, 'public/landing');
-  app.get('/', (_req, res) => res.sendFile(resolve(landing, 'landingpage.html')));
+  app.get('/', (_req, res) => res.sendFile(resolve(landing, 'home.html')));
   app.get('/registration.html', (_req, res) => res.sendFile(resolve(landing, 'registration.html')));
 
   if (serveApp) {
