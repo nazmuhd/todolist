@@ -100,7 +100,7 @@ frontend/src/
 │   ├── karma.js             the productivity stats
 │   ├── templates.js         reusable task and project templates
 │   ├── backup.js            export and import
-│   ├── settings.js          the settings dialog
+│   ├── settings.js          the settings dialog and the backup & restore dialog
 │   └── empty-states.js      the empty-state artwork
 ├── views/
 │   ├── list.js              the main column: list, and the view filters
@@ -109,7 +109,7 @@ frontend/src/
 │   ├── activity.js          the activity history view
 │   └── sidebar.js           the sidebar
 └── ui/
-    ├── chrome.js            the header, the sidebar rail, the shortcuts
+    ├── chrome.js            the header, the profile menu, the shortcuts
     ├── menus.js             shared popover positioning
     ├── row-menu.js          the project / label / filter "…" menu
     └── rail-menu.js         the collapsed rail's upward menu
@@ -134,7 +134,7 @@ frontend/src/
 | `features/backup.js` | export (JSON, CSV, Markdown, ICS) and import |
 | `features/due-editor.js` | the due-date dialog: calendar, repeat rules, reminders |
 | `ui/menus.js` | `positionMetaMenu`, `positionBelowTrigger` |
-| `ui/chrome.js` | the header, the sidebar rail, the keyboard shortcuts |
+| `ui/chrome.js` | the header, the profile menu, the keyboard shortcuts |
 
 ## 6. Storage
 
