@@ -253,7 +253,13 @@ if (userMenuBtn && userMenu) {
     if (item.id === 'user-menu-logout') {
       closeUserMenu();
       try {
-        await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+        const csrfRes = await fetch('/auth/csrf', { credentials: 'include' });
+        const csrf = csrfRes.ok ? ((await csrfRes.json().catch(() => ({}))).csrfToken) : null;
+        await fetch('/auth/logout', {
+          method: 'POST',
+          credentials: 'include',
+          headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+        });
       } catch {}
       window.location.href = '/login.html';
     }

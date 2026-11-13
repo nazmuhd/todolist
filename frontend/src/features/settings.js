@@ -190,9 +190,10 @@ async function saveProfile() {
   const saveBtn = $('#settings-save');
   saveBtn?.setAttribute('disabled', 'true');
   try {
+    const csrfToken = await store.getCsrfToken().catch(() => null);
     const res = await fetch('/auth/profile', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) },
       credentials: 'include',
       body: JSON.stringify({ firstName, lastName }),
     });
@@ -607,9 +608,10 @@ document.getElementById('security-body')?.addEventListener('click', async (e) =>
   if (newPassword !== confirmPassword) { showPwAlert('New passwords do not match.'); return; }
   pwBtn.setAttribute('disabled', 'true');
   try {
+    const csrfToken = await store.getCsrfToken().catch(() => null);
     const res = await fetch('/auth/change-password', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) },
       credentials: 'include',
       body: JSON.stringify({ currentPassword, newPassword }),
     });

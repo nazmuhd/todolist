@@ -257,6 +257,8 @@ const CHANNEL = 'todoist-clone-store';
       super(keys);
       this.baseUrl = baseUrl;
       this.token = token;
+      this._csrfToken = null;
+      this._csrfPromise = null;
     }
 
     headers(extra = {}) {
@@ -265,14 +267,44 @@ const CHANNEL = 'todoist-clone-store';
       return headers;
     }
 
+    async getCsrfToken(force = false) {
+      if (!force && this._csrfToken) return this._csrfToken;
+      if (!force && this._csrfPromise) return this._csrfPromise;
+      this._csrfPromise = (async () => {
+        const res = await fetch('/auth/csrf', { credentials: 'include' });
+        if (!res.ok) throw new Error(`csrf_fetch_failed:${res.status}`);
+        const data = await res.json().catch(() => ({}));
+        this._csrfToken = data?.csrfToken || null;
+        return this._csrfToken;
+      })().finally(() => { this._csrfPromise = null; });
+      return this._csrfPromise;
+    }
+
     /** One HTTP call. Throws only when the network itself fails. */
-    request(path, { method = 'GET', json, body, headers } = {}) {
+    async request(path, { method = 'GET', json, body, headers } = {}) {
+      const upper = String(method || 'GET').toUpperCase();
       const allHeaders = this.headers(headers);
       if (json !== undefined) {
         allHeaders['Content-Type'] = 'application/json';
         body = JSON.stringify(json);
       }
-      return fetch(`${this.baseUrl}${path}`, { method, body, headers: allHeaders, credentials: 'include' });
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(upper)) {
+        const csrf = await this.getCsrfToken().catch(() => null);
+        if (csrf) allHeaders['X-CSRF-Token'] = csrf;
+      }
+      let res = await fetch(`${this.baseUrl}${path}`, { method: upper, body, headers: allHeaders, credentials: 'include' });
+      if (res.status === 403 && !['GET', 'HEAD', 'OPTIONS'].includes(upper)) {
+        let msg = '';
+        try { msg = (await res.clone().json())?.error || ''; } catch {}
+        if (msg === 'Invalid CSRF token') {
+          const csrf = await this.getCsrfToken(true).catch(() => null);
+          if (csrf) {
+            allHeaders['X-CSRF-Token'] = csrf;
+            res = await fetch(`${this.baseUrl}${path}`, { method: upper, body, headers: allHeaders, credentials: 'include' });
+          }
+        }
+      }
+      return res;
     }
 
     /** A request that returns null instead of throwing when offline. */

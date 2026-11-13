@@ -214,6 +214,13 @@ passport.deserializeUser((id: any, done: any) => { try { done(null, getStmts().f
 
 router.get('/health', (_req, res) => res.json({ ok: true }));
 
+router.get('/csrf', (req, res) => {
+  const session: any = (req as any).session;
+  if (!session) return res.status(500).json({ error: 'Session unavailable' });
+  if (!session.csrfToken) session.csrfToken = crypto.randomBytes(32).toString('hex');
+  return res.json({ csrfToken: session.csrfToken });
+});
+
 function invalidateUserSessions(userId: number, exceptSid?: string) {
   const db = getDb();
   const uid = Number(userId);

@@ -30,16 +30,37 @@ function cookieJar(res: Response): string {
   const raw = (res.headers as any).getSetCookie?.() ?? [res.headers.get('set-cookie')];
   return (raw as string[]).filter(Boolean).map(c => c.split(';')[0]).join('; ');
 }
-
-async function call(method: string, path: string, body?: unknown, cookies?: string) {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: { 'content-type': 'application/json', ...(cookies ? { cookie: cookies } : {}) },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+function mergeCookies(a?: string, b?: string) {
+  const map = new Map<string,string>();
+  for (const part of [a,b].filter(Boolean).join('; ').split(';')) {
+    const p = part.trim(); if (!p) continue; const i = p.indexOf('='); if (i<0) continue; map.set(p.slice(0,i), p.slice(i+1));
+  }
+  return [...map.entries()].map(([k,v])=>`${k}=${v}`).join('; ');
+}
+async function csrf(cookies?: string) {
+  const res = await fetch(`${BASE}/auth/csrf`, { headers: cookies ? { cookie: cookies } : {} });
+  const set = cookieJar(res);
+  const jar = mergeCookies(cookies, set);
   let data: any = null;
   try { data = await res.json(); } catch {}
-  return { status: res.status, data, cookies: cookieJar(res) };
+  return { token: data?.csrfToken as string | undefined, cookies: jar };
+}
+async function call(method: string, path: string, body?: unknown, cookies?: string) {
+  let jar = cookies || '';
+  let token: string | undefined;
+  if (!['GET','HEAD','OPTIONS'].includes(method.toUpperCase())) {
+    const c = await csrf(jar || undefined);
+    token = c.token;
+    jar = c.cookies;
+  }
+  const headers: Record<string,string> = { 'content-type': 'application/json' };
+  if (jar) headers.cookie = jar;
+  if (token) headers['x-csrf-token'] = token;
+  const res = await fetch(`${BASE}${path}`, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+  let data: any = null;
+  try { data = await res.json(); } catch {}
+  const set = cookieJar(res);
+  return { status: res.status, data, cookies: mergeCookies(jar, set) };
 }
 
 before(async () => {
@@ -53,6 +74,8 @@ before(async () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT NOT NULL UNIQUE COLLATE NOCASE,
       name TEXT,
+      first_name TEXT,
+      last_name TEXT,
       avatar_url TEXT,
       password_hash TEXT,
       hash_algorithm TEXT DEFAULT 'argon2id',
@@ -235,12 +258,18 @@ test('rate limiter blocks excessive authentication requests', async () => {
   try {
     await waitReady(limitBase);
     let sawLimit = false;
+    let jar = '';
     for (let i = 0; i < 8; i++) {
+      const cr = await fetch(`${limitBase}/auth/csrf`, { headers: jar ? { cookie: jar } : {} });
+      const set = cookieJar(cr); if (set) jar = [jar,set].filter(Boolean).join('; ');
+      const cd = await cr.json().catch(() => ({} as any));
+      const token = (cd as any).csrfToken;
       const res = await fetch(`${limitBase}/auth/login`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...(jar ? { cookie: jar } : {}), ...(token ? { 'x-csrf-token': token } : {}) },
         body: JSON.stringify({ email: 'x@domain.com', password: 'wrongpassword' }),
       });
+      const s2 = cookieJar(res); if (s2) jar = [jar,s2].filter(Boolean).join('; ');
       if (res.status === 429) { sawLimit = true; break; }
     }
     assert.equal(sawLimit, true, 'Rate limiter should return 429 after threshold');

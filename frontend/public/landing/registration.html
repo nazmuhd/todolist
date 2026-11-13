@@ -6,32 +6,7 @@
 <title>Sign up for a free todolist account</title>
 
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          td: {
-            red: '#e44232',
-            redhover: '#c93425',
-            redsoft: '#ffefe5',
-            text: '#202020',
-            secondary: '#575757',
-            muted: '#737373',
-            cream: '#faf6f1',
-            sand: '#f5efe6',
-            border: '#e5e5e5',
-            blue: '#246fe0',
-            green: '#058527',
-          }
-        },
-        fontFamily: {
-          sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
-        }
-      }
-    }
-  }
-</script>
+<script src="/landing/tailwind-config.js"></script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -73,7 +48,7 @@
     <div id="auth-alert" class="hidden mb-4 p-3 rounded-lg text-xs font-medium flex items-start gap-2"></div>
 
     <div class="space-y-2.5">
-      <button type="button" onclick="handleOAuth('Google')" class="w-full h-11 px-4 rounded-lg border border-td-border hover:bg-gray-50 active:bg-gray-100 transition flex items-center justify-center gap-3 text-[14px] font-semibold text-td-text">
+      <button type="button" data-oauth-provider="Google" class="w-full h-11 px-4 rounded-lg border border-td-border hover:bg-gray-50 active:bg-gray-100 transition flex items-center justify-center gap-3 text-[14px] font-semibold text-td-text">
         <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/>
           <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"/>
@@ -90,7 +65,7 @@
       <div class="h-[1px] flex-1 bg-gray-200"></div>
     </div>
 
-    <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-3.5" novalidate>
+    <form id="auth-form" class="space-y-3.5" novalidate>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <div class="auth-input-wrap border border-td-border rounded-lg px-3.5 py-2 transition bg-white">
@@ -118,9 +93,9 @@
         <div id="password-wrap" class="auth-input-wrap border border-td-border rounded-lg px-3.5 py-2 transition bg-white flex items-center justify-between gap-2">
           <div class="flex-1">
             <label for="auth-password" class="block text-[11px] font-semibold text-td-text">Password</label>
-            <input id="auth-password" type="password" required placeholder="Enter your password..." oninput="updatePasswordHint()" class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent" />
+            <input id="auth-password" type="password" required placeholder="Enter your password..." class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent" />
           </div>
-          <button type="button" onclick="togglePasswordVisibility()" aria-label="Toggle password visibility" class="p-1.5 text-td-muted hover:text-td-text rounded-md transition">
+          <button type="button" aria-label="Toggle password visibility" class="p-1.5 text-td-muted hover:text-td-text rounded-md transition">
             <i id="eye-icon" data-lucide="eye" class="w-4 h-4"></i>
           </button>
         </div>
@@ -194,94 +169,6 @@
   </div>
 </main>
 
-<script>
-  (async () => {
-    try {
-      const res = await fetch('/auth/me', { credentials: 'include' });
-      if (res.ok) window.location.replace('/app/v1/#/inbox');
-    } catch {}
-  })();
-
-  function togglePasswordVisibility() {
-    const input = document.getElementById('auth-password');
-    const icon = document.getElementById('eye-icon');
-    if (input.type === 'password') {
-      input.type = 'text';
-      icon.setAttribute('data-lucide', 'eye-off');
-    } else {
-      input.type = 'password';
-      icon.setAttribute('data-lucide', 'eye');
-    }
-    lucide.createIcons();
-  }
-
-  function updatePasswordHint() {}
-
-  async function handleAuthSubmit(e) {
-    e.preventDefault();
-    clearErrors();
-
-    const firstName = (document.getElementById('auth-first-name')?.value || '').trim();
-    const lastName = (document.getElementById('auth-last-name')?.value || '').trim();
-    const email = document.getElementById('auth-email').value.trim();
-    const password = document.getElementById('auth-password').value;
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-    if (!emailValid) {
-      document.getElementById('email-wrap').classList.add('error');
-      document.getElementById('email-error').classList.remove('hidden');
-      return;
-    }
-
-    if (password.length < 8) {
-      document.getElementById('password-wrap').classList.add('error');
-      document.getElementById('password-error').classList.remove('hidden');
-      return;
-    }
-
-    const btn = document.getElementById('auth-submit-btn');
-    btn.disabled = true;
-    try {
-      const res = await fetch('/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ firstName, lastName, email, password }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        showAlert(data.error || 'Registration failed.', false);
-        return;
-      }
-      showAlert('Account created! Redirecting...', true);
-      setTimeout(() => { window.location.href = '/app/v1/#/inbox'; }, 600);
-    } catch (err) {
-      showAlert('Unable to reach the server. Please try again.', false);
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  function clearErrors() {
-    document.getElementById('auth-alert').classList.add('hidden');
-    document.getElementById('email-wrap').classList.remove('error');
-    document.getElementById('email-error').classList.add('hidden');
-    document.getElementById('password-wrap').classList.remove('error');
-    document.getElementById('password-error').classList.add('hidden');
-  }
-
-  function showAlert(message, isSuccess = false) {
-    const alertBox = document.getElementById('auth-alert');
-    alertBox.className = `mb-4 p-3 rounded-lg text-xs font-medium flex items-start gap-2 ${isSuccess ? 'bg-green-50 text-td-green border border-green-200' : 'bg-red-50 text-td-red border border-red-200'}`;
-    alertBox.innerHTML = `<span>${message}</span>`;
-    alertBox.classList.remove('hidden');
-  }
-
-  function handleOAuth(provider) {
-    showAlert(`${provider} sign-in is not available yet.`, false);
-  }
-
-  lucide.createIcons();
-</script>
+<script src="/landing/registration.js"></script>
 </body>
 </html>

@@ -22,17 +22,22 @@ const USER_ID = Number(u.lastInsertRowid);
 
 const app = createApp({ serveApp: false });
 
-async function withServer(fn: (base: string, cookie: string) => Promise<void>) {
+async function withServer(fn: (base: string, cookie: string, authed: any) => Promise<void>) {
   const server = app.listen(0);
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
   const base = `http://127.0.0.1:${port}`;
   try {
-    let res = await fetch(`${base}/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'push-http@test.com', password: 'password123', name: 'PH' }) });
-    if (res.status === 409) res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'push-http@test.com', password: 'password123' }) });
-    const cookie = (res.headers.getSetCookie?.() || [res.headers.get('set-cookie')]).filter(Boolean).map(c => c!.split(';')[0]).join('; ');
-    await fn(base, cookie);
+    const jar = (r: Response, prev='') => { const map = new Map<string,string>(); for (const part of [prev, ...((r.headers.getSetCookie?.() || [r.headers.get('set-cookie')]).filter(Boolean).map(c => c!.split(';')[0]))].filter(Boolean).join('; ').split(';')) { const p=part.trim(); if(!p) continue; const i=p.indexOf('='); if(i<0) continue; map.set(p.slice(0,i), p.slice(i+1)); } return [...map.entries()].map(([k,v])=>`${k}=${v}`).join('; '); };
+    const state = { cookie: '' };
+    const getCsrf = async () => { const r = await fetch(`${base}/auth/csrf`, { headers: state.cookie ? { cookie: state.cookie } : {} }); state.cookie = jar(r, state.cookie); const d = await r.json().catch(()=>({} as any)); return (d as any).csrfToken as string|undefined; };
+    const authed = async (path: string, init: RequestInit = {}, cookieArg?: string) => { if (cookieArg !== undefined) state.cookie = cookieArg; const method = String(init.method||'GET').toUpperCase(); const headers: Record<string,string> = { ...(init.headers as any||{}) }; if (!['GET','HEAD','OPTIONS'].includes(method)) { const token = await getCsrf(); if (token) headers['x-csrf-token'] = token; } if (state.cookie) headers.cookie = state.cookie; const r = await fetch(`${base}${path}`, { ...init, headers }); const set = jar(r); if (set) state.cookie = jar(r, state.cookie); return r; };
+    let res = await authed('/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'push-http@test.com', password: 'password123', name: 'PH' }) }, '');
+    state.cookie = jar(res);
+    let cookie = state.cookie;
+    if (res.status === 409) { res = await authed('/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'push-http@test.com', password: 'password123' }) }, cookie); state.cookie = jar(res, state.cookie); cookie = state.cookie; }
+    await fn(base, cookie, authed);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
@@ -41,22 +46,22 @@ async function withServer(fn: (base: string, cookie: string) => Promise<void>) {
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 test('push endpoints are explicit when VAPID is not configured', async () => {
-  await withServer(async (base, cookie) => {
+  await withServer(async (base, cookie, authed) => {
     let res = await fetch(`${base}/api/push/key`, { headers: { cookie } });
     assert.equal(res.status, 404);
     assert.deepEqual(await res.json(), { error: 'push_disabled' });
-    res = await fetch(`${base}/api/push/test`, { method: 'POST', headers: { cookie } });
+    res = await authed('/api/push/test', { method: 'POST' }, cookie);
     assert.equal(res.status, 404);
   });
 });
 
 test('subscriptions validate, store and delete', async () => {
-  await withServer(async (base, cookie) => {
-    let res = await fetch(`${base}/api/push/subscribe`, { ...json('POST', { endpoint: 'nope' }), headers: { 'content-type': 'application/json', cookie } });
+  await withServer(async (base, cookie, authed) => {
+    let res = await authed('/api/push/subscribe', json('POST', { endpoint: 'nope' }), cookie);
     assert.equal(res.status, 400);
 
     const subscription = { endpoint: 'https://push.example.test/abc', keys: { p256dh: 'key', auth: 'secret' }, label: 'Chrome on Windows', userAgent: 'Mozilla/5.0 test' };
-    res = await fetch(`${base}/api/push/subscribe`, { ...json('POST', subscription), headers: { 'content-type': 'application/json', cookie } });
+    res = await authed('/api/push/subscribe', json('POST', subscription), cookie);
     assert.equal(res.status, 201);
 
     const httpUser = (db.prepare("SELECT id FROM users WHERE email='push-http@test.com'").get() as any).id as number;
@@ -74,10 +79,10 @@ test('subscriptions validate, store and delete', async () => {
     assert.equal(publicDevices.subscriptions[0]?.p256dh, undefined);
     assert.equal(publicDevices.subscriptions[0]?.auth, undefined);
 
-    res = await fetch(`${base}/api/push/subscribe`, { method: 'DELETE', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ endpoint: subscription.endpoint }) });
+    res = await authed('/api/push/subscribe', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint }) }, cookie);
     assert.equal(res.status, 204);
 
-    res = await fetch(`${base}/api/push/subscribe`, { method: 'DELETE', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ endpoint: subscription.endpoint }) });
+    res = await authed('/api/push/subscribe', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint }) }, cookie);
     assert.equal(res.status, 404);
   });
 });
@@ -115,14 +120,14 @@ test('completed tasks and far-past reminders are skipped', () => {
 });
 
 test('attachment cleanup removes only old, unreferenced blobs', async () => {
-  await withServer(async (base, cookie) => {
+  await withServer(async (base, cookie, authed) => {
     const httpUser = (db.prepare("SELECT id FROM users WHERE email='push-http@test.com'").get() as any).id as number;
     putBlob(httpUser, 'kept-attachment', new Uint8Array([1, 2, 3]), { name: 'kept.bin' });
     putBlob(httpUser, 'orphan-attachment', new Uint8Array([4, 5, 6]), { name: 'orphan.bin' });
     replaceEntities(httpUser, { tasks: [{ id: 'attachment-task', title: 'Has a file', attachments: [{ id: 'kept-attachment', name: 'kept.bin' }] }] }, getCursor(httpUser));
     db.prepare("update blobs set updated_at = '2000-01-01T00:00:00.000Z' where user_id = ?").run(httpUser);
 
-    const res = await fetch(`${base}/api/blobs/cleanup?olderThanHours=1`, { method: 'POST', headers: { cookie } });
+    const res = await authed('/api/blobs/cleanup?olderThanHours=1', { method: 'POST' }, cookie);
     assert.equal(res.status, 200);
     const body = await res.json() as { removed: number; keys: string[] };
     assert.equal(body.removed, 1);
@@ -134,8 +139,8 @@ test('attachment cleanup removes only old, unreferenced blobs', async () => {
 });
 
 test('cleanup rejects an invalid age', async () => {
-  await withServer(async (base, cookie) => {
-    const res = await fetch(`${base}/api/blobs/cleanup?olderThanHours=0`, { method: 'POST', headers: { cookie } });
+  await withServer(async (base, cookie, authed) => {
+    const res = await authed('/api/blobs/cleanup?olderThanHours=0', { method: 'POST' }, cookie);
     assert.equal(res.status, 400);
   });
 });

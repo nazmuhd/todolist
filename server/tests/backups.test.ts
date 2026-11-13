@@ -21,17 +21,22 @@ const db = getDb();
 const u = db.prepare("INSERT INTO users (email,name,password_hash,hash_algorithm) VALUES ('backup@test.com','B','x','argon2id')").run();
 const USER_ID = Number(u.lastInsertRowid);
 
-async function withServer(fn: (base: string, cookie: string) => Promise<void>) {
+async function withServer(fn: (base: string, cookie: string, authed: any) => Promise<void>) {
   const server = app.listen(0);
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
   const base = `http://127.0.0.1:${port}`;
   try {
-    let res = await fetch(`${base}/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'http-backup@test.com', password: 'password123', name: 'H' }) });
-    if (res.status === 409) res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'http-backup@test.com', password: 'password123' }) });
-    const cookie = (res.headers.getSetCookie?.() || [res.headers.get('set-cookie')]).filter(Boolean).map(c => c!.split(';')[0]).join('; ');
-    await fn(base, cookie);
+    const jar = (r: Response, prev='') => { const map = new Map<string,string>(); for (const part of [prev, ...((r.headers.getSetCookie?.() || [r.headers.get('set-cookie')]).filter(Boolean).map(c => c!.split(';')[0]))].filter(Boolean).join('; ').split(';')) { const p=part.trim(); if(!p) continue; const i=p.indexOf('='); if(i<0) continue; map.set(p.slice(0,i), p.slice(i+1)); } return [...map.entries()].map(([k,v])=>`${k}=${v}`).join('; '); };
+    const state = { cookie: '' };
+    const getCsrf = async () => { const r = await fetch(`${base}/auth/csrf`, { headers: state.cookie ? { cookie: state.cookie } : {} }); state.cookie = jar(r, state.cookie); const d = await r.json().catch(()=>({} as any)); return (d as any).csrfToken as string|undefined; };
+    const authed = async (path: string, init: RequestInit = {}, cookieArg?: string) => { if (cookieArg !== undefined) state.cookie = cookieArg; const method = String(init.method||'GET').toUpperCase(); const headers: Record<string,string> = { ...(init.headers as any||{}) }; if (!['GET','HEAD','OPTIONS'].includes(method)) { const token = await getCsrf(); if (token) headers['x-csrf-token'] = token; } if (state.cookie) headers.cookie = state.cookie; const r = await fetch(`${base}${path}`, { ...init, headers }); const set = jar(r); if (set) state.cookie = jar(r, state.cookie); return r; };
+    let res = await authed('/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'http-backup@test.com', password: 'password123', name: 'H' }) }, '');
+    state.cookie = jar(res);
+    let cookie = state.cookie;
+    if (res.status === 409) { res = await authed('/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'http-backup@test.com', password: 'password123' }) }, cookie); state.cookie = jar(res, state.cookie); cookie = state.cookie; }
+    await fn(base, cookie, authed);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
@@ -87,7 +92,7 @@ test('a backup holds the data that can be restored', () => {
 });
 
 test('GET /api/state/backups lists the automatic backups', async () => {
-  await withServer(async (base, cookie) => {
+  await withServer(async (base, cookie, authed) => {
     const res = await fetch(`${base}/api/state/backups`, { headers: { cookie } });
     assert.equal(res.status, 200);
     const body = await res.json() as BackupsResponse;
@@ -96,11 +101,11 @@ test('GET /api/state/backups lists the automatic backups', async () => {
 });
 
 test('POST /api/state/backups takes one on demand', async () => {
-  await withServer(async (base, cookie) => {
+  await withServer(async (base, cookie, authed) => {
     // ensure there is data to back up for this HTTP user
-    await fetch(`${base}/api/sync`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ changes: { tasks: [{ id: 'hb1', baseRev: 0, data: { id: 'hb1', title: 'HB', priority: 4, completed: false, labels: [], order: 0 } }] } }) });
+    await authed('/api/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: { tasks: [{ id: 'hb1', baseRev: 0, data: { id: 'hb1', title: 'HB', priority: 4, completed: false, labels: [], order: 0 } }] } }) }, cookie);
     const before = (await (await fetch(`${base}/api/state/backups`, { headers: { cookie } })).json() as BackupsResponse).backups.length;
-    const res = await fetch(`${base}/api/state/backups`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({}) });
+    const res = await authed('/api/state/backups', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) }, cookie);
     assert.equal(res.status, 200);
     const body = await res.json() as BackupsResponse;
     assert.equal(body.written, true);
@@ -109,9 +114,9 @@ test('POST /api/state/backups takes one on demand', async () => {
 });
 
 test('an on-demand backup holds the data as it is now', async () => {
-  await withServer(async (base, cookie) => {
-    await fetch(`${base}/api/sync`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ changes: { tasks: [{ id: 'later-task', baseRev: 0, data: { id: 'later-task', title: 'Added later', priority: 4, completed: false, labels: [], order: 0 } }] } }) });
-    const taken = await (await fetch(`${base}/api/state/backups`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({}) })).json() as BackupsResponse;
+  await withServer(async (base, cookie, authed) => {
+    await authed('/api/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: { tasks: [{ id: 'later-task', baseRev: 0, data: { id: 'later-task', title: 'Added later', priority: 4, completed: false, labels: [], order: 0 } }] } }) }, cookie);
+    const taken = await (await authed('/api/state/backups', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) }, cookie)).json() as BackupsResponse;
     const newest = taken.backups[0]!;
     // HTTP user is different from USER_ID; fetch backup via API restore flow or read from DB by finding its user - easier: read via API state export after restore not needed. We can query DB for that backup id regardless of user? readBackup now requires userId.
     const httpUser = (db.prepare("SELECT id FROM users WHERE email='http-backup@test.com'").get() as any).id as number;
@@ -122,12 +127,12 @@ test('an on-demand backup holds the data as it is now', async () => {
 });
 
 test('a backup can be restored over the API', async () => {
-  await withServer(async (base, cookie) => {
-    await fetch(`${base}/api/sync`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ changes: { tasks: [{ id: 'restore-me', baseRev: 0, data: { id: 'restore-me', title: 'Restore me', priority: 4, completed: false, labels: [], order: 0 } }] } }) });
-    const taken = await (await fetch(`${base}/api/state/backups`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ intervalMinutes: 0 }) })).json() as BackupsResponse;
+  await withServer(async (base, cookie, authed) => {
+    await authed('/api/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: { tasks: [{ id: 'restore-me', baseRev: 0, data: { id: 'restore-me', title: 'Restore me', priority: 4, completed: false, labels: [], order: 0 } }] } }) }, cookie);
+    const taken = await (await authed('/api/state/backups', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ intervalMinutes: 0 }) }, cookie)).json() as BackupsResponse;
     const backup = taken.backups[0]!;
-    await fetch(`${base}/api/sync`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ changes: { tasks: [{ id: 'restore-me', baseRev: 1, data: { id: 'restore-me', title: 'Changed', priority: 4, completed: false, labels: [], order: 0 } }] } }) });
-    const res = await fetch(`${base}/api/state/backups/${backup.id}/restore`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({}) });
+    await authed('/api/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: { tasks: [{ id: 'restore-me', baseRev: 1, data: { id: 'restore-me', title: 'Changed', priority: 4, completed: false, labels: [], order: 0 } }] } }) }, cookie);
+    const res = await authed(`/api/state/backups/${backup.id}/restore`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) }, cookie);
     assert.equal(res.status, 200);
     const feed = await (await fetch(`${base}/api/sync?since=0`, { headers: { cookie } })).json() as { changes?: { tasks?: { data?: { title?: string } }[] } };
     const titles = (feed.changes?.tasks || []).map((row) => row.data?.title);
@@ -136,8 +141,8 @@ test('a backup can be restored over the API', async () => {
 });
 
 test('restoring a backup that does not exist is a 404', async () => {
-  await withServer(async (base, cookie) => {
-    const res = await fetch(`${base}/api/state/backups/999999/restore`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({}) });
+  await withServer(async (base, cookie, authed) => {
+    const res = await authed('/api/state/backups/999999/restore', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) }, cookie);
     assert.equal(res.status, 404);
   });
 });

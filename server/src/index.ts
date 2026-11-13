@@ -48,34 +48,41 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   app.set('trust proxy', 1);
 
   app.use(helmet({
-    // The service worker and the app are served from this same origin.
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "default-src": ["'self'"],
+        "base-uri": ["'self'"],
+        "form-action": ["'self'"],
+        "frame-ancestors": ["'none'"],
+        "object-src": ["'none'"],
+        "script-src": [
+          "'self'",
+          "https://cdn.tailwindcss.com",
+          "https://cdn.jsdelivr.net",
+          ...(config.isProduction ? [] : ["'unsafe-eval'", "ws:", "wss:", "http:", "https:"]),
+        ],
+        "style-src": [
+          "'self'",
+          "'unsafe-inline'",
+          "https://fonts.googleapis.com",
+        ],
+        "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
+        "img-src": ["'self'", "data:", "blob:", "https:"],
+        "connect-src": [
+          "'self'",
+          ...(config.isProduction ? [] : ["ws:", "wss:", "http:", "https:"]),
+        ],
+        "worker-src": ["'self'", "blob:"],
+        "manifest-src": ["'self'"],
+      },
+    },
   }));
   app.use(cors({
     origin: config.corsOrigins,
     credentials: true,
   }));
 
-  // CSRF mitigation for cookie-authenticated API/auth requests: require same-origin
-  // or an allowed Origin/Referer on state-changing methods. In production, reject
-  // unsafe requests that provide neither (defense-in-depth alongside SameSite cookies).
-  app.use((req, res, next) => {
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
-    const allowed = new Set(config.corsOrigins);
-    const host = req.headers.host ? `${req.protocol}://${req.headers.host}` : null;
-    if (host) allowed.add(host);
-    const origin = req.headers.origin;
-    if (origin) {
-      return allowed.has(origin) ? next() : res.status(403).json({ error: 'Forbidden origin' });
-    }
-    const referer = req.headers.referer;
-    if (referer) {
-      try { return allowed.has(new URL(referer).origin) ? next() : res.status(403).json({ error: 'Forbidden origin' }); }
-      catch { return res.status(403).json({ error: 'Forbidden origin' }); }
-    }
-    if (config.isProduction) return res.status(403).json({ error: 'Forbidden origin' });
-    return next();
-  });
   // Blobs arrive as a raw body; mount this before the JSON parser so a
   // binary attachment is never interpreted as JSON.
   app.use('/api/blobs', express.raw({ type: () => true, limit: '25mb' }));
@@ -91,6 +98,38 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   }));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // CSRF mitigation: same-origin/Origin/Referer checks plus a synchronizer token
+  // for unsafe methods on cookie-authenticated API/auth requests.
+  app.use((req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    const allowed = new Set(config.corsOrigins);
+    const host = req.headers.host ? `${req.protocol}://${req.headers.host}` : null;
+    if (host) allowed.add(host);
+    const origin = req.headers.origin;
+    if (origin) {
+      if (!allowed.has(origin)) return res.status(403).json({ error: 'Forbidden origin' });
+    } else {
+      const referer = req.headers.referer;
+      if (referer) {
+        try {
+          if (!allowed.has(new URL(referer).origin)) return res.status(403).json({ error: 'Forbidden origin' });
+        } catch {
+          return res.status(403).json({ error: 'Forbidden origin' });
+        }
+      } else if (config.isProduction) {
+        return res.status(403).json({ error: 'Forbidden origin' });
+      }
+    }
+
+    // Synchronizer CSRF token (defense-in-depth). Token endpoint itself is safe (GET).
+    const sessionToken = (req.session as any)?.csrfToken;
+    const headerToken = req.get('x-csrf-token');
+    if (!sessionToken || typeof headerToken !== 'string' || headerToken !== sessionToken) {
+      return res.status(403).json({ error: 'Invalid CSRF token' });
+    }
+    return next();
+  });
 
   app.use('/auth', authRouter);
 
