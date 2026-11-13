@@ -22,6 +22,7 @@ function togglePasswordVisibility() {
 }
 
 function updatePasswordHint() {}
+window.updatePasswordHint = updatePasswordHint;
 
 async function getCsrfToken() {
   const res = await fetch('/auth/csrf', { credentials: 'include' });
