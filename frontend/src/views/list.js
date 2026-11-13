@@ -19,6 +19,9 @@ import { renderActivity } from './activity.js';
 import { renderBoard, destroyBoardSortables } from './board.js';
 import { renderTable } from './table.js';
 import { hasNoPriority } from '../core/priorities.js';
+import { setSectionArchived, deleteSection, duplicateSection, moveSection } from '../features/projects.js';
+import { services } from '../core/services.js';
+import { showToast } from '../core/toasts.js';
 
 /** Board layout is available for task lists, not grouped/archive views. */
 export function supportsBoard(view = state.ui.view) {
@@ -359,44 +362,87 @@ export function renderProjectSectionsView(list) {
   const projId = state.ui.view.slice(8);
   const proj = state.projects.find(p => p.id === projId);
   const sections = proj && Array.isArray(proj.sections) ? proj.sections : [];
+  const activeSections = sections.filter(s => !s.archived);
+  const archivedSectionIds = new Set(sections.filter(s => s.archived).map(s => s.id));
   const tasks = activeTasks()
-    .filter(t => t.projectId === projId && !t.completed)
+    .filter(t => t.projectId === projId && !t.completed && !archivedSectionIds.has(t.sectionId))
     .sort((a, b) => a.order - b.order);
 
-  // A filter that belongs to another project (or a removed section) resets.
-  if (projectSectionFilter && !sections.some(s => s.id === projectSectionFilter)) {
+  if (projectSectionFilter && !activeSections.some(s => s.id === projectSectionFilter)) {
     projectSectionFilter = null;
   }
   const visible = projectSectionFilter
     ? tasks.filter(t => t.sectionId === projectSectionFilter)
     : tasks;
 
-  const groups = sections
-    .map(s => ({ key: s.id, label: s.name, tasks: visible.filter(t => t.sectionId === s.id) }))
-    .filter(g => g.tasks.length);
-  const ungrouped = visible.filter(t => !t.sectionId || !sections.some(s => s.id === t.sectionId));
-  if (ungrouped.length && !projectSectionFilter) groups.push({ key: '', label: 'No section', tasks: ungrouped });
+  const collapsed = (state.ui.collapsedProjectSections && typeof state.ui.collapsedProjectSections === 'object') ? state.ui.collapsedProjectSections : {};
+  const groups = activeSections
+    .map(s => ({ key: s.id, label: s.name, tasks: visible.filter(t => t.sectionId === s.id), archived: !!s.archived }))
+    .filter(g => g.tasks.length || (projectSectionFilter === g.key));
+  const ungrouped = visible.filter(t => !t.sectionId || !activeSections.some(s => s.id === t.sectionId));
+  if (ungrouped.length && !projectSectionFilter) groups.push({ key: '', label: 'No section', tasks: ungrouped, archived: false, noMenu: true });
 
-  if (!groups.length) {
-    list.innerHTML = '';
+  const archivedSections = sections.filter(s => s.archived);
+
+  if (!groups.length && !archivedSections.length) {
+    list.innerHTML = `
+      <li class="flex flex-wrap items-center gap-1 mb-3 list-none">
+        <button type="button" class="qa-pick" data-section-filter="" aria-pressed="true">All</button>
+        ${activeSections.map(s => `
+          <button type="button" class="qa-pick" data-section-filter="${escapeHtml(s.id)}" aria-pressed="${projectSectionFilter === s.id}">
+            ${escapeHtml(s.name)}
+          </button>`).join('')}
+      </li>`;
     showEmptyState();
     return;
   }
   document.getElementById('empty-state').classList.add('hidden');
+  const sectionMenu = (sectionId, label) => sectionId ? `
+    <div class="relative ml-1">
+      <button type="button" class="p-0.5 rounded text-td-muted hover:text-td-text hover:bg-gray-100" data-section-menu="${escapeHtml(sectionId)}" title="Section actions" aria-label="Section actions">
+        <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+      </button>
+      <div class="hidden absolute right-0 top-full mt-1 z-20 w-52 bg-white border border-td-border rounded-lg shadow-lg py-1 text-sm" data-section-menu-panel="${escapeHtml(sectionId)}">
+        <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-gray-50" data-section-action="move" data-section-id="${escapeHtml(sectionId)}">Move section to project</button>
+        <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-gray-50" data-section-action="duplicate" data-section-id="${escapeHtml(sectionId)}">Duplicate section</button>
+        <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-gray-50" data-section-action="archive" data-section-id="${escapeHtml(sectionId)}">Archive section</button>
+        <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-red-600" data-section-action="delete" data-section-id="${escapeHtml(sectionId)}">Delete section</button>
+      </div>
+    </div>` : '';
+
+  const archivedBlock = archivedSections.length ? `
+    <li class="mt-4 mb-1 text-xs font-semibold text-td-muted px-1 list-none">Archived sections</li>
+    ${archivedSections.map(s => `
+      <li class="flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-gray-50 text-sm list-none">
+        <span class="truncate">${escapeHtml(s.name)}</span>
+        <div class="flex items-center gap-2">
+          <button type="button" class="text-xs text-td-muted hover:text-td-text" data-section-action="unarchive" data-section-id="${escapeHtml(s.id)}">Unarchive</button>
+          <button type="button" class="text-xs text-red-600 hover:text-red-700" data-section-action="delete" data-section-id="${escapeHtml(s.id)}">Delete</button>
+        </div>
+      </li>`).join('')}` : '';
+
   list.innerHTML = `
     <li class="flex flex-wrap items-center gap-1 mb-3 list-none">
       <button type="button" class="qa-pick" data-section-filter="" aria-pressed="${!projectSectionFilter}">All</button>
-      ${sections.map(s => `
+      ${activeSections.map(s => `
         <button type="button" class="qa-pick" data-section-filter="${escapeHtml(s.id)}" aria-pressed="${projectSectionFilter === s.id}">
           ${escapeHtml(s.name)}
         </button>`).join('')}
     </li>
-    ${groups.map(g => `
-    <li class="day-group-header" data-day-group="${escapeHtml(g.key)}">
-      <span>${escapeHtml(g.label)}</span>
+    ${groups.map(g => {
+      const isCollapsed = !!g.key && !!collapsed[g.key];
+      return `
+    <li class="day-group-header group/section" data-day-group="${escapeHtml(g.key)}" data-project-section-header="${escapeHtml(g.key)}">
+      <button type="button" class="flex items-center gap-1 min-w-0 flex-1 text-left" data-section-toggle="${escapeHtml(g.key)}" ${g.key ? '' : 'disabled'} title="${g.key ? 'Collapse/expand section' : ''}">
+        ${g.key ? `<i data-lucide="${isCollapsed ? 'chevron-right' : 'chevron-down'}" class="w-4 h-4 text-td-muted flex-shrink-0"></i>` : ''}
+        <span class="truncate">${escapeHtml(g.label)}</span>
+      </button>
       <span class="text-td-muted font-normal">${g.tasks.length}</span>
+      ${!g.noMenu ? sectionMenu(g.key, g.label) : ''}
     </li>
-    ${g.tasks.map(t => renderTaskRow(t, false)).join('')}`).join('')}`;
+    ${(!g.key || !isCollapsed) ? g.tasks.map(t => renderTaskRow(t, false)).join('') : ''}`;
+    }).join('')}
+    ${archivedBlock}`;
   bindTaskEvents(false);
 }
 
@@ -499,18 +545,90 @@ export function initListView(onSectionFilter) {
     requestRender();
   });
 
-  list.addEventListener('click', (e) => {
+  list.addEventListener('click', async (e) => {
     const more = e.target.closest('[data-load-more]');
     if (more) {
       visibleLimit += PAGE_SIZE;
       onSectionFilter();
       return;
     }
+
+    const sectionMenuBtn = e.target.closest('[data-section-menu]');
+    if (sectionMenuBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = sectionMenuBtn.dataset.sectionMenu;
+      const panel = list.querySelector(`[data-section-menu-panel="${CSS.escape(id)}"]`);
+      list.querySelectorAll('[data-section-menu-panel]').forEach(p => { if (p !== panel) p.classList.add('hidden'); });
+      panel?.classList.toggle('hidden');
+      return;
+    }
+
+    const sectionAction = e.target.closest('[data-section-action]');
+    if (sectionAction) {
+      e.preventDefault();
+      e.stopPropagation();
+      const action = sectionAction.dataset.sectionAction;
+      const sectionId = sectionAction.dataset.sectionId;
+      const projId = String(state.ui.view || '').startsWith('project:') ? state.ui.view.slice(8) : null;
+      list.querySelectorAll('[data-section-menu-panel]').forEach(p => p.classList.add('hidden'));
+      if (!projId || !sectionId) return;
+      if (action === 'archive') {
+        setSectionArchived(projId, sectionId, true);
+        showToast('Section archived', 'success');
+        return;
+      }
+      if (action === 'unarchive') {
+        setSectionArchived(projId, sectionId, false);
+        showToast('Section unarchived', 'success');
+        return;
+      }
+      if (action === 'delete') {
+        await deleteSection(projId, sectionId);
+        return;
+      }
+      if (action === 'duplicate') {
+        await duplicateSection(projId, sectionId);
+        return;
+      }
+      if (action === 'move') {
+        const targets = state.projects.filter(p => p.id !== projId && !p.archived);
+        if (!targets.length) { showToast('No other project to move to', 'error'); return; }
+        // simple prompt for now; pick by name/index fallback not needed if prompt supports names poorly, but acceptable
+        const names = targets.map((p, i) => `${i + 1}. ${p.name}`).join('\n');
+        const answer = window.prompt(`Move section to which project?\n${names}\n\nEnter project number:`, '1');
+        if (!answer) return;
+        const idx = Number(answer) - 1;
+        const target = targets[idx];
+        if (!target) { showToast('Invalid project selection', 'error'); return; }
+        await moveSection(projId, sectionId, target.id);
+        return;
+      }
+    }
+
+    const toggle = e.target.closest('[data-section-toggle]');
+    if (toggle) {
+      const id = toggle.dataset.sectionToggle;
+      if (!id) return;
+      e.preventDefault();
+      if (!state.ui.collapsedProjectSections || typeof state.ui.collapsedProjectSections !== 'object') state.ui.collapsedProjectSections = {};
+      state.ui.collapsedProjectSections[id] = !state.ui.collapsedProjectSections[id];
+      saveState();
+      onSectionFilter();
+      return;
+    }
+
     const chip = e.target.closest('[data-section-filter]');
     if (!chip) return;
     e.preventDefault();
     e.stopPropagation();
     projectSectionFilter = chip.dataset.sectionFilter || null;
     onSectionFilter();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-section-menu]') && !e.target.closest('[data-section-menu-panel]')) {
+      document.querySelectorAll('[data-section-menu-panel]').forEach(p => p.classList.add('hidden'));
+    }
   });
 }

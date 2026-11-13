@@ -218,7 +218,7 @@ export function normalizeState(s) {
       viewLayout: ['list', 'board', 'table', 'calendar'].includes(asText(p.viewLayout)) ? asText(p.viewLayout) : null,
       sections: (Array.isArray(p.sections) ? p.sections : [])
         .filter(x => x && typeof x === 'object' && asText(x.id))
-        .map(x => ({ id: asText(x.id), name: asText(x.name).trim() || 'Untitled section' })),
+        .map(x => ({ id: asText(x.id), name: asText(x.name).trim() || 'Untitled section', archived: !!x.archived })),
     });
   });
 

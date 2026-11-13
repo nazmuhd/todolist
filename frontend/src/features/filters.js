@@ -225,6 +225,16 @@ export function queryTermPredicate(word) {
       return (t.labels || []).some(lid => String(lid).toLowerCase() === wanted.toLowerCase());
     };
   }
+  if (w.startsWith('/')) {
+    const name = w.slice(1).replace(/_/g, ' ').trim().toLowerCase();
+    if (!name) return () => false;
+    return t => {
+      if (!t.sectionId) return false;
+      const proj = state.projects.find(p => p.id === t.projectId);
+      const section = proj?.sections?.find(s => s.id === t.sectionId);
+      return !!section && String(section.name || '').trim().toLowerCase() === name;
+    };
+  }
   if (w === 'has:date') return t => !!t.due;
   if (w === 'no:date') return t => !t.due;
   if (w === 'has:project') return t => !!t.projectId;

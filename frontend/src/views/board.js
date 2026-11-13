@@ -16,7 +16,7 @@ export function boardGrouping() {
   const project = view.startsWith('project:')
     ? state.projects.find(p => p.id === view.slice(8))
     : null;
-  const sections = project && Array.isArray(project.sections) ? project.sections : [];
+  const sections = project && Array.isArray(project.sections) ? project.sections.filter(s => !s.archived) : [];
   return { project, sections, bySection: !!project && sections.length > 0 };
 }
 
@@ -30,6 +30,8 @@ export function renderBoard(info) {
 
   const base = activeTasks().filter(info.filter).filter(t => !t.completed);
   const grouping = boardGrouping();
+  const archivedSectionIds = new Set((grouping.project?.sections || []).filter(s => s.archived).map(s => s.id));
+  const baseVisible = grouping.bySection ? base.filter(t => !archivedSectionIds.has(t.sectionId)) : base;
 
   const columns = grouping.bySection
     ? [
@@ -37,10 +39,10 @@ export function renderBoard(info) {
           key: s.id,
           label: s.name,
           sectionId: s.id,
-          tasks: base.filter(t => t.sectionId === s.id),
+          tasks: baseVisible.filter(t => t.sectionId === s.id),
         })),
         (() => {
-          const ungrouped = base.filter(t => !t.sectionId || !grouping.sections.some(s => s.id === t.sectionId));
+          const ungrouped = baseVisible.filter(t => !t.sectionId || !grouping.sections.some(s => s.id === t.sectionId));
           return ungrouped.length
             ? { key: 'none', label: 'No section', sectionId: '', tasks: ungrouped }
             : null;
@@ -50,7 +52,7 @@ export function renderBoard(info) {
         key: String(priority),
         label: `P${priority}`,
         priority,
-        tasks: base.filter(t => t.priority === priority),
+        tasks: baseVisible.filter(t => t.priority === priority),
       }));
 
   board.innerHTML = `<div class="board-scroll"><div class="board-grid">` + columns.map(column => {

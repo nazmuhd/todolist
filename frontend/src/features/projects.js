@@ -5,7 +5,7 @@ import { $, $$, uid } from '../core/app.js';
 import { state, saveState } from '../core/state.js';
 import { escapeHtml, PROJECT_COLORS, LABEL_COLORS } from '../core/text.js';
 import { snapshotData, offerUndo } from '../core/undo.js';
-import { plural } from '../core/toasts.js';
+import { plural, showToast } from '../core/toasts.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 
@@ -345,4 +345,103 @@ export async function deleteLabel(id) {
   saveState();
   requestRender();
   offerUndo(`Label "@${lbl.name}" deleted`, snapshot);
+}
+
+function cloneJson(value, fallback) {
+  try { return JSON.parse(JSON.stringify(value)); } catch { return fallback; }
+}
+
+export function setSectionArchived(projectId, sectionId, archived) {
+  const proj = state.projects.find(p => p.id === projectId);
+  const section = proj?.sections?.find(s => s.id === sectionId);
+  if (!section) return;
+  section.archived = !!archived;
+  saveState();
+  requestRender();
+}
+
+export async function deleteSection(projectId, sectionId) {
+  const proj = state.projects.find(p => p.id === projectId);
+  const section = proj?.sections?.find(s => s.id === sectionId);
+  if (!proj || !section) return;
+  const affectedTasks = state.tasks.filter(t => t.projectId === projectId && t.sectionId === sectionId);
+  // include subtasks of those tasks
+  const ids = new Set(affectedTasks.map(t => t.id));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const t of state.tasks) {
+      if (t.parentId && ids.has(t.parentId) && !ids.has(t.id)) { ids.add(t.id); changed = true; }
+    }
+  }
+  const extra = ids.size ? `\n\nThis will permanently delete ${plural(ids.size, 'task')} in this section.` : '';
+  const confirmed = services.confirmDialog
+    ? await services.confirmDialog({ title: 'Delete section', message: `Delete section "${section.name}"?${extra}`, confirmText: 'Delete section', danger: true })
+    : false;
+  if (!confirmed) return;
+  const snapshot = snapshotData();
+  state.tasks = state.tasks.filter(t => !ids.has(t.id));
+  proj.sections = (proj.sections || []).filter(s => s.id !== sectionId);
+  saveState();
+  requestRender();
+  offerUndo(`Section "${section.name}" deleted`, snapshot);
+}
+
+export async function moveSection(projectId, sectionId, targetProjectId) {
+  const source = state.projects.find(p => p.id === projectId);
+  const target = state.projects.find(p => p.id === targetProjectId);
+  const section = source?.sections?.find(s => s.id === sectionId);
+  if (!source || !target || !section || source.id === target.id) return;
+  const snapshot = snapshotData();
+  // move section object; if id collides (unlikely), generate new
+  let newSectionId = section.id;
+  if ((target.sections || []).some(s => s.id === newSectionId)) newSectionId = uid();
+  const moved = { ...section, id: newSectionId };
+  source.sections = (source.sections || []).filter(s => s.id !== sectionId);
+  target.sections = [...(target.sections || []), moved];
+  state.tasks.forEach(t => {
+    if (t.projectId === source.id && t.sectionId === sectionId) {
+      t.projectId = target.id;
+      t.sectionId = newSectionId;
+    }
+  });
+  saveState();
+  requestRender();
+  offerUndo(`Section moved to ${target.name}`, snapshot);
+  showToast(`Moved section to ${target.name}`, 'success');
+}
+
+export async function duplicateSection(projectId, sectionId) {
+  const proj = state.projects.find(p => p.id === projectId);
+  const section = proj?.sections?.find(s => s.id === sectionId);
+  if (!proj || !section) return;
+  const snapshot = snapshotData();
+  const newSectionId = uid();
+  proj.sections = [...(proj.sections || []), { ...cloneJson(section, { id: newSectionId, name: section.name }), id: newSectionId, name: `${section.name} (copy)`, archived: false }];
+  const sourceTasks = state.tasks.filter(t => t.projectId === projectId && t.sectionId === sectionId && !t.parentId);
+  // duplicate top-level tasks in this section and their subtasks (simple clone, new ids, not completed)
+  const idMap = new Map();
+  const collect = (task) => {
+    idMap.set(task.id, uid());
+    state.tasks.filter(x => x.parentId === task.id).forEach(collect);
+  };
+  sourceTasks.forEach(collect);
+  const allToCopy = state.tasks.filter(t => idMap.has(t.id));
+  const created = allToCopy.map(t => {
+    const copy = cloneJson(t, {});
+    copy.id = idMap.get(t.id);
+    copy.projectId = projectId;
+    copy.sectionId = newSectionId;
+    copy.parentId = t.parentId ? (idMap.get(t.parentId) || null) : null;
+    copy.completed = false;
+    copy.completedAt = null;
+    copy.reminderFiredKey = null;
+    copy.createdAt = Date.now();
+    return copy;
+  });
+  state.tasks.push(...created);
+  saveState();
+  requestRender();
+  offerUndo(`Section "${section.name}" duplicated`, snapshot);
+  showToast('Section duplicated', 'success');
 }

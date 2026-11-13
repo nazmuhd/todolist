@@ -99,7 +99,7 @@ function extractRecurrencePhrase(text) {
 
 export function parseQuickAdd(text) {
   let title = text;
-  let due = null, dueTime = null, recurrence = null, recurrenceMode = 'scheduled', priority = 4, projectId = null, labels = [];
+  let due = null, dueTime = null, recurrence = null, recurrenceMode = 'scheduled', priority = 4, projectId = null, sectionId = null, labels = [];
 
   // priority: p1..p4
   const pMatch = title.match(/\bp([1-4])\b/i);
@@ -116,6 +116,20 @@ export function parseQuickAdd(text) {
     if (proj) {
       projectId = proj.id;
       title = title.replace(projMatch[0], '').trim();
+    }
+  }
+
+  // section: /name (assign within selected/current project)
+  const sectionMatch = title.match(/(?:^|\s)\/([\w-]+)/);
+  if (sectionMatch) {
+    const secName = sectionMatch[1].replace(/_/g, '-').toLowerCase();
+    const resolvedProjectId = projectId || (String(state.ui?.view || '').startsWith('project:') ? String(state.ui.view).slice(8) : null);
+    const proj = state.projects.find(p => p.id === resolvedProjectId);
+    const section = proj?.sections?.find(s => String(s.name || '').trim().toLowerCase().replace(/\s+/g, '-') === secName || String(s.name || '').trim().toLowerCase() === sectionMatch[1].toLowerCase());
+    if (section) {
+      projectId = proj.id;
+      sectionId = section.id;
+      title = title.replace(sectionMatch[0], '').trim();
     }
   }
 
@@ -164,7 +178,7 @@ export function parseQuickAdd(text) {
 
   // cleanup multiple spaces
   title = title.replace(/\s+/g, ' ').trim();
-  return { title, due, dueTime, recurrence, recurrenceMode, priority, projectId, labels };
+  return { title, due, dueTime, recurrence, recurrenceMode, priority, projectId, sectionId, labels };
 }
 
 /* ------------------------------------------------------------
@@ -182,6 +196,7 @@ function applyQaOverrides(parsed) {
     recurrenceMode: o.recurrenceMode !== undefined ? o.recurrenceMode : parsed.recurrenceMode,
     priority: o.priority !== undefined ? o.priority : parsed.priority,
     projectId: o.projectId !== undefined ? o.projectId : parsed.projectId,
+    sectionId: o.sectionId !== undefined ? o.sectionId : parsed.sectionId,
     labels: o.labels !== undefined ? o.labels : parsed.labels,
   };
 }
@@ -215,8 +230,11 @@ function updatePreview() {
       `<i data-lucide="flag" class="w-3 h-3" style="color:${priorityColor(p.priority)}"></i>P${p.priority}`));
   }
   if (p.projectId) {
+    const proj = state.projects.find(x => x.id === p.projectId);
+    const section = proj?.sections?.find(s => s.id === p.sectionId);
+    const text = section ? `${projectName(p.projectId)} / ${section.name}` : projectName(p.projectId);
     parts.push(qaChip('project', 'hash',
-      `<i data-lucide="hash" class="w-3 h-3"></i>${escapeHtml(projectName(p.projectId))}`));
+      `<i data-lucide="hash" class="w-3 h-3"></i>${escapeHtml(text)}`));
   }
   p.labels.forEach(lid => {
     parts.push(qaChip('label', 'tag',
@@ -385,6 +403,11 @@ export function submitQuickAdd() {
   // default project from current view
   if (!p.projectId && state.ui.view.startsWith('project:')) {
     p.projectId = state.ui.view.split(':')[1];
+  }
+  // section must belong to resolved project
+  if (p.sectionId) {
+    const proj = state.projects.find(x => x.id === p.projectId);
+    if (!proj?.sections?.some(s => s.id === p.sectionId)) p.sectionId = null;
   }
   addTask(p);
   qaInput.value = '';

@@ -238,19 +238,56 @@ export function renderCalendar() {
       </div>`;
 
     const dayTasks = (byDate.get(selected) || []).sort((a, b) => dueSortValue(a) - dueSortValue(b));
+    const groupBy = state.ui.calendarGroupBy === 'section' ? 'section' : state.ui.calendarGroupBy === 'project' ? 'project' : 'none';
+    const groupLabel = (t) => {
+      if (groupBy === 'project') {
+        const p = state.projects.find(x => x.id === t.projectId);
+        return p ? p.name : 'Inbox';
+      }
+      if (groupBy === 'section') {
+        const p = state.projects.find(x => x.id === t.projectId);
+        const s = p?.sections?.find(x => x.id === t.sectionId);
+        if (s) return `${p?.name || 'Inbox'} / ${s.name}`;
+        return p ? `${p.name} / No section` : 'Inbox / No section';
+      }
+      return '';
+    };
+    let dayBody = '<div class="text-xs text-td-muted px-2 py-4">No tasks on this day.</div>';
+    if (dayTasks.length) {
+      if (groupBy === 'none') {
+        dayBody = `<ul class="space-y-0">${dayTasks.map(t => renderTaskRow(t, false)).join('')}</ul>`;
+      } else {
+        const groups = new Map();
+        dayTasks.forEach(t => {
+          const label = groupLabel(t) || 'Other';
+          if (!groups.has(label)) groups.set(label, []);
+          groups.get(label).push(t);
+        });
+        dayBody = [...groups.entries()].map(([label, tasks]) => `
+          <div class="mb-3">
+            <div class="text-xs font-semibold text-td-muted px-2 py-1">${escapeHtml(label)} <span class="font-normal">(${tasks.length})</span></div>
+            <ul class="space-y-0">${tasks.map(t => renderTaskRow(t, false)).join('')}</ul>
+          </div>`).join('');
+      }
+    }
     dayPanel = `
       <div class="cal-panel">
         <div class="cal-panel-head">
           <span>${escapeHtml(calendarDayLabel(selected))}</span>
-          <button type="button" id="cal-add" class="text-xs text-td-muted hover:text-td-text flex items-center gap-1">
-            <i data-lucide="plus" class="w-3.5 h-3.5"></i>Add task
-          </button>
+          <div class="flex items-center gap-2">
+            <label class="text-[11px] text-td-muted flex items-center gap-1">Group
+              <select id="cal-group-by" class="text-xs border border-td-border rounded px-1.5 py-0.5 bg-white">
+                <option value="none"${groupBy === 'none' ? ' selected' : ''}>None</option>
+                <option value="project"${groupBy === 'project' ? ' selected' : ''}>Project</option>
+                <option value="section"${groupBy === 'section' ? ' selected' : ''}>Section</option>
+              </select>
+            </label>
+            <button type="button" id="cal-add" class="text-xs text-td-muted hover:text-td-text flex items-center gap-1">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>Add task
+            </button>
+          </div>
         </div>
-        <div class="cal-panel-body">
-          ${dayTasks.length
-            ? `<ul class="space-y-0">${dayTasks.map(t => renderTaskRow(t, false)).join('')}</ul>`
-            : '<div class="text-xs text-td-muted px-2 py-4">No tasks on this day.</div>'}
-        </div>
+        <div class="cal-panel-body">${dayBody}</div>
       </div>`;
   } else {
     title = scaleLabel(anchor, scale);
@@ -294,7 +331,13 @@ export function renderCalendar() {
     requestRender();
   };
   const addBtn = document.getElementById('cal-add');
-  if (addBtn) addBtn.onclick = () => services.openQuickAdd({ due: anchor });
+  if (addBtn) addBtn.onclick = () => services.openQuickAdd({ due: state.ui.calendarSelected || anchor });
+  const groupSel = document.getElementById('cal-group-by');
+  if (groupSel) groupSel.onchange = (e) => {
+    state.ui.calendarGroupBy = e.target.value || 'none';
+    saveState();
+    requestRender();
+  };
   box.querySelectorAll('[data-cal-scale]').forEach(btn => {
     btn.onclick = () => {
       state.ui.calendarScale = btn.dataset.calScale;

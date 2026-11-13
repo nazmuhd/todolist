@@ -81,6 +81,7 @@ export function addTask(data) {
     priority,
     customPriorityId: data.customPriorityId || null,
     projectId: data.projectId || null,
+    sectionId: data.sectionId || null,
     labels: data.labels || [],
     parentId: data.parentId || null,
     completed: false,
