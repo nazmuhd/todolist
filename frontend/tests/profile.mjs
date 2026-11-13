@@ -121,23 +121,21 @@ try {
   await evalJs(`document.getElementById('sidebar-toggle').click()`);
   await sleep(600);
 
-  // ---- The add-task bar is a floating card with no line above it. ----
-  check('no line above the add-task bar', await evalJs(
-    `getComputedStyle(document.getElementById('quick-add-bar')).borderTopWidth === '0px'`));
-  check('the add-task bar is a card', await evalJs(
-    `!!document.getElementById('quick-add-card')`));
-  check('the collapsed card is a pill', await evalJs(
-    `parseFloat(getComputedStyle(document.getElementById('quick-add-card')).borderRadius) >= 24`));
+  // ---- Global Quick Add opens as an overlay (Todoist-like), not a persistent bottom bar. ----
+  check('quick add overlay container exists', await evalJs(
+    `!!document.getElementById('quick-add-bar') && !!document.getElementById('quick-add-card')`));
+  check('quick add is hidden by default', await evalJs(
+    `document.getElementById('quick-add-bar').classList.contains('hidden')`));
 
   await evalJs(`document.getElementById('quick-add-placeholder').click()`);
   await waitFor(`!document.getElementById('quick-add-editor').classList.contains('hidden')`, 'quick add open');
   await sleep(300);
-  check('the open card is less round', await evalJs(
-    `parseFloat(getComputedStyle(document.getElementById('quick-add-card')).borderRadius) < 24`));
+  check('quick add overlay opens', await evalJs(
+    `!document.getElementById('quick-add-bar').classList.contains('hidden')`));
   await evalJs(`document.getElementById('quick-add-cancel').click()`);
   await sleep(300);
-  check('the card closes again', await evalJs(
-    `parseFloat(getComputedStyle(document.getElementById('quick-add-card')).borderRadius) >= 24`));
+  check('quick add overlay closes', await evalJs(
+    `document.getElementById('quick-add-bar').classList.contains('hidden') && document.getElementById('quick-add-editor').classList.contains('hidden')`));
 
   // ---- The due-date dialog follows the reference layout. ----
   await evalJs(`document.getElementById('quick-add-placeholder').click()`);

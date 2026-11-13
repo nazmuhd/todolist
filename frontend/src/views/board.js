@@ -3,6 +3,7 @@
  * outside a project, one column per priority.
  */
 import { state, saveState } from '../core/state.js';
+import { services } from '../core/services.js';
 import { activeTasks, priorityColor, projectName, taskReminders } from '../core/tasks.js';
 import { formatDue, isTaskOverdue, todayISO } from '../core/dates.js';
 import { escapeHtml, highlightHtml } from '../core/text.js';
@@ -65,6 +66,9 @@ export function renderBoard(info) {
     const attrs = isSection
       ? `data-group="section" data-section-id="${escapeHtml(column.sectionId)}"`
       : `data-group="priority" data-priority="${column.priority}"`;
+    const addDefaults = isSection
+      ? { projectId: grouping.project?.id || null, sectionId: column.sectionId || null }
+      : { priority: column.priority, ...(state.ui.view.startsWith('project:') ? { projectId: state.ui.view.slice(8) } : {}) };
     return `
       <section class="board-column" ${attrs}>
         <header class="board-column-header">
@@ -77,6 +81,9 @@ export function renderBoard(info) {
         <ul class="board-cards" ${attrs} aria-label="${escapeHtml(column.label)}">
           ${tasks.map(t => renderBoardCard(t)).join('')}
         </ul>
+        <button type="button" class="board-add-task mt-2 w-full text-left text-sm text-td-muted hover:text-td-red px-2 py-1.5 rounded hover:bg-gray-50 flex items-center gap-2" data-inline-add-task="${escapeHtml(encodeURIComponent(JSON.stringify(addDefaults)))}">
+          <i data-lucide="plus" class="w-4 h-4"></i><span>Add task</span>
+        </button>
       </section>`;
   }).join('') + `</div></div>` + `<div class="board-scroll-hint" aria-hidden="true"><i data-lucide="move-right" class="w-3.5 h-3.5"></i>Scroll for more</div>`;
   document.getElementById('empty-state').classList.add('hidden');
@@ -205,6 +212,15 @@ export function updateBoardCounts() {
 
 /** Watches the board for horizontal overflow. */
 export function initBoard() {
-  document.getElementById('board-view').addEventListener('scroll', updateBoardOverflowHint, true);
+  const board = document.getElementById('board-view');
+  board.addEventListener('scroll', updateBoardOverflowHint, true);
+  board.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-inline-add-task]');
+    if (!btn) return;
+    e.preventDefault();
+    let defaults = {};
+    try { defaults = JSON.parse(decodeURIComponent(btn.dataset.inlineAddTask || '%7B%7D')); } catch {}
+    services.openQuickAdd(defaults);
+  });
   window.addEventListener('resize', updateBoardOverflowHint);
 }

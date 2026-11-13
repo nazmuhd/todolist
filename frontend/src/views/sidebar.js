@@ -50,7 +50,7 @@ function renderProjectRow(p, depth = 0) {
       ${p.pinned && !p.archived ? '<i data-lucide="star" class="sidebar-hide w-3 h-3 flex-shrink-0 text-amber-500" fill="currentColor" title="Pinned"></i>' : ''}
       <span class="sidebar-hide text-xs text-td-muted">${count || ''}</span>
     </a>
-    ${!p.archived ? `<button type="button" class="project-quick-add sidebar-hide absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
+    ${!p.archived ? `<button type="button" class="project-quick-add sidebar-hide absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-0 group-hover:opacity-100 focus:opacity-100 pointer-events-none group-hover:pointer-events-auto focus:pointer-events-auto hover:text-td-text"
       data-project-id="${escapeHtml(p.id)}" title="Add task to ${escapeHtml(p.name)}" aria-label="Add task to ${escapeHtml(p.name)}">
       <i data-lucide="plus" class="w-3.5 h-3.5"></i>
     </button>` : ''}

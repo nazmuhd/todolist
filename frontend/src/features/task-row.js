@@ -51,6 +51,7 @@ export function searchTerm() {
 }
 
 export function renderTaskRow(t, isSub, opts = {}) {
+  try {
   // Sub-tasks can nest, so children are rendered at every level.
   const subs = opts.noSubtasks ? [] : subtasksOf(t.id);
   const parentBadge = opts.parentTitle ? `
@@ -120,6 +121,12 @@ export function renderTaskRow(t, isSub, opts = {}) {
         </div>
       </div>
     </li>`;
+  } catch (err) {
+    console.error('renderTaskRow failed', err, t);
+    const title = escapeHtml(t && t.title ? String(t.title) : '(task)');
+    const id = t && t.id ? escapeHtml(String(t.id)) : '';
+    return `<li class="task-row group" data-task-id="${id}"><div class="flex items-start gap-2 py-2 px-1 border-b border-gray-100"><div class="task-content flex-1 min-w-0"><div class="task-title text-sm">${title}</div></div></div></li>`;
+  }
 }
 
 /** Adds a subtask with an inline input (no browser prompt). */

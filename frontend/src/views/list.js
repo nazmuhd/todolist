@@ -23,6 +23,26 @@ import { setSectionArchived, deleteSection, duplicateSection, moveSection } from
 import { services } from '../core/services.js';
 import { showToast } from '../core/toasts.js';
 
+function contextualQuickAddDefaults() {
+  const v = state.ui.view || 'inbox';
+  const defaults = {};
+  if (v === 'today') defaults.due = todayISO();
+  else if (v.startsWith('project:')) defaults.projectId = v.slice(8);
+  else if (v.startsWith('label:')) defaults.labels = [v.slice(6)];
+  return defaults;
+}
+
+function inlineAddTaskRow(defaults = {}) {
+  const payload = encodeURIComponent(JSON.stringify(defaults || {}));
+  return `
+    <li class="list-none mt-1">
+      <button type="button" class="inline-add-task-btn flex items-center gap-2 w-full text-left text-sm text-td-muted hover:text-td-red px-2 py-1.5 rounded hover:bg-gray-50" data-inline-add-task="${payload}">
+        <span class="inline-flex items-center justify-center w-4 h-4 text-td-red"><i data-lucide="plus" class="w-3.5 h-3.5"></i></span>
+        <span>Add task</span>
+      </button>
+    </li>`;
+}
+
 function isMultiSectionFilterView(view = state.ui.view) {
   if (typeof view !== 'string' || !view.startsWith('filter:')) return false;
   const saved = savedFilters.find(f => f.id === view.slice(7));
@@ -105,24 +125,24 @@ export function getViewInfo() {
     subtitle = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
     filter = (t) => t.due === todayISO() || isTaskOverdue(t);
   } else if (v === 'upcoming') {
-    title = 'Upcoming'; icon = 'calendar';
+    title = 'Upcoming'; icon = 'calendar-days';
     subtitle = '';
     filter = (t) => !!t.due;
   } else if (v === 'calendar') {
-    title = 'Calendar'; icon = 'calendar-days';
+    title = 'Calendar'; icon = 'calendar-range';
     subtitle = '';
     filter = (t) => !!t.due;
   } else if (v === 'karma') {
-    title = 'Karma'; icon = 'trophy';
-    subtitle = 'Your productivity at a glance';
+    title = 'Productivity'; icon = 'chart-column-increasing';
+    subtitle = 'Your completed-task trends and streaks';
     filter = () => true;
   } else if (v === 'activity') {
     title = 'Activity'; icon = 'history';
-    subtitle = 'Everything that happened to your tasks';
+    subtitle = 'A history of changes to your tasks';
     filter = () => true;
   } else if (v === 'completed') {
     title = 'Completed'; icon = 'circle-check-big';
-    subtitle = '';
+    subtitle = 'Completed tasks, grouped by completion day';
     filter = (t) => !!t.completed;
   } else if (v === 'no-date') {
     title = 'No date'; icon = 'calendar-x';
@@ -180,6 +200,7 @@ export function renderMain() {
   document.getElementById('karma-view').innerHTML = '';
   document.getElementById('activity-view').classList.add('hidden');
   document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('loading-skeleton')?.classList.add('hidden');
   document.getElementById('content-container').classList.remove('board-mode');
   document.getElementById('content-container').classList.remove('calendar-mode');
   document.getElementById('content-container').classList.remove('table-mode');
@@ -187,6 +208,10 @@ export function renderMain() {
   // Upcoming gets day buckets instead of one flat list (no drag reorder).
   if (state.ui.view === 'upcoming' && !searchActive) {
     renderUpcoming(list);
+    if (!list.innerHTML.trim() && document.getElementById('empty-state').classList.contains('hidden')) {
+      list.innerHTML = inlineAddTaskRow(contextualQuickAddDefaults());
+      showEmptyState('', '', false);
+    }
     return;
   }
   if (state.ui.view === 'calendar' && !searchActive) {
@@ -217,6 +242,26 @@ export function renderMain() {
   // flat list, so it is used there too.
   if (state.ui.view === 'today' && !searchActive && state.ui.layout === 'list') {
     renderToday(list);
+    if (!list.querySelector('[data-task-id]')) {
+      try {
+        const fallbackTasks = sortTasks(
+          activeTasks().filter(info.filter).filter(t => !t.completed)
+        ).sort((a, b) => a.completed - b.completed);
+        if (fallbackTasks.length) {
+          document.getElementById('empty-state').classList.add('hidden');
+          list.innerHTML = fallbackTasks.map(t => renderTaskRow(t, false)).join('')
+            + inlineAddTaskRow({ due: todayISO() });
+          bindTaskEvents(false);
+          return;
+        }
+      } catch (err) {
+        console.error('today flat fallback failed', err);
+      }
+    }
+    if (!list.innerHTML.trim() && document.getElementById('empty-state').classList.contains('hidden')) {
+      list.innerHTML = inlineAddTaskRow({ due: todayISO() });
+      showEmptyState('', '', false);
+    }
     return;
   }
   if (!searchActive && state.ui.layout === 'table' && supportsTable()) {
@@ -232,8 +277,29 @@ export function renderMain() {
   // A project with sections groups its tasks under section headers.
   if (state.ui.view.startsWith('project:') && !searchActive) {
     const proj = state.projects.find(p => p.id === state.ui.view.slice(8));
-    if (proj && Array.isArray(proj.sections) && proj.sections.length) {
+    const hasActiveSections = !!(proj && Array.isArray(proj.sections) && proj.sections.some(s => !s.archived));
+    if (hasActiveSections) {
       renderProjectSectionsView(list);
+      if (!list.querySelector('[data-task-id]')) {
+        try {
+          const fallbackTasks = sortTasks(
+            activeTasks().filter(info.filter).filter(t => !t.completed)
+          ).sort((a, b) => a.completed - b.completed);
+          if (fallbackTasks.length) {
+            document.getElementById('empty-state').classList.add('hidden');
+            list.innerHTML = fallbackTasks.map(t => renderTaskRow(t, false)).join('')
+              + inlineAddTaskRow({ projectId: proj?.id || null, sectionId: null });
+            bindTaskEvents(true);
+            return;
+          }
+        } catch (err) {
+          console.error('project flat fallback failed', err);
+        }
+      }
+      if (!list.innerHTML.trim() && document.getElementById('empty-state').classList.contains('hidden')) {
+        list.innerHTML = inlineAddTaskRow({ projectId: proj?.id || null, sectionId: null });
+        showEmptyState('', '', false);
+      }
       return;
     }
   }
@@ -255,7 +321,9 @@ export function renderMain() {
           ${tasks.map(t => renderTaskRow(t, false)).join('')}`;
       }).join('');
       if (!used.size) {
+        list.innerHTML = inlineAddTaskRow(contextualQuickAddDefaults());
         showEmptyState();
+        bindTaskEvents(false);
         return;
       }
       list.innerHTML = html;
@@ -272,16 +340,33 @@ export function renderMain() {
       .filter(t => searchActive || !t.completed)
   ).sort((a, b) => a.completed - b.completed);
   if (!visible.length) {
+    list.innerHTML = searchActive ? '' : inlineAddTaskRow(contextualQuickAddDefaults());
     // Each view brings its own copy and artwork.
     if (state.ui.search) showEmptyState('', '', false);
     else showEmptyState();
+    if (!searchActive) bindTaskEvents(true);
     return;
   }
 
-  const page = visible.slice(0, visibleLimit);
-  list.innerHTML = page.map(t => renderTaskRow(t, false)).join('')
-    + (visible.length > page.length ? loadMoreRow(visible.length - page.length) : '');
-  bindTaskEvents(true);
+  try {
+    const page = visible.slice(0, visibleLimit);
+    list.innerHTML = page.map(t => renderTaskRow(t, false)).join('')
+      + (visible.length > page.length ? loadMoreRow(visible.length - page.length) : '')
+      + inlineAddTaskRow(contextualQuickAddDefaults());
+    bindTaskEvents(true);
+  } catch (err) {
+    console.error('renderMain list failed', err);
+    list.innerHTML = inlineAddTaskRow(contextualQuickAddDefaults());
+    showEmptyState('', '', false);
+  }
+
+  if (!list.innerHTML.trim() && document.getElementById('empty-state').classList.contains('hidden')) {
+    const special = ['calendar', 'karma', 'activity'].includes(state.ui.view);
+    if (!special) {
+      list.innerHTML = searchActive ? '' : inlineAddTaskRow(contextualQuickAddDefaults());
+      if (!searchActive) showEmptyState('', '', false);
+    }
+  }
 }
 
 /** Shows the list/board/table switch only where a layout makes sense. */
@@ -311,7 +396,7 @@ export function upcomingGroups() {
 
   const groups = [];
   const overdue = tasks.filter(t => t.due < today);
-  if (overdue.length) groups.push({ key: 'overdue', label: 'Overdue', tasks: overdue });
+  if (overdue.length) groups.push({ key: 'overdue', label: 'Overdue', tasks: overdue, due: null });
 
   const byDay = new Map();
   tasks.filter(t => t.due >= today).forEach(t => {
@@ -323,7 +408,7 @@ export function upcomingGroups() {
     const label = day === today ? 'Today'
       : day === tomorrow ? 'Tomorrow'
       : new Intl.DateTimeFormat('en', { weekday: 'long', month: 'short', day: 'numeric' }).format(parseDate(day));
-    groups.push({ key: day, label, tasks: byDay.get(day) });
+    groups.push({ key: day, label, tasks: byDay.get(day), due: day });
   });
   return groups;
 }
@@ -331,8 +416,9 @@ export function upcomingGroups() {
 export function renderUpcoming(list) {
   const groups = upcomingGroups();
   if (!groups.length) {
-    list.innerHTML = '';
+    list.innerHTML = inlineAddTaskRow(contextualQuickAddDefaults());
     showEmptyState();
+    bindTaskEvents(false);
     return;
   }
   document.getElementById('empty-state').classList.add('hidden');
@@ -342,6 +428,7 @@ export function renderUpcoming(list) {
       <span class="text-td-muted font-normal">${g.tasks.length}</span>
     </li>
     ${g.tasks.map(t => renderTaskRow(t, false, { draggable: true })).join('')}
+    ${g.due ? inlineAddTaskRow({ due: g.due }) : ''}
   `).join('');
   // Grouped order is date order, so drag reordering is disabled here.
   bindTaskEvents(false);
@@ -360,37 +447,46 @@ export function todayGroups() {
 
   const groups = [];
   const overdue = tasks.filter(t => isTaskOverdue(t));
-  if (overdue.length) groups.push({ key: 'overdue', label: 'Overdue', tasks: overdue });
+  if (overdue.length) groups.push({ key: 'overdue', label: 'Overdue', tasks: overdue, due: today });
 
   const dueToday = tasks.filter(t => !isTaskOverdue(t));
-  if (dueToday.length) groups.push({ key: 'today', label: '', tasks: dueToday });
+  if (dueToday.length) groups.push({ key: 'today', label: '', tasks: dueToday, due: today });
   return groups;
 }
 
 export function renderToday(list) {
-  const groups = todayGroups();
-  if (!groups.length) {
-    list.innerHTML = '';
-    showEmptyState();
-    return;
+  try {
+    const groups = todayGroups();
+    if (!groups.length) {
+      list.innerHTML = inlineAddTaskRow({ due: todayISO() });
+      showEmptyState();
+      bindTaskEvents(false);
+      return;
+    }
+    document.getElementById('empty-state').classList.add('hidden');
+    list.innerHTML = groups.map(g => `
+      ${g.label ? `
+      <li class="day-group-header" data-day-group="${g.key}" title="Drop a task here to reschedule it">
+        <span>${escapeHtml(g.label)}</span>
+        <span class="text-td-muted font-normal">${g.tasks.length}</span>
+      </li>` : ''}
+      ${g.tasks.map(t => renderTaskRow(t, false, { draggable: true })).join('')}
+      ${inlineAddTaskRow({ due: g.due || todayISO() })}
+    `).join('');
+    // Grouped order is date order, so drag reordering is disabled here.
+    bindTaskEvents(false);
+  } catch (err) {
+    console.error('renderToday failed', err);
+    list.innerHTML = inlineAddTaskRow({ due: todayISO() });
+    showEmptyState('', '', false);
   }
-  document.getElementById('empty-state').classList.add('hidden');
-  list.innerHTML = groups.map(g => `
-    ${g.label ? `
-    <li class="day-group-header" data-day-group="${g.key}" title="Drop a task here to reschedule it">
-      <span>${escapeHtml(g.label)}</span>
-      <span class="text-td-muted font-normal">${g.tasks.length}</span>
-    </li>` : ''}
-    ${g.tasks.map(t => renderTaskRow(t, false, { draggable: true })).join('')}
-  `).join('');
-  // Grouped order is date order, so drag reordering is disabled here.
-  bindTaskEvents(false);
 }
 
 /** A project with sections groups its tasks under section headers. */
 let projectSectionFilter = null;
 
 export function renderProjectSectionsView(list) {
+  try {
   const projId = state.ui.view.slice(8);
   const proj = state.projects.find(p => p.id === projId);
   const sections = proj && Array.isArray(proj.sections) ? proj.sections : [];
@@ -424,8 +520,10 @@ export function renderProjectSectionsView(list) {
           <button type="button" class="qa-pick" data-section-filter="${escapeHtml(s.id)}" aria-pressed="${projectSectionFilter === s.id}">
             ${escapeHtml(s.name)}
           </button>`).join('')}
-      </li>`;
+      </li>
+      ${inlineAddTaskRow({ projectId: projId, sectionId: null })}`;
     showEmptyState();
+    bindTaskEvents(false);
     return;
   }
   document.getElementById('empty-state').classList.add('hidden');
@@ -472,10 +570,17 @@ export function renderProjectSectionsView(list) {
       <span class="text-td-muted font-normal">${g.tasks.length}</span>
       ${!g.noMenu ? sectionMenu(g.key, g.label) : ''}
     </li>
-    ${(!g.key || !isCollapsed) ? g.tasks.map(t => renderTaskRow(t, false)).join('') : ''}`;
+    ${(!g.key || !isCollapsed) ? g.tasks.map(t => renderTaskRow(t, false)).join('') : ''}
+    ${(!g.key || !isCollapsed) ? inlineAddTaskRow({ projectId: projId, sectionId: g.key || null }) : ''}`;
     }).join('')}
     ${archivedBlock}`;
   bindTaskEvents(false);
+  } catch (err) {
+    console.error('renderProjectSectionsView failed', err);
+    const projId2 = String(state.ui.view || '').startsWith('project:') ? state.ui.view.slice(8) : null;
+    list.innerHTML = inlineAddTaskRow(projId2 ? { projectId: projId2, sectionId: null } : {});
+    showEmptyState('', '', false);
+  }
 }
 
 /** "Earlier" covers completed tasks from older data with no timestamp. */
@@ -541,8 +646,20 @@ export function renderSortMenu() {
 }
 
 /** Section filter chips in the project view. */
-export function initListView(onSectionFilter) {
+export function initListView(onSectionFilter = requestRender) {
   const list = document.getElementById('task-list');
+  if (list && !list._inlineAddBound) {
+    list._inlineAddBound = true;
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-inline-add-task]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      let defaults = {};
+      try { defaults = JSON.parse(decodeURIComponent(btn.dataset.inlineAddTask || '%7B%7D')); } catch {}
+      services.openQuickAdd(defaults);
+    });
+  }
 
   // Grouped views (Upcoming, Today) let a task be dragged onto another day
   // header to reschedule it.
@@ -578,7 +695,7 @@ export function initListView(onSectionFilter) {
   });
 
   list.addEventListener('click', async (e) => {
-    const more = e.target.closest('[data-load-more]');
+    const more = e.target.closest('[data-load-more], #load-more-btn');
     if (more) {
       visibleLimit += PAGE_SIZE;
       onSectionFilter();

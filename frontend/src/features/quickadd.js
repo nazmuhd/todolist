@@ -11,6 +11,7 @@ import { escapeHtml, LABEL_COLORS } from '../core/text.js';
 const qaPlaceholder = $('#quick-add-placeholder');
 const qaEditor = $('#quick-add-editor');
 const qaCard = $('#quick-add-card');
+const qaBar = $('#quick-add-bar');
 const qaInput = $('#quick-add-input');
 const qaPreview = $('#quick-add-preview');
 const qaSuggest = $('#quick-add-suggest');
@@ -23,7 +24,7 @@ let qaSuggestIndex = -1;
 let qaMention = null; // { start, end, query }
 
 export function isQuickAddOpen() {
-  return !qaEditor.classList.contains('hidden');
+  return qaEditor && !qaEditor.classList.contains('hidden');
 }
 
 export function openQuickAdd(defaults = {}) {
@@ -32,7 +33,12 @@ export function openQuickAdd(defaults = {}) {
   qaPicker = null;
   closeLabelSuggest();
   renderQaPicker();
-  qaPlaceholder.classList.add('hidden');
+  if (qaBar) {
+    qaBar.classList.remove('hidden');
+    qaBar.classList.add('flex');
+    qaBar.setAttribute('aria-hidden', 'false');
+  }
+  qaPlaceholder?.classList.add('hidden');
   qaEditor.classList.remove('hidden');
   qaCard?.classList.add('expanded');
   qaInput.value = '';
@@ -48,12 +54,24 @@ export function closeQuickAdd() {
   qaPicker = null;
   closeLabelSuggest();
   renderQaPicker();
-  qaPlaceholder.classList.remove('hidden');
+  qaPlaceholder?.classList.remove('hidden');
   qaEditor.classList.add('hidden');
   qaCard?.classList.remove('expanded');
+  if (qaBar) {
+    qaBar.classList.add('hidden');
+    qaBar.classList.remove('flex');
+    qaBar.setAttribute('aria-hidden', 'true');
+  }
 }
-qaPlaceholder.onclick = () => openQuickAdd();
+if (qaPlaceholder) qaPlaceholder.onclick = () => openQuickAdd();
 $('#quick-add-cancel').onclick = closeQuickAdd;
+$('#global-add-task-btn')?.addEventListener('click', () => openQuickAdd());
+qaBar?.addEventListener('mousedown', (e) => {
+  if (e.target === qaBar) {
+    e.preventDefault();
+    closeQuickAdd();
+  }
+});
 
 qaInput.addEventListener('input', () => {
   qaInput.style.height = 'auto';
@@ -530,7 +548,7 @@ export function submitQuickAdd() {
 
   const p = applyQaOverrides(parseQuickAdd(text));
   if (!p.title) { closeQuickAdd(); return; }
-  // Empty-state shortcuts can prefill context (e.g. Today adds a due date).
+  // Empty-state/contextual shortcuts can prefill context (e.g. Today/section/column).
   if (!p.due && quickAddDefaults.due) p.due = quickAddDefaults.due;
   if (!p.dueTime && quickAddDefaults.dueTime) p.dueTime = quickAddDefaults.dueTime;
   if (!p.durationMinutes && quickAddDefaults.durationMinutes) p.durationMinutes = quickAddDefaults.durationMinutes;
@@ -539,6 +557,7 @@ export function submitQuickAdd() {
   if (!p.projectId && state.ui.view.startsWith('project:')) {
     p.projectId = state.ui.view.split(':')[1];
   }
+  if (!p.sectionId && quickAddDefaults.sectionId) p.sectionId = quickAddDefaults.sectionId;
   // section must belong to resolved project
   if (p.sectionId) {
     const proj = state.projects.find(x => x.id === p.projectId);

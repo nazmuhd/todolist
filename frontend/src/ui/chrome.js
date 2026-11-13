@@ -114,12 +114,17 @@ function syncBottomBars() {
   const quickAdd = document.getElementById('quick-add-bar');
   const aside = $('#sidebar');
   if (!quickAdd || !aside) return;
-  const height = quickAdd.getBoundingClientRect().height;
+  const isOverlay = quickAdd.classList.contains('fixed') || quickAdd.classList.contains('hidden');
   const footer = aside.querySelector('.sidebar-footer:not(.sidebar-collapsed-only)');
   const rail = document.getElementById('sidebar-rail');
-  // Only the one that is actually on screen matters.
-  const target = aside.classList.contains('sidebar-collapsed') ? rail : footer;
   const other = aside.classList.contains('sidebar-collapsed') ? footer : rail;
+  const target = aside.classList.contains('sidebar-collapsed') ? rail : footer;
+  if (isOverlay) {
+    if (target) target.style.height = '';
+    if (other) other.style.height = '';
+    return;
+  }
+  const height = quickAdd.getBoundingClientRect().height;
   if (target) target.style.height = `${Math.round(height)}px`;
   if (other) other.style.height = '';
 }
