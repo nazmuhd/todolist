@@ -2,21 +2,25 @@
  * Quick add: parse one line into a task (priority, project, labels, date,
  * repeat), preview the parsed bits as chips, and submit it.
  */
-import { $ } from '../core/app.js';
-import { state } from '../core/state.js';
+import { $, uid } from '../core/app.js';
+import { state, saveState } from '../core/state.js';
 import { toISODate, todayISO, formatDue } from '../core/dates.js';
 import { addTask, parseRecurrence, recurrenceToText, firstRecurrenceISO, priorityColor, projectName, labelName } from '../core/tasks.js';
-import { escapeHtml } from '../core/text.js';
+import { escapeHtml, LABEL_COLORS } from '../core/text.js';
 
 const qaPlaceholder = $('#quick-add-placeholder');
 const qaEditor = $('#quick-add-editor');
 const qaCard = $('#quick-add-card');
 const qaInput = $('#quick-add-input');
 const qaPreview = $('#quick-add-preview');
+const qaSuggest = $('#quick-add-suggest');
 let quickAddDefaults = {};
 // Chip edits layered on top of what the text parser understood.
 let qaOverrides = {};
 let qaPicker = null;
+let qaSuggestItems = [];
+let qaSuggestIndex = -1;
+let qaMention = null; // { start, end, query }
 
 export function isQuickAddOpen() {
   return !qaEditor.classList.contains('hidden');
@@ -26,6 +30,7 @@ export function openQuickAdd(defaults = {}) {
   quickAddDefaults = defaults || {};
   qaOverrides = {};
   qaPicker = null;
+  closeLabelSuggest();
   renderQaPicker();
   qaPlaceholder.classList.add('hidden');
   qaEditor.classList.remove('hidden');
@@ -41,6 +46,7 @@ export function closeQuickAdd() {
   quickAddDefaults = {};
   qaOverrides = {};
   qaPicker = null;
+  closeLabelSuggest();
   renderQaPicker();
   qaPlaceholder.classList.remove('hidden');
   qaEditor.classList.add('hidden');
@@ -55,6 +61,12 @@ qaInput.addEventListener('input', () => {
   // The text is the source of truth, so chip edits are dropped on new input.
   qaOverrides = {};
   updatePreview();
+  updateLabelSuggest();
+});
+
+qaInput.addEventListener('click', () => { updateLabelSuggest(); });
+qaInput.addEventListener('keyup', (e) => {
+  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) updateLabelSuggest();
 });
 
 /** Pulls an "every …" phrase out of free text using the rrule parser. */
@@ -97,6 +109,29 @@ function extractRecurrencePhrase(text) {
   return null;
 }
 
+function normalizeLabelName(name) {
+  return String(name || '').replace(/^@/, '').trim();
+}
+
+function ensureLabelByName(name) {
+  const clean = normalizeLabelName(name).replace(/\s+/g, '-');
+  if (!clean) return null;
+  const existing = state.labels.find(l => l.name.toLowerCase() === clean.toLowerCase());
+  if (existing) return existing.id;
+  const label = {
+    id: 'lbl_' + uid(),
+    name: clean,
+    color: LABEL_COLORS[state.labels.length % LABEL_COLORS.length],
+    pinned: false,
+  };
+  state.labels.push(label);
+  return label.id;
+}
+
+function extractLabelMatches(text) {
+  return [...String(text || '').matchAll(/(?:^|\s)@([\w-]+)/g)].map(m => ({ raw: m[0], name: m[1] }));
+}
+
 export function parseQuickAdd(text) {
   let title = text;
   let due = null, dueTime = null, recurrence = null, recurrenceMode = 'scheduled', priority = 4, projectId = null, sectionId = null, labels = [];
@@ -133,14 +168,14 @@ export function parseQuickAdd(text) {
     }
   }
 
-  // labels: @name
-  const labelMatches = [...title.matchAll(/(?:^|\s)@([\w-]+)/g)];
+  // labels: @name (existing labels in preview/parse; unknowns created on submit)
+  const labelMatches = extractLabelMatches(title);
   labelMatches.forEach(m => {
-    const name = m[1].toLowerCase();
+    const name = m.name.toLowerCase();
     const lbl = state.labels.find(l => l.name.toLowerCase() === name);
     if (lbl) {
       labels.push(lbl.id);
-      title = title.replace(m[0], '').trim();
+      title = title.replace(m.raw, ' ').trim();
     }
   });
 
@@ -180,6 +215,92 @@ export function parseQuickAdd(text) {
   title = title.replace(/\s+/g, ' ').trim();
   return { title, due, dueTime, recurrence, recurrenceMode, priority, projectId, sectionId, labels };
 }
+
+/* ---------- @ label autocomplete (Quick Add) ---------- */
+function getMentionAtCursor() {
+  const text = qaInput.value || '';
+  const caret = qaInput.selectionStart ?? text.length;
+  const before = text.slice(0, caret);
+  const m = /(^|\s)@([\w-]*)$/.exec(before);
+  if (!m) return null;
+  const query = m[2] || '';
+  const start = before.length - query.length - 1; // position of '@'
+  return { start, end: caret, query };
+}
+
+function closeLabelSuggest() {
+  qaMention = null;
+  qaSuggestItems = [];
+  qaSuggestIndex = -1;
+  if (qaSuggest) {
+    qaSuggest.classList.add('hidden');
+    qaSuggest.innerHTML = '';
+  }
+}
+
+function renderLabelSuggest() {
+  if (!qaSuggest || !qaMention) return;
+  const query = qaMention.query.toLowerCase();
+  const existing = [...state.labels]
+    .filter(l => l.name.toLowerCase().includes(query))
+    .slice(0, 8)
+    .map(l => ({ type: 'existing', id: l.id, name: l.name, color: l.color }));
+  const exact = query && state.labels.some(l => l.name.toLowerCase() === query);
+  const createItem = query && !exact ? [{ type: 'create', name: qaMention.query }] : [];
+  qaSuggestItems = [...existing, ...createItem].slice(0, 8);
+  if (!qaSuggestItems.length) {
+    closeLabelSuggest();
+    return;
+  }
+  qaSuggestIndex = Math.min(Math.max(qaSuggestIndex, 0), qaSuggestItems.length - 1);
+  qaSuggest.innerHTML = qaSuggestItems.map((item, i) => {
+    const active = i === qaSuggestIndex ? ' active' : '';
+    if (item.type === 'create') {
+      return `<button type="button" class="qa-suggest-item${active}" data-qa-suggest-index="${i}" role="option" aria-selected="${i === qaSuggestIndex}"><i data-lucide="plus" class="w-3.5 h-3.5 text-td-muted"></i><span>Create label <strong>@${escapeHtml(item.name)}</strong></span></button>`;
+    }
+    return `<button type="button" class="qa-suggest-item${active}" data-qa-suggest-index="${i}" role="option" aria-selected="${i === qaSuggestIndex}"><i data-lucide="tag" class="w-3.5 h-3.5" style="color:${escapeHtml(item.color)}"></i><span>@${escapeHtml(item.name)}</span></button>`;
+  }).join('');
+  qaSuggest.classList.remove('hidden');
+  if (window.lucide) lucide.createIcons({ nodes: [qaSuggest] });
+}
+
+function updateLabelSuggest() {
+  const mention = getMentionAtCursor();
+  if (!mention) {
+    closeLabelSuggest();
+    return;
+  }
+  qaMention = mention;
+  qaSuggestIndex = 0;
+  renderLabelSuggest();
+}
+
+function applyLabelSuggestion(item) {
+  if (!qaMention || !item) return;
+  const name = normalizeLabelName(item.name).replace(/\s+/g, '-');
+  if (!name) return;
+  const before = qaInput.value.slice(0, qaMention.start);
+  const after = qaInput.value.slice(qaMention.end);
+  const insertion = `@${name} `;
+  qaInput.value = before + insertion + after.replace(/^\s*/, '');
+  const caret = (before + insertion).length;
+  qaInput.setSelectionRange(caret, caret);
+  qaOverrides = {};
+  updatePreview();
+  closeLabelSuggest();
+  qaInput.focus();
+}
+
+qaSuggest?.addEventListener('mousedown', (e) => {
+  // prevent textarea blur before click handling
+  e.preventDefault();
+});
+qaSuggest?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-qa-suggest-index]');
+  if (!btn) return;
+  const item = qaSuggestItems[Number(btn.dataset.qaSuggestIndex)];
+  if (item) applyLabelSuggestion(item);
+});
 
 /* ------------------------------------------------------------
    QUICK ADD CHIPS + PICKERS
@@ -232,9 +353,9 @@ function updatePreview() {
   if (p.projectId) {
     const proj = state.projects.find(x => x.id === p.projectId);
     const section = proj?.sections?.find(s => s.id === p.sectionId);
-    const text = section ? `${projectName(p.projectId)} / ${section.name}` : projectName(p.projectId);
+    const text2 = section ? `${projectName(p.projectId)} / ${section.name}` : projectName(p.projectId);
     parts.push(qaChip('project', 'hash',
-      `<i data-lucide="hash" class="w-3 h-3"></i>${escapeHtml(text)}`));
+      `<i data-lucide="hash" class="w-3 h-3"></i>${escapeHtml(text2)}`));
   }
   p.labels.forEach(lid => {
     parts.push(qaChip('label', 'tag',
@@ -393,6 +514,20 @@ $('#quick-add-picker').addEventListener('change', (e) => {
 export function submitQuickAdd() {
   const text = qaInput.value.trim();
   if (!text) { closeQuickAdd(); return; }
+
+  // Inline label creation: ensure any @tokens become real labels.
+  const labelNames = extractLabelMatches(text).map(m => normalizeLabelName(m.name).replace(/\s+/g, '-')).filter(Boolean);
+  if (labelNames.length) {
+    let changed = false;
+    labelNames.forEach(name => {
+      if (!state.labels.some(l => l.name.toLowerCase() === name.toLowerCase())) {
+        ensureLabelByName(name);
+        changed = true;
+      }
+    });
+    if (changed) saveState();
+  }
+
   const p = applyQaOverrides(parseQuickAdd(text));
   if (!p.title) { closeQuickAdd(); return; }
   // Empty-state shortcuts can prefill context (e.g. Today adds a due date).
@@ -415,12 +550,42 @@ export function submitQuickAdd() {
   qaPreview.innerHTML = '';
   qaOverrides = {};
   qaPicker = null;
+  closeLabelSuggest();
   renderQaPicker();
   qaInput.focus();
 }
 
 $('#quick-add-submit').onclick = submitQuickAdd;
 qaInput.addEventListener('keydown', (e) => {
+  if (!qaSuggest?.classList.contains('hidden') && qaSuggestItems.length) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      qaSuggestIndex = (qaSuggestIndex + 1) % qaSuggestItems.length;
+      renderLabelSuggest();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      qaSuggestIndex = (qaSuggestIndex - 1 + qaSuggestItems.length) % qaSuggestItems.length;
+      renderLabelSuggest();
+      return;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      applyLabelSuggestion(qaSuggestItems[qaSuggestIndex] || qaSuggestItems[0]);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeLabelSuggest();
+      return;
+    }
+  }
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitQuickAdd(); }
   if (e.key === 'Escape') closeQuickAdd();
+});
+
+document.addEventListener('click', (e) => {
+  if (e.target === qaInput || qaSuggest?.contains(e.target)) return;
+  closeLabelSuggest();
 });
