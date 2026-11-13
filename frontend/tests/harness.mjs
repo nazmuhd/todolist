@@ -75,6 +75,29 @@ function staticServer(port) {
     res.end(JSON.stringify(value));
   };
 
+  async function handleAuth(req, res, urlPath) {
+    const parts = urlPath.split('/').filter(Boolean); // ['auth', ...]
+    const route = parts[1] || '';
+    const method = req.method || 'GET';
+    if (route === 'me' && method === 'GET') {
+      sendJson(res, 200, { user: { id: 1, email: 'test@example.com', name: 'Test User', avatar_url: null, email_verified: 1 } });
+      return;
+    }
+    if (route === 'logout' && method === 'POST') {
+      sendJson(res, 200, { message: 'Logged out successfully.' });
+      return;
+    }
+    if (route === 'health' && method === 'GET') {
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+    if (method === 'POST') {
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+    sendJson(res, 404, { error: 'not_found' });
+  }
+
   async function handleApi(req, res, urlPath, rawUrl) {
     const parts = urlPath.split('/').filter(Boolean); // ['api', ...]
     const section = parts[1];
@@ -236,6 +259,10 @@ function staticServer(port) {
 
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent(req.url.split('?')[0]);
+    if (p.startsWith('/auth/')) {
+      handleAuth(req, res, p).catch((err) => sendJson(res, 500, { error: String(err) }));
+      return;
+    }
     if (p.startsWith('/api/')) {
       handleApi(req, res, p, req.url).catch((err) => sendJson(res, 500, { error: String(err) }));
       return;

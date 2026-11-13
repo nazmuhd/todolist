@@ -74,9 +74,24 @@ else if (darkMedia.addListener) darkMedia.addListener(applyTheme); // older Safa
 ============================================================ */
 let profileDraft = null;
 
+function splitName(full) {
+  const s = String(full || '').trim();
+  if (!s) return { firstName: '', lastName: '' };
+  const i = s.indexOf(' ');
+  if (i === -1) return { firstName: s, lastName: '' };
+  return { firstName: s.slice(0, i).trim(), lastName: s.slice(i + 1).trim() };
+}
+
 /** The profile currently being edited in the settings dialog. */
 function currentProfile() {
-  if (!profileDraft) profileDraft = normaliseProfile(settings.profile || DEFAULT_PROFILE);
+  if (!profileDraft) {
+    const base = normaliseProfile(settings.profile || DEFAULT_PROFILE);
+    const auth = window.__authUser || {};
+    const firstName = (auth.first_name ?? splitName(auth.name).firstName) || '';
+    const lastName = (auth.last_name ?? splitName(auth.name).lastName) || '';
+    const combined = [firstName, lastName].filter(Boolean).join(' ') || auth.name || base.name;
+    profileDraft = { ...base, name: combined, firstName, lastName };
+  }
   return profileDraft;
 }
 
@@ -89,8 +104,10 @@ function setStatusDot(el, status) {
 /** Paints the saved profile onto the sidebar trigger and the profile menu. */
 export function applyProfile() {
   const p = settings.profile || DEFAULT_PROFILE;
-  const name = p.name || DEFAULT_PROFILE.name;
-  const job = p.job || '';
+  const authUser = typeof window !== 'undefined' ? window.__authUser : null;
+  const authName = [authUser?.first_name, authUser?.last_name].filter(Boolean).join(' ') || authUser?.name;
+  const name = authName || authUser?.email || p.name || DEFAULT_PROFILE.name;
+  const job = authUser?.email || p.job || '';
   const avatar = p.avatar || DEFAULT_PROFILE.avatar;
 
   const navAvatar = $('#nav-avatar');
@@ -129,11 +146,16 @@ function profileSection() {
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <label class="block">
-          <span class="block text-xs text-td-muted mb-1">Display name</span>
-          <input id="settings-name" type="text" value="${escapeHtml(p.name)}" autocomplete="off"
+          <span class="block text-xs text-td-muted mb-1">First name</span>
+          <input id="settings-first-name" type="text" value="${escapeHtml(p.firstName || '')}" autocomplete="given-name"
             class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
         </label>
         <label class="block">
+          <span class="block text-xs text-td-muted mb-1">Last name</span>
+          <input id="settings-last-name" type="text" value="${escapeHtml(p.lastName || '')}" autocomplete="family-name"
+            class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </label>
+        <label class="block sm:col-span-2">
           <span class="block text-xs text-td-muted mb-1">Job title</span>
           <input id="settings-job" type="text" value="${escapeHtml(p.job)}" autocomplete="off"
             class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
@@ -149,25 +171,6 @@ function profileSection() {
             </button>`).join('')}
         </div>
       </div>
-      <div class="mt-5 pt-4 border-t border-td-border">
-        <div class="text-xs text-td-muted mb-2">Change password</div>
-        <div id="settings-password-alert" class="hidden mb-2 p-2 rounded-lg text-xs font-medium"></div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          <label class="block sm:col-span-2">
-            <span class="block text-xs text-td-muted mb-1">Current password</span>
-            <input id="settings-current-password" type="password" autocomplete="current-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
-          </label>
-          <label class="block">
-            <span class="block text-xs text-td-muted mb-1">New password</span>
-            <input id="settings-new-password" type="password" autocomplete="new-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
-          </label>
-          <label class="block">
-            <span class="block text-xs text-td-muted mb-1">Confirm new password</span>
-            <input id="settings-confirm-password" type="password" autocomplete="new-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
-          </label>
-        </div>
-        <button type="button" class="qa-pick" data-change-password>Update password</button>
-      </div>
     </div>`;
 }
 
@@ -179,20 +182,43 @@ function profileSection() {
  */
 let preferencesSnapshot = null;
 
-function saveProfile() {
+async function saveProfile() {
   const p = currentProfile();
-  settings.profile = normaliseProfile({
-    name: p.name.trim() || DEFAULT_PROFILE.name,
-    job: p.job.trim(),
-    status: p.status,
-    avatar: p.avatar || DEFAULT_PROFILE.avatar,
-  });
-  persistSettings();
-  applyProfile();
-  applyTheme();
-  preferencesSnapshot = null;
-  profileDraft = null;
-  settingsModal.close();
+  const firstName = (p.firstName || '').trim();
+  const lastName = (p.lastName || '').trim();
+  const combinedName = [firstName, lastName].filter(Boolean).join(' ') || DEFAULT_PROFILE.name;
+  const saveBtn = $('#settings-save');
+  saveBtn?.setAttribute('disabled', 'true');
+  try {
+    const res = await fetch('/auth/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ firstName, lastName }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || 'Unable to save profile.', 'error');
+      return;
+    }
+    if (data.user) window.__authUser = data.user;
+    settings.profile = normaliseProfile({
+      name: data.user?.name || combinedName,
+      job: p.job.trim(),
+      status: p.status,
+      avatar: p.avatar || DEFAULT_PROFILE.avatar,
+    });
+    persistSettings();
+    applyProfile();
+    applyTheme();
+    preferencesSnapshot = null;
+    profileDraft = null;
+    settingsModal.close();
+  } catch {
+    showToast('Unable to reach the server. Please try again.', 'error');
+  } finally {
+    saveBtn?.removeAttribute('disabled');
+  }
 }
 
 const settingsModal = $('#settings-modal');
@@ -259,7 +285,7 @@ function backupSection() {
   if (!backupsLoaded) return '';
   return `
     <div class="mb-2 border-t border-td-border pt-4">
-      <div class="text-xs text-td-muted mb-1">Automatic backups</div>
+      <div class="text-base font-semibold text-td-text mb-2">Automatic backups</div>
       <p class="text-xs text-td-muted mb-2">The server snapshots your data every hour and keeps the last 24. Restore one to go back to it.</p>
       <button type="button" class="qa-pick" data-backup-now>Back up now</button>
       ${backupRows.length ? `
@@ -287,8 +313,8 @@ async function refreshBackups() {
  */
 function dataSection() {
   return `
-    <div class="mb-2 border-t border-td-border pt-4">
-      <div class="text-xs text-td-muted mb-1">Your data</div>
+    <div class="mb-2 pt-4">
+      <div class="text-base font-semibold text-td-text mb-2">Your data</div>
       <p class="text-xs text-td-muted mb-2">Export a backup of everything, or restore one you exported earlier.</p>
       <div class="flex flex-wrap gap-1">
         <button type="button" class="qa-pick" data-open-export>
@@ -385,43 +411,6 @@ $('#settings-body').addEventListener('click', async (e) => {
     return;
   }
 
-  const pwBtn = e.target.closest('[data-change-password]');
-  if (pwBtn) {
-    const alertEl = document.getElementById('settings-password-alert');
-    const showPwAlert = (msg, ok = false) => {
-      if (!alertEl) return;
-      alertEl.className = `mb-2 p-2 rounded-lg text-xs font-medium ${ok ? 'bg-green-50 text-td-green border border-green-200' : 'bg-red-50 text-td-red border border-red-200'}`;
-      alertEl.textContent = msg;
-      alertEl.classList.remove('hidden');
-    };
-    alertEl?.classList.add('hidden');
-    const currentPassword = document.getElementById('settings-current-password')?.value || '';
-    const newPassword = document.getElementById('settings-new-password')?.value || '';
-    const confirmPassword = document.getElementById('settings-confirm-password')?.value || '';
-    if (!currentPassword) { showPwAlert('Current password is required.'); return; }
-    if (newPassword.length < 8) { showPwAlert('New password must be at least 8 characters.'); return; }
-    if (newPassword !== confirmPassword) { showPwAlert('New passwords do not match.'); return; }
-    pwBtn.setAttribute('disabled', 'true');
-    try {
-      const res = await fetch('/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) { showPwAlert('Please log in to change your password.'); return; }
-      if (!res.ok) { showPwAlert(data.error || 'Unable to update password.'); return; }
-      showPwAlert(data.message || 'Password updated successfully.', true);
-      ['settings-current-password','settings-new-password','settings-confirm-password'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    } catch {
-      showPwAlert('Unable to reach the server. Please try again.');
-    } finally {
-      pwBtn.removeAttribute('disabled');
-    }
-    return;
-  }
-
   // Open the keyboard shortcuts overlay.
   // Export and import, which live in the sidebar too.
   if (e.target.closest('[data-open-export]')) {
@@ -505,12 +494,20 @@ $('#settings-body').addEventListener('click', async (e) => {
 
 // Keep the draft in step with what is typed, without re-rendering the dialog.
 $('#settings-body').addEventListener('input', (e) => {
-  if (e.target.id === 'settings-name') currentProfile().name = e.target.value;
-  else if (e.target.id === 'settings-job') currentProfile().job = e.target.value;
+  const p = currentProfile();
+  if (e.target.id === 'settings-first-name') { p.firstName = e.target.value; p.name = [p.firstName, p.lastName].filter(v => String(v || '').trim()).join(' '); }
+  else if (e.target.id === 'settings-last-name') { p.lastName = e.target.value; p.name = [p.firstName, p.lastName].filter(v => String(v || '').trim()).join(' '); }
+  else if (e.target.id === 'settings-job') p.job = e.target.value;
 });
 
 $('#settings-btn').onclick = () => {
   profileDraft = normaliseProfile(settings.profile || DEFAULT_PROFILE);
+  const auth = window.__authUser || {};
+  const fn = auth.first_name ?? splitName(auth.name).firstName ?? '';
+  const ln = auth.last_name ?? splitName(auth.name).lastName ?? '';
+  profileDraft.firstName = fn || '';
+  profileDraft.lastName = ln || '';
+  profileDraft.name = [profileDraft.firstName, profileDraft.lastName].filter(Boolean).join(' ') || auth.name || profileDraft.name;
   preferencesSnapshot = {};
   SETTINGS_DEFS.forEach(def => { preferencesSnapshot[def.key] = settings[def.key]; });
   renderSettings();
@@ -545,3 +542,89 @@ export function isSettingsOpen() {
 export function closeSettings() {
   if (settingsModal.open) settingsModal.close();
 }
+
+/* ============================================================
+   SECURITY
+============================================================ */
+const securityModal = document.getElementById('security-modal');
+
+function renderSecurity() {
+  const body = document.getElementById('security-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="mb-2">
+      <div class="text-base font-semibold text-td-text mb-2">Change password</div>
+      <div id="security-password-alert" class="hidden mb-2 p-2 rounded-lg text-xs font-medium"></div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <label class="block sm:col-span-2">
+          <span class="block text-xs text-td-muted mb-1">Current password</span>
+          <input id="security-current-password" type="password" autocomplete="current-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </label>
+        <label class="block">
+          <span class="block text-xs text-td-muted mb-1">New password</span>
+          <input id="security-new-password" type="password" autocomplete="new-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </label>
+        <label class="block">
+          <span class="block text-xs text-td-muted mb-1">Confirm new password</span>
+          <input id="security-confirm-password" type="password" autocomplete="new-password" class="w-full bg-white border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+        </label>
+      </div>
+      <button type="button" class="qa-pick" data-security-change-password>Update password</button>
+    </div>`;
+  lucide.createIcons();
+}
+
+export function openSecurity() {
+  renderSecurity();
+  if (securityModal && !securityModal.open) securityModal.showModal();
+}
+export function closeSecurity() {
+  if (securityModal?.open) securityModal.close();
+}
+export function isSecurityOpen() {
+  return !!securityModal?.open;
+}
+
+document.getElementById('security-close')?.addEventListener('click', closeSecurity);
+document.getElementById('security-cancel')?.addEventListener('click', closeSecurity);
+
+document.getElementById('security-body')?.addEventListener('click', async (e) => {
+  const pwBtn = e.target.closest('[data-security-change-password]');
+  if (!pwBtn) return;
+  const alertEl = document.getElementById('security-password-alert');
+  const showPwAlert = (msg, ok = false) => {
+    if (!alertEl) return;
+    alertEl.className = `mb-2 p-2 rounded-lg text-xs font-medium ${ok ? 'bg-green-50 text-td-green border border-green-200' : 'bg-red-50 text-td-red border border-red-200'}`;
+    alertEl.textContent = msg;
+    alertEl.classList.remove('hidden');
+  };
+  alertEl?.classList.add('hidden');
+  const currentPassword = document.getElementById('security-current-password')?.value || '';
+  const newPassword = document.getElementById('security-new-password')?.value || '';
+  const confirmPassword = document.getElementById('security-confirm-password')?.value || '';
+  if (!currentPassword) { showPwAlert('Current password is required.'); return; }
+  if (newPassword.length < 8) { showPwAlert('New password must be at least 8 characters.'); return; }
+  if (newPassword !== confirmPassword) { showPwAlert('New passwords do not match.'); return; }
+  pwBtn.setAttribute('disabled', 'true');
+  try {
+    const res = await fetch('/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { showPwAlert('Please log in to change your password.'); return; }
+    if (!res.ok) { showPwAlert(data.error || 'Unable to update password.'); return; }
+    showPwAlert(data.message || 'Password updated successfully. Please log in again.', true);
+    ['security-current-password','security-new-password','security-confirm-password'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    if (data.loggedOut) {
+      window.location.assign('/login.html');
+      return;
+    }
+  } catch {
+    showPwAlert('Unable to reach the server. Please try again.');
+  } finally {
+    pwBtn.removeAttribute('disabled');
+  }
+});

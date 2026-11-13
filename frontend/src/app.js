@@ -141,15 +141,16 @@ async function init() {
     const me = await res.json().catch(() => null);
     const user = me?.user;
     if (user) {
-      const displayName = user.name || user.email || 'Account';
+      window.__authUser = user;
+      const combinedName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || 'Account';
       const displaySub = user.email || 'Signed in';
       const nameEl = document.getElementById('user-menu-name');
       const jobEl = document.getElementById('user-menu-job');
       const navName = document.getElementById('nav-name');
       const navJob = document.getElementById('nav-job');
-      if (nameEl) nameEl.textContent = displayName;
+      if (nameEl) nameEl.textContent = combinedName;
       if (jobEl) jobEl.textContent = displaySub;
-      if (navName) navName.textContent = displayName;
+      if (navName) navName.textContent = combinedName;
       if (navJob) navJob.textContent = displaySub;
     }
   } catch {

@@ -677,6 +677,10 @@
       <i data-lucide="circle-user" class="w-4 h-4 text-td-muted"></i>
       Profile settings
     </button>
+    <button type="button" id="user-menu-security" class="user-menu-item" role="menuitem">
+      <i data-lucide="shield" class="w-4 h-4 text-td-muted"></i>
+      Security
+    </button>
     <button type="button" id="user-menu-backup" class="user-menu-item" role="menuitem">
       <i data-lucide="archive" class="w-4 h-4 text-td-muted"></i>
       Backup & restore
@@ -708,6 +712,25 @@
     <div class="flex items-center justify-end gap-2 px-5 py-3 border-t border-td-border bg-gray-50 rounded-b-2xl flex-shrink-0">
       <button type="button" id="settings-cancel" class="px-4 py-2 text-sm font-medium border border-td-border bg-white rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
       <button type="button" id="settings-save" class="px-4 py-2 text-sm font-medium bg-td-red hover:bg-td-redhover text-white rounded-lg shadow-sm transition-colors">Save changes</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Security -->
+<dialog id="security-modal" class="p-0 rounded-2xl shadow-2xl w-full max-w-lg border border-td-border">
+  <div class="settings-shell flex flex-col max-h-[85vh]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-td-border flex-shrink-0">
+      <div>
+        <h3 class="text-lg font-semibold">Security</h3>
+        <p class="text-xs text-td-muted mt-0.5">Manage your password and account security.</p>
+      </div>
+      <button type="button" id="security-close" class="text-td-muted hover:text-td-text p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-td-red/40" title="Close" aria-label="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <div id="security-body" class="px-5 py-4 overflow-y-auto scrollbar-thin"></div>
+    <div class="flex items-center justify-end gap-2 px-5 py-3 border-t border-td-border bg-gray-50 rounded-b-2xl flex-shrink-0">
+      <button type="button" id="security-cancel" class="px-4 py-2 text-sm font-medium border border-td-border bg-white rounded-lg hover:bg-gray-50 transition-colors">Close</button>
     </div>
   </div>
 </dialog>

@@ -21,9 +21,10 @@ function getStmts() {
     const db = getDb();
     stmts = {
       findUserByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
-      findUserById: db.prepare('SELECT id, email, name, avatar_url, email_verified, created_at FROM users WHERE id = ?'),
-      insertUser: db.prepare(`INSERT INTO users (email, name, password_hash, hash_algorithm, email_verified) VALUES (?, ?, ?, 'argon2id', 0)`),
+      findUserById: db.prepare('SELECT id, email, name, first_name, last_name, avatar_url, email_verified, created_at FROM users WHERE id = ?'),
+      insertUser: db.prepare(`INSERT INTO users (email, name, first_name, last_name, password_hash, hash_algorithm, email_verified) VALUES (?, ?, ?, ?, ?, 'argon2id', 0)`),
       updatePassword: db.prepare(`UPDATE users SET password_hash = ?, hash_algorithm = 'argon2id', updated_at = datetime('now') WHERE id = ?`),
+      updateName: db.prepare(`UPDATE users SET name = ?, first_name = ?, last_name = ?, updated_at = datetime('now') WHERE id = ?`),
     };
   }
   return stmts;
@@ -72,7 +73,7 @@ function invalidateUserSessions(userId: number, exceptSid?: string) {
 
 router.post('/register', authLimiter, async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { firstName, lastName, name, email, password } = req.body;
     if (!email || typeof email !== 'string' || !email.includes('@')) return res.status(400).json({ error: 'A valid email address is required.' });
     if (!password || typeof password !== 'string' || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     const ne = email.toLowerCase().trim();
@@ -83,16 +84,21 @@ router.post('/register', authLimiter, async (req, res) => {
     if (existing) {
       return res.status(409).json({ error: 'Registration could not be completed with this email address.' });
     }
+    const fn = typeof firstName === 'string' ? firstName.trim() : '';
+    const ln = typeof lastName === 'string' ? lastName.trim() : '';
+    const fallbackName = typeof name === 'string' ? name.trim() : '';
+    const combined = [fn, ln].filter(Boolean).join(' ') || fallbackName;
+    const fullName = combined || null;
     let r: any;
     try {
-      r = getStmts().insertUser.run(ne, name?.trim() || null, h);
+      r = getStmts().insertUser.run(ne, fullName, fn || null, ln || null, h);
     } catch (e: any) {
       if (e?.code === 'ERR_SQLITE_ERROR' && /UNIQUE/i.test(String(e?.message))) {
         return res.status(409).json({ error: 'Registration could not be completed with this email address.' });
       }
       throw e;
     }
-    const newUser = { id: Number(r.lastInsertRowid), email: ne, name: name?.trim() || null, avatar_url: null, email_verified: 0 };
+    const newUser = { id: Number(r.lastInsertRowid), email: ne, name: fullName, first_name: fn || null, last_name: ln || null, avatar_url: null, email_verified: 0 };
     (req as any).session.regenerate((re: any) => {
       if (re) return res.status(500).json({ error: 'Account created, but automatic login failed.' });
       (req as any).login(newUser, (err: any) => { if (err) return res.status(500).json({ error: 'Account created, but automatic login failed.' }); return res.status(201).json({ message: 'Registration successful.', user: newUser }); });
@@ -104,7 +110,7 @@ router.post('/login', authLimiter, (req, res, next) => {
   passport.authenticate('local', (err: any, user: any, info: any) => {
     if (err) return next(err);
     if (!user) return res.status(401).json({ error: info?.message || 'Invalid email or password.' });
-    (req as any).session.regenerate((e: any) => { if (e) return next(e); (req as any).login(user, (le: any) => { if (le) return next(le); res.json({ message: 'Logged in successfully.', user: { id: user.id, email: user.email, name: user.name, avatar_url: user.avatar_url } }); }); });
+    (req as any).session.regenerate((e: any) => { if (e) return next(e); (req as any).login(user, (le: any) => { if (le) return next(le); const u = getStmts().findUserById.get(user.id) || user; res.json({ message: 'Logged in successfully.', user: { id: u.id, email: u.email, name: u.name, first_name: u.first_name ?? null, last_name: u.last_name ?? null, avatar_url: u.avatar_url } }); }); });
   })(req, res, next);
 });
 
@@ -155,6 +161,27 @@ router.post('/reset-password', authLimiter, async (req, res) => {
 
 router.get('/me', (req, res) => { if (!(req as any).isAuthenticated()) return res.status(401).json({ error: 'Unauthorized' }); return res.json({ user: (req as any).user }); });
 
+router.put('/profile', async (req, res) => {
+  try {
+    if (!(req as any).isAuthenticated()) return res.status(401).json({ error: 'Unauthorized' });
+    const { firstName, lastName, name } = req.body || {};
+    if (firstName !== undefined && firstName !== null && typeof firstName !== 'string') return res.status(400).json({ error: 'First name must be a string.' });
+    if (lastName !== undefined && lastName !== null && typeof lastName !== 'string') return res.status(400).json({ error: 'Last name must be a string.' });
+    if (name !== undefined && name !== null && typeof name !== 'string') return res.status(400).json({ error: 'Name must be a string.' });
+    const fn = typeof firstName === 'string' ? firstName.trim() : '';
+    const ln = typeof lastName === 'string' ? lastName.trim() : '';
+    const fallbackName = typeof name === 'string' ? name.trim() : '';
+    const fullName = ([fn, ln].filter(Boolean).join(' ') || fallbackName) || null;
+    const userId = (req as any).user?.id;
+    getStmts().updateName.run(fullName, fn || null, ln || null, userId);
+    const user = getStmts().findUserById.get(userId);
+    return res.json({ user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 router.post('/change-password', authLimiter, async (req, res) => {
   try {
     if (!(req as any).isAuthenticated()) return res.status(401).json({ error: 'Unauthorized' });
@@ -171,8 +198,21 @@ router.post('/change-password', authLimiter, async (req, res) => {
     if (!isValid) return res.status(401).json({ error: 'Current password is incorrect.' });
     const newHash = await argon2.hash(newPassword, { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 4 });
     getStmts().updatePassword.run(newHash, user.id);
-    invalidateUserSessions(user.id, (req as any).sessionID);
-    return res.json({ message: 'Password updated successfully.' });
+    invalidateUserSessions(user.id);
+    await new Promise<void>((resolve) => {
+      (req as any).logout?.((err: any) => {
+        if (err) console.error('Logout after password change failed:', err);
+        resolve();
+      }) ?? resolve();
+    });
+    await new Promise<void>((resolve) => {
+      (req as any).session?.destroy?.((de: any) => {
+        if (de) console.error('Session destroy after password change failed:', de);
+        resolve();
+      }) ?? resolve();
+    });
+    res.clearCookie('connect.sid');
+    return res.json({ message: 'Password updated successfully. Please log in again.', loggedOut: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error.' });

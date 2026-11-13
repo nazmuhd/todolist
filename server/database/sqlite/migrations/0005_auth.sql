@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
     name TEXT,
+    first_name TEXT,
+    last_name TEXT,
     avatar_url TEXT,
     password_hash TEXT,
     hash_algorithm TEXT DEFAULT 'argon2id',

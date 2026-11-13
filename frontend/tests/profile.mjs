@@ -23,8 +23,8 @@ try {
     `(() => { const i = document.getElementById('nav-avatar'); return i.complete && i.naturalWidth > 0; })()`));
   check('the old "U" circle is gone', await evalJs(
     `!document.querySelector('.sidebar-user').textContent.includes('U')`));
-  check('the sidebar says Todolist', await evalJs(
-    `document.getElementById('nav-name').textContent.trim() === 'Todolist'`));
+  check('the sidebar shows the signed-in name', await evalJs(
+    `document.getElementById('nav-name').textContent.trim() === 'Test User'`));
 
   // ---- No horizontal line in the sidebar, expanded or collapsed. ----
   const borderWidth = (sel, side) => evalJs(
@@ -37,13 +37,14 @@ try {
   await evalJs(`document.getElementById('user-menu-btn').click()`);
   await sleep(400);
   check('the profile menu opens', await evalJs(`!document.getElementById('user-menu').classList.contains('hidden')`));
-  check('the menu shows the name', await evalJs(`document.getElementById('user-menu-name').textContent.trim() === 'Todolist'`));
+  check('the menu shows the signed-in name', await evalJs(`document.getElementById('user-menu-name').textContent.trim() === 'Test User'`));
   check('the menu offers the settings', await evalJs(`!!document.getElementById('user-menu-settings')`));
   check('the menu offers backup & restore', await evalJs(`!!document.getElementById('user-menu-backup')`));
   check('the menu offers the shortcuts', await evalJs(`!!document.getElementById('user-menu-shortcuts')`));
+  check('the menu offers log out', await evalJs(`!!document.getElementById('user-menu-logout')`));
   check('the menu has no fictional account actions', await evalJs(
-    `!document.getElementById('user-menu') || (!document.getElementById('user-menu').textContent.includes('Log out')
-       && !document.getElementById('user-menu').textContent.includes('Upgrade to Pro'))`));
+    `!document.getElementById('user-menu').textContent.includes('Upgrade to Pro')
+       && !document.getElementById('user-menu').textContent.includes('Add account')`));
 
   // Clicking outside closes it.
   await evalJs(`document.getElementById('view-title-text').click()`);

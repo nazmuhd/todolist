@@ -15,7 +15,7 @@ import { todayISO } from '../core/dates.js';
 import { showToast } from '../core/toasts.js';
 import { isTaskModalOpen, closeTaskModal } from '../features/task-modal.js';
 import { isDueEditorOpen, closeDueEditor } from '../features/due-editor.js';
-import { isSettingsOpen, closeSettings, openBackup, closeBackup, isBackupOpen } from '../features/settings.js';
+import { isSettingsOpen, closeSettings, openBackup, closeBackup, isBackupOpen, isSecurityOpen, closeSecurity, openSecurity } from '../features/settings.js';
 import { isExportOpen, closeExport } from '../features/backup.js';
 import { isProjectModalOpen, closeProjectModal, isLabelModalOpen, closeLabelModal } from '../features/projects.js';
 import { isQuickAddOpen, closeQuickAdd, openQuickAdd } from '../features/quickadd.js';
@@ -223,6 +223,11 @@ if (userMenuBtn && userMenu) {
     if (item.id === 'user-menu-settings') {
       closeUserMenu();
       document.getElementById('settings-btn')?.click();
+      return;
+    }
+    if (item.id === 'user-menu-security') {
+      closeUserMenu();
+      openSecurity();
       return;
     }
     if (item.id === 'user-menu-backup') {
@@ -453,7 +458,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   const dialogOpen = isTaskModalOpen() || isProjectModalOpen() || isLabelModalOpen() || isDueEditorOpen()
-    || isShortcutsOpen() || isSettingsOpen() || isExportOpen() || isBackupOpen();
+    || isShortcutsOpen() || isSettingsOpen() || isSecurityOpen() || isExportOpen() || isBackupOpen();
   if (e.key === 'Escape') {
     // Handle every case ourselves; otherwise the browser would also
     // close the dialog while we only meant to dismiss the popover.
@@ -461,6 +466,7 @@ document.addEventListener('keydown', (e) => {
     if (isDueEditorOpen()) closeDueEditor();
     else if (isExportOpen()) closeExport();
     else if (isSettingsOpen()) closeSettings();
+    else if (isSecurityOpen()) closeSecurity();
     else if (isBackupOpen()) closeBackup();
     else if (isShortcutsOpen()) closeShortcuts();
     else if (isRowMenuOpen()) closeRowMenu();

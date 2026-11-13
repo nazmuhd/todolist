@@ -91,10 +91,18 @@
     </div>
 
     <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-3.5" novalidate>
-      <div id="name-field-group">
-        <div class="auth-input-wrap border border-td-border rounded-lg px-3.5 py-2 transition bg-white">
-          <label for="auth-name" class="block text-[11px] font-semibold text-td-text">Your name</label>
-          <input id="auth-name" type="text" placeholder="Enter your name..." class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent" />
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <div class="auth-input-wrap border border-td-border rounded-lg px-3.5 py-2 transition bg-white">
+            <label for="auth-first-name" class="block text-[11px] font-semibold text-td-text">First name</label>
+            <input id="auth-first-name" type="text" placeholder="First name" class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent" />
+          </div>
+        </div>
+        <div>
+          <div class="auth-input-wrap border border-td-border rounded-lg px-3.5 py-2 transition bg-white">
+            <label for="auth-last-name" class="block text-[11px] font-semibold text-td-text">Last name</label>
+            <input id="auth-last-name" type="text" placeholder="Last name" class="w-full text-sm text-td-text placeholder:text-gray-400 outline-none mt-0.5 bg-transparent" />
+          </div>
         </div>
       </div>
 
@@ -213,7 +221,8 @@
     e.preventDefault();
     clearErrors();
 
-    const name = (document.getElementById('auth-name')?.value || '').trim();
+    const firstName = (document.getElementById('auth-first-name')?.value || '').trim();
+    const lastName = (document.getElementById('auth-last-name')?.value || '').trim();
     const email = document.getElementById('auth-email').value.trim();
     const password = document.getElementById('auth-password').value;
     const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -237,7 +246,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ firstName, lastName, email, password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
