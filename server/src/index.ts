@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { SqliteRateLimitStore } from './middleware/rateLimitStore.ts';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.ts';
@@ -150,6 +151,7 @@ export function createApp(options: { serveApp?: boolean } = {}) {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests. Please try again later.' },
+    store: new SqliteRateLimitStore({ prefix: 'api:' }),
   });
   app.use('/api', apiLimiter);
 

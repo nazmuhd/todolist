@@ -583,8 +583,12 @@ app.listen(PORT, () => {
 - **Automated verification:** Server test suite passes (including auth/CSRF/sync coverage) and dependency audit is clean at the time of the latest remediation commits.
 - **Smoke verification (non-browser):** CSRF endpoint issuance and key response security headers (CSP, Referrer-Policy, COOP, CORP) were verified via local app smoke checks.
 - **Pending manual/browser verification:** Full SPA and landing/reset/auth flow verification under CSP+CSRF in a browser (console/network/CSP violation checks, login/register/forgot/reset/logout/profile/password change/sync) is still recommended.
+- **Hardening progress (latest pass):**
+  - Added a **SQLite-backed rate-limit store** for the general `/api` limiter (`server/src/middleware/rateLimitStore.ts`) to improve persistence and shared-database multi-process behavior (true distributed deployments may still require a dedicated shared store such as Redis).
+  - Continued targeted SPA output-safety fixes (escaped additional attribute/style values in dynamic UI rendering paths). Existing markdown/comment rendering and many UI sinks escape untrusted content, but a full exhaustive sink audit remains advisable.
+  - Request validation is implemented across key auth/API routes with Zod schemas; further centralization/edge-case tuning can be done incrementally.
 - **Remaining hardening work:**
-  - Comprehensive SPA XSS sink audit/refactor for remaining untrusted render paths.
-  - CSP tightening (reduce/remove `style-src 'unsafe-inline'` and external CDN reliance where practical).
-  - Shared rate-limit store/tuning for multi-instance deployments.
+  - Comprehensive SPA XSS sink audit/refactor for any remaining untrusted render paths.
+  - CSP tightening (reduce/remove `style-src 'unsafe-inline'` and external CDN reliance where practical; SPA/landing currently depend on external assets in places).
+  - Rate-limit tuning and dedicated distributed store support for multi-instance deployments if needed.
   - Continued request validation centralization and auth/session edge-case review.

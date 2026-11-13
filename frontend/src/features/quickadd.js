@@ -285,7 +285,7 @@ function renderQaPicker() {
     box.innerHTML = `<div class="flex flex-wrap items-center gap-1">
       ${[1, 2, 3, 4].map(pr => `
         <button type="button" class="qa-pick" data-qa-priority="${pr}" aria-pressed="${p.priority === pr}">
-          <span style="color:${priorityColor(pr)}">&#9873;</span>P${pr}
+          <span style="color:${escapeHtml(priorityColor(pr))}">&#9873;</span>P${pr}
         </button>`).join('')}
     </div>`;
   } else if (qaPicker === 'repeat') {
