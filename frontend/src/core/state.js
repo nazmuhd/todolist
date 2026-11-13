@@ -308,6 +308,35 @@ export function normalizeState(s) {
     (view.startsWith('filter:') && savedFilterIds().includes(view.slice(7)));
   if (!knownView) view = 'inbox';
 
+  const asInt = (v) => (Number.isInteger(v) ? v : null);
+  const normalizeTemplateItems = (items) => (Array.isArray(items) ? items : [])
+    .filter(x => x && typeof x === 'object' && (asText(x.title) || asText(x.name)))
+    .map((x, i) => ({
+      tempId: asText(x.tempId) || asText(x.id) || ('tt_' + uid()),
+      parentTempId: asText(x.parentTempId) || asText(x.parentId) || null,
+      sectionTempId: asText(x.sectionTempId) || null,
+      section: asText(x.section) || null,
+      title: asText(x.title).trim() || 'Untitled',
+      description: asText(x.description),
+      priority: clampPriority(x.priority),
+      customPriorityId: asText(x.customPriorityId) || null,
+      labels: [...new Set((Array.isArray(x.labels) ? x.labels : []).map(asText).filter(lid => labelIds.has(lid)))],
+      dueOffset: asInt(x.dueOffset),
+      dueTime: cleanDueTime(x.dueTime),
+      deadlineOffset: asInt(x.deadlineOffset),
+      deadlineTime: cleanDueTime(x.deadlineTime),
+      startOffset: asInt(x.startOffset),
+      recurrence: cleanRecurrence(x.recurrence),
+      recurrenceMode: cleanRecurrenceMode(x.recurrenceMode),
+      recurrenceEnd: x.recurrenceEnd ?? null,
+      timeZone: cleanTimeZone(x.timeZone),
+      reminders: Array.isArray(x.reminders) ? x.reminders : [],
+      durationMinutes: cleanDuration(x.durationMinutes),
+      comments: Array.isArray(x.comments) ? x.comments : [],
+      attachments: Array.isArray(x.attachments) ? x.attachments : [],
+      order: typeof x.order === 'number' ? x.order : i,
+    }));
+
   const templates = (Array.isArray(s.templates) ? s.templates : [])
     .filter(t => t && typeof t === 'object')
     .map((t) => {
@@ -316,30 +345,28 @@ export function normalizeState(s) {
         id: asText(t.id) || 'tpl_' + uid(),
         kind,
         name: asText(t.name).trim() || asText(t.title).trim() || 'Template',
+        description: asText(t.description),
+        savedAt: /^\d{4}-\d{2}-\d{2}$/.test(asText(t.savedAt)) ? asText(t.savedAt) : null,
       };
       if (kind === 'project') {
+        const sections = (Array.isArray(t.sections) ? t.sections : [])
+          .map(x => ({
+            tempId: asText(x && (x.tempId || x.id)) || ('ts_' + uid()),
+            name: asText(x && x.name).trim() || 'Untitled section',
+          }))
+          .filter(x => x.name);
         return {
           ...base,
           color: cleanColor(t.color, PROJECT_COLORS[0]),
-          sections: (Array.isArray(t.sections) ? t.sections : [])
-            .map(x => ({ name: asText(x && x.name).trim() }))
-            .filter(x => x.name),
-          tasks: (Array.isArray(t.tasks) ? t.tasks : [])
-            .filter(x => x && typeof x === 'object' && asText(x.title))
-            .map(x => ({
-              title: asText(x.title).trim(),
-              description: asText(x.description),
-              priority: clampPriority(x.priority),
-              labels: [...new Set((Array.isArray(x.labels) ? x.labels : []).map(asText).filter(lid => labelIds.has(lid)))],
-              section: asText(x.section) || null,
-              durationMinutes: cleanDuration(x.durationMinutes),
-            })),
+          layout: ['list', 'board', 'table'].includes(asText(t.layout)) ? asText(t.layout) : 'list',
+          sections,
+          tasks: normalizeTemplateItems(t.tasks),
         };
       }
       return {
         ...base,
         title: asText(t.title).trim() || base.name,
-        description: asText(t.description),
+        body: asText(t.body !== undefined ? t.body : t.description),
         priority: clampPriority(t.priority),
         projectId: projectIds.has(t.projectId) ? t.projectId : null,
         labels: [...new Set((Array.isArray(t.labels) ? t.labels : []).map(asText).filter(lid => labelIds.has(lid)))],
@@ -347,6 +374,12 @@ export function normalizeState(s) {
         recurrence: cleanRecurrence(t.recurrence),
         recurrenceMode: cleanRecurrenceMode(t.recurrenceMode),
         timeZone: cleanTimeZone(t.timeZone),
+        dueOffset: asInt(t.dueOffset),
+        dueTime: cleanDueTime(t.dueTime),
+        deadlineOffset: asInt(t.deadlineOffset),
+        deadlineTime: cleanDueTime(t.deadlineTime),
+        startOffset: asInt(t.startOffset),
+        reminders: Array.isArray(t.reminders) ? t.reminders : [],
       };
     });
 

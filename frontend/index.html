@@ -121,6 +121,9 @@
           <button type="button" id="toggle-templates" class="flex items-center gap-1 text-xs font-semibold text-td-muted uppercase tracking-wide hover:text-td-text" aria-expanded="true" title="Collapse templates">
             <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i><span>Templates</span>
           </button>
+          <button id="manage-templates-btn" class="text-td-muted hover:text-td-text p-0.5" title="Manage templates" aria-label="Manage templates">
+            <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
+          </button>
         </div>
         <div id="templates-list" class="space-y-0.5"></div>
       </div>
@@ -159,7 +162,7 @@
     <!-- Header -->
     <header class="app-topbar border-b border-td-border px-3 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 flex-shrink-0">
       <button id="mobile-menu" class="md:hidden text-td-muted p-1 -ml-1" title="Open menu" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><i data-lucide="menu" class="w-5 h-5"></i></button>
-      <button id="sidebar-toggle" class="text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
+      <button id="sidebar-toggle" class="hidden md:inline-flex text-td-muted hover:text-td-text p-1" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
         <i data-lucide="menu" class="w-4 h-4"></i>
       </button>
       <h1 id="view-title" class="text-lg sm:text-xl font-bold flex items-center gap-2 min-w-0">
@@ -715,6 +718,101 @@
     </div>
     <ul id="shortcuts-list" class="shortcut-groups"></ul>
     <p class="text-[11px] text-td-muted mt-3">Shortcuts are ignored while you are typing in a field.</p>
+  </div>
+</dialog>
+
+<!-- Confirm action -->
+<dialog id="confirm-modal" class="p-0 rounded-2xl shadow-2xl w-full max-w-md border border-td-border">
+  <div class="p-5">
+    <div class="flex items-start gap-3">
+      <div id="confirm-modal-icon" class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+        <i data-lucide="trash-2" class="w-4 h-4"></i>
+      </div>
+      <div class="min-w-0 flex-1">
+        <h3 id="confirm-modal-title" class="text-base font-semibold text-td-text">Confirm</h3>
+        <p id="confirm-modal-message" class="mt-1 text-sm text-td-muted whitespace-pre-line"></p>
+      </div>
+    </div>
+    <div class="mt-5 flex items-center justify-end gap-2">
+      <button type="button" id="confirm-modal-cancel" class="px-4 py-2 text-sm font-medium border border-td-border bg-white rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+      <button type="button" id="confirm-modal-confirm" class="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">Delete</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Save project as template -->
+<dialog id="save-template-modal" class="p-0 rounded-2xl shadow-2xl w-full max-w-lg border border-td-border">
+  <div class="p-5">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-lg font-semibold">Save as template</h3>
+        <p class="text-xs text-td-muted mt-0.5">Create a detached template snapshot from <span id="save-template-project-name" class="font-medium text-td-text"></span>.</p>
+      </div>
+      <button type="button" id="save-template-cancel" class="text-td-muted hover:text-td-text p-1 rounded" title="Close" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="space-y-3">
+      <label class="block">
+        <span class="text-sm font-medium">Template name</span>
+        <input id="save-template-name" type="text" class="mt-1 w-full border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" placeholder="Template name" />
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium">About this template <span class="text-red-600">*</span></span>
+        <textarea id="save-template-description" rows="4" class="mt-1 w-full border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" placeholder="Describe what this template is for"></textarea>
+      </label>
+      <div class="text-xs text-td-muted bg-gray-50 border border-td-border rounded-lg p-3">
+        <div class="font-medium text-td-text mb-1">Snapshot includes</div>
+        <div id="save-template-summary"></div>
+        <div class="mt-2">Dates are stored as offsets relative to save time and recalculated when you apply the template. Future changes to the source project do not update this template.</div>
+      </div>
+    </div>
+    <div class="mt-5 flex items-center justify-end gap-2">
+      <button type="button" id="save-template-cancel-btn" class="hidden"></button>
+      <button type="button" id="save-template-submit" class="px-4 py-2 text-sm font-medium rounded-lg bg-td-red text-white hover:bg-red-700 transition-colors">Save template</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Manage templates -->
+<dialog id="template-manager-modal" class="p-0 rounded-2xl shadow-2xl w-full max-w-3xl border border-td-border">
+  <div class="p-5 max-h-[85vh] flex flex-col">
+    <div class="flex items-center justify-between mb-4 flex-shrink-0">
+      <div>
+        <h3 class="text-lg font-semibold">Templates</h3>
+        <p class="text-xs text-td-muted mt-0.5">Manage saved project and task templates.</p>
+      </div>
+      <button type="button" id="template-manager-close" class="text-td-muted hover:text-td-text p-1 rounded" title="Close" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div id="template-manager-body" class="overflow-y-auto min-h-0"></div>
+  </div>
+</dialog>
+
+<!-- Edit template -->
+<dialog id="template-edit-modal" class="p-0 rounded-2xl shadow-2xl w-full max-w-lg border border-td-border">
+  <div class="p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 id="template-edit-title" class="text-lg font-semibold">Edit template</h3>
+      <button type="button" id="template-edit-cancel" class="text-td-muted hover:text-td-text p-1 rounded" title="Close" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="space-y-3">
+      <label class="block">
+        <span class="text-sm font-medium">Name</span>
+        <input id="template-edit-name" type="text" class="mt-1 w-full border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30" />
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium">Description</span>
+        <textarea id="template-edit-description" rows="4" class="mt-1 w-full border border-td-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-td-red/30"></textarea>
+      </label>
+      <div id="template-edit-contents" class="hidden border border-td-border rounded-lg p-3 bg-gray-50">
+        <div class="text-sm font-medium mb-2">Template contents</div>
+        <div id="template-edit-contents-body" class="space-y-2 max-h-56 overflow-y-auto text-sm"></div>
+        <p class="text-[11px] text-td-muted mt-2">You can remove items from this template snapshot here. Source projects and projects already created from this template are not affected.</p>
+      </div>
+      <p id="template-edit-meta" class="text-xs text-td-muted"></p>
+    </div>
+    <div class="mt-5 flex items-center justify-between gap-2">
+      <button type="button" id="template-edit-duplicate" class="px-3 py-2 text-sm font-medium border border-td-border bg-white rounded-lg hover:bg-gray-50 transition-colors">Save as new template</button>
+      <button type="button" id="template-edit-save" class="px-4 py-2 text-sm font-medium rounded-lg bg-td-red text-white hover:bg-red-700 transition-colors">Save</button>
+    </div>
   </div>
 </dialog>
 

@@ -70,10 +70,26 @@ export function openFilterEditor(id) {
   openFilterModal(id);
 }
 
-export function deleteFilter(id) {
+export async function deleteFilter(id) {
+  services.closeRowMenu();
+  const filter = findSavedFilter(id);
+  if (!filter) return;
+  const confirmed = services.confirmDialog
+    ? await services.confirmDialog({
+        title: 'Delete filter',
+        message: `Delete filter "${filter.name}"?`,
+        confirmText: 'Delete filter',
+        danger: true,
+      })
+    : false;
+  if (!confirmed) return;
+
   deleteSavedFilter(id);
   if (state.ui.view === `filter:${id}`) {
     state.ui.view = 'inbox';
+    state.ui.search = '';
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) searchInput.value = '';
     saveState();
   }
   requestRender();

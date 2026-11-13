@@ -99,7 +99,7 @@ export function listBlobs(userId: number): BlobMeta[] {
 
 /* ---------- per-entity sync ---------- */
 
-export const ENTITY_NAMES = ['projects', 'labels', 'tasks'] as const;
+export const ENTITY_NAMES = ['projects', 'labels', 'tasks', 'templates'] as const;
 export type EntityName = typeof ENTITY_NAMES[number];
 
 export interface EntityChange {
@@ -161,7 +161,7 @@ export function changesSince(
   const hasMore = hasLimit && rows.length > (limit as number);
   if (hasMore) rows.length = limit as number;
 
-  const changes: Changes = { projects: [], labels: [], tasks: [] };
+  const changes: Changes = { projects: [], labels: [], tasks: [], templates: [] };
   for (const row of rows) {
     if (!ENTITY_NAMES.includes(row.entity)) continue;
     changes[row.entity].push({ id: row.id, data: row.deleted || !row.data ? null : JSON.parse(row.data), rev: row.rev, deleted: Boolean(row.deleted) });
@@ -216,7 +216,7 @@ export function exportEntities(userId: number): Record<EntityName, unknown[]> {
   const rows = getDb().prepare(`
     select entity, id, data from entities where user_id = ? and deleted = 0 order by seq
   `).all(userId) as unknown as { entity: EntityName; data: string | null }[];
-  const snapshot: Record<EntityName, unknown[]> = { projects: [], labels: [], tasks: [] };
+  const snapshot: Record<EntityName, unknown[]> = { projects: [], labels: [], tasks: [], templates: [] };
   for (const row of rows) {
     if (!ENTITY_NAMES.includes(row.entity)) continue;
     snapshot[row.entity].push(row.data ? JSON.parse(row.data) : null);
@@ -238,6 +238,7 @@ export function replaceEntities(
   try {
     ensureSequence(userId);
     for (const entity of ENTITY_NAMES) {
+      if (!Object.prototype.hasOwnProperty.call(snapshot, entity)) continue;
       const incoming = Array.isArray(snapshot[entity]) ? snapshot[entity] as { id?: unknown }[] : [];
       const seen = new Set<string>();
       for (const item of incoming) {
@@ -275,7 +276,7 @@ export function replaceEntities(
 
 export function backupEntities(userId: number, tag: string): boolean {
   const snapshot = exportEntities(userId);
-  if (!snapshot.projects.length && !snapshot.labels.length && !snapshot.tasks.length) return false;
+  if (!snapshot.projects.length && !snapshot.labels.length && !snapshot.tasks.length && !snapshot.templates.length) return false;
   getDb().prepare('insert into state_backups (user_id, tag, value) values (?, ?, ?)')
     .run(userId, tag, JSON.stringify(snapshot));
   return true;

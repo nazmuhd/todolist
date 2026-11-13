@@ -175,13 +175,21 @@ $('#label-name').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); $('#save-label').click(); }
 });
 
-export function deleteProject(id) {
+export async function deleteProject(id) {
   services.closeRowMenu();
   const proj = state.projects.find(p => p.id === id);
   if (!proj) return;
   const affected = state.tasks.filter(t => t.projectId === id).length;
   const extra = affected ? `\n\n${plural(affected, 'task')} will move to Inbox.` : '';
-  if (!confirm(`Delete project "${proj.name}"?${extra}`)) return;
+  const confirmed = services.confirmDialog
+    ? await services.confirmDialog({
+        title: 'Delete project',
+        message: `Delete project "${proj.name}"?${extra}`,
+        confirmText: 'Delete project',
+        danger: true,
+      })
+    : false;
+  if (!confirmed) return;
 
   const snapshot = snapshotData();
   state.projects = state.projects.filter(p => p.id !== id);
@@ -196,13 +204,21 @@ export function deleteProject(id) {
   offerUndo(`Project "${proj.name}" deleted`, snapshot);
 }
 
-export function deleteLabel(id) {
+export async function deleteLabel(id) {
   services.closeRowMenu();
   const lbl = state.labels.find(l => l.id === id);
   if (!lbl) return;
   const affected = state.tasks.filter(t => (t.labels || []).includes(id)).length;
   const extra = affected ? `\n\nIt will be removed from ${plural(affected, 'task')}.` : '';
-  if (!confirm(`Delete label "@${lbl.name}"?${extra}`)) return;
+  const confirmed = services.confirmDialog
+    ? await services.confirmDialog({
+        title: 'Delete label',
+        message: `Delete label "@${lbl.name}"?${extra}`,
+        confirmText: 'Delete label',
+        danger: true,
+      })
+    : false;
+  if (!confirmed) return;
 
   const snapshot = snapshotData();
   state.labels = state.labels.filter(l => l.id !== id);

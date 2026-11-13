@@ -99,15 +99,19 @@ export function renderSidebar() {
       </div>`;
     }).join('');
 
-  document.querySelectorAll('.row-menu-btn').forEach(btn => {
-    btn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      services.openRowMenu(btn, btn.dataset.menuType, btn.dataset.menuId);
-    };
-  });
+  const bindRowMenuButtons = (root = document) => {
+    root.querySelectorAll('.row-menu-btn').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        services.openRowMenu(btn, btn.dataset.menuType, btn.dataset.menuId);
+      };
+    });
+  };
 
+  bindRowMenuButtons();
   renderTemplates();
+  bindRowMenuButtons(document.getElementById('templates-list') || document);
 
   document.querySelectorAll('.project-quick-add').forEach(btn => {
     btn.onclick = (e) => {

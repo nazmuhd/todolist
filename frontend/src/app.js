@@ -31,6 +31,7 @@ import { loadSettings, applyTheme } from './features/settings.js';
 import { openTaskModal, closeTaskModal } from './features/task-modal.js';
 import { openQuickAdd, parseQuickAdd } from './features/quickadd.js';
 import { initChrome, applySidebarState } from './ui/chrome.js';
+import { initConfirmDialog } from './ui/confirm.js';
 import { openRowMenu } from './ui/row-menu.js';
 
 /* ============================================================
@@ -175,6 +176,7 @@ async function init() {
   await loadActivity();
   await loadSettings();
   applyTheme();
+  initConfirmDialog();
   await initChrome({ renderSortMenu, supportsBoard, renderMain });
 
   if (location.hash.length > 1) {

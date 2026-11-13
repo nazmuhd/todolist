@@ -7,7 +7,7 @@ import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { savedFilters, deleteFilter, openFilterEditor } from '../features/filters.js';
 import { openProjectModal, openLabelModal, deleteProject, deleteLabel } from '../features/projects.js';
-import { saveProjectTemplate } from '../features/templates.js';
+import { openSaveProjectTemplateModal, applyTemplate, deleteTemplate, duplicateTemplate, openTemplateEditor } from '../features/templates.js';
 import { positionBelowTrigger } from './menus.js';
 
 const rowMenu = $('#row-menu');
@@ -16,11 +16,14 @@ let rowMenuTarget = null;
 export function openRowMenu(trigger, type, id) {
   const isProject = type === 'project';
   const isFilter = type === 'filter';
+  const isTemplate = type === 'template';
   const entry = isProject
     ? state.projects.find(p => p.id === id)
     : isFilter
       ? savedFilters.find(f => f.id === id)
-      : state.labels.find(l => l.id === id);
+      : isTemplate
+        ? (state.templates || []).find(t => t.id === id)
+        : state.labels.find(l => l.id === id);
   if (!entry) return;
 
   rowMenuTarget = { type, id };
@@ -30,6 +33,18 @@ export function openRowMenu(trigger, type, id) {
     </button>
     <button type="button" data-row-action="delete" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2 text-red-600">
       <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Delete filter
+    </button>` : isTemplate ? `
+    <button type="button" data-row-action="apply-template" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="${entry.kind === 'project' ? 'folder-plus' : 'copy-plus'}" class="w-3.5 h-3.5 text-td-muted"></i>${entry.kind === 'project' ? 'Create project from template' : 'Add task from template'}
+    </button>
+    <button type="button" data-row-action="edit-template" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="pencil" class="w-3.5 h-3.5 text-td-muted"></i>Edit template
+    </button>
+    <button type="button" data-row-action="duplicate-template" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="copy" class="w-3.5 h-3.5 text-td-muted"></i>Save as new template
+    </button>
+    <button type="button" data-row-action="delete" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2 text-red-600">
+      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Delete template
     </button>` : `
     <button type="button" data-row-action="pin" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
       <i data-lucide="star" class="w-3.5 h-3.5 text-td-muted"></i>${entry.pinned ? 'Unpin from top' : 'Pin to top'}
@@ -64,7 +79,9 @@ rowMenu.addEventListener('click', (e) => {
   if (!btn || !rowMenuTarget) return;
   e.stopPropagation();
   const { type, id } = rowMenuTarget;
-  if (btn.dataset.rowAction === 'pin') {
+  const action = btn.dataset.rowAction;
+
+  if (action === 'pin') {
     const entry = type === 'project'
       ? state.projects.find(p => p.id === id)
       : state.labels.find(l => l.id === id);
@@ -74,18 +91,39 @@ rowMenu.addEventListener('click', (e) => {
     requestRender();
     return;
   }
-  if (btn.dataset.rowAction === 'edit') {
+  if (action === 'edit') {
     closeRowMenu();
     if (type === 'project') openProjectModal(id);
     else if (type === 'filter') openFilterEditor(id);
     else openLabelModal(id);
-  } else if (btn.dataset.rowAction === 'template') {
+    return;
+  }
+  if (action === 'template') {
     closeRowMenu();
-    saveProjectTemplate(id);
-  } else if (btn.dataset.rowAction === 'delete') {
-    if (type === 'project') deleteProject(id);
-    else if (type === 'filter') deleteFilter(id);
-    else deleteLabel(id);
+    openSaveProjectTemplateModal(id);
+    return;
+  }
+  if (action === 'apply-template') {
+    closeRowMenu();
+    applyTemplate(id);
+    return;
+  }
+  if (action === 'edit-template') {
+    closeRowMenu();
+    openTemplateEditor(id);
+    return;
+  }
+  if (action === 'duplicate-template') {
+    closeRowMenu();
+    duplicateTemplate(id);
+    return;
+  }
+  if (action === 'delete') {
+    closeRowMenu();
+    if (type === 'project') void deleteProject(id);
+    else if (type === 'filter') void deleteFilter(id);
+    else if (type === 'template') void deleteTemplate(id);
+    else void deleteLabel(id);
   }
 });
 
