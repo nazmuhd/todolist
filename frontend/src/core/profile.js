@@ -9,7 +9,6 @@
 
 /** The pictures the picker offers. The logo is the default. */
 export const AVATARS = [
-  { id: 'logo', src: '/images/logo.png', label: 'Todolist logo' },
   { id: 'avatar-1', src: '/images/avatar-1.png', label: 'Avatar 1' },
   { id: 'avatar-2', src: '/images/avatar-2.png', label: 'Avatar 2' },
   { id: 'avatar-3', src: '/images/avatar-3.png', label: 'Avatar 3' },

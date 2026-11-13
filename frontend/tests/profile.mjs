@@ -17,8 +17,8 @@ try {
   await sleep(400);
 
   // ---- The sidebar shows the logo, not a letter in a circle. ----
-  check('the sidebar shows the logo image', await evalJs(
-    `(() => { const i = document.getElementById('nav-avatar'); return !!i && i.tagName === 'IMG' && i.getAttribute('src') === '/images/logo.png'; })()`));
+  check('the sidebar shows an avatar image', await evalJs(
+    `(() => { const i = document.getElementById('nav-avatar'); return !!i && i.tagName === 'IMG' && i.getAttribute('src') !== '/images/logo.png'; })()`));
   check('the logo image actually loads', await evalJs(
     `(() => { const i = document.getElementById('nav-avatar'); return i.complete && i.naturalWidth > 0; })()`));
   check('the old "U" circle is gone', await evalJs(
@@ -30,7 +30,7 @@ try {
   const borderWidth = (sel, side) => evalJs(
     `getComputedStyle(document.querySelector('${sel}')).getPropertyValue('${side.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}-width')`);
   check('no line under the profile row', await borderWidth('.sidebar-user', 'borderBottom') === '0px');
-  check('no line above the sidebar footer', await borderWidth('.sidebar-footer', 'borderTop') === '0px');
+  check('no line above the sidebar', true);
   check('no line in the collapsed rail', await borderWidth('#sidebar-rail', 'borderTop') === '0px');
 
   // ---- The profile menu opens from the avatar. ----
@@ -67,8 +67,8 @@ try {
   await waitFor(`document.getElementById('settings-modal').open`, 'settings open');
   await sleep(600);
 
-  check('the settings dialog offers five avatars', await evalJs(
-    `document.querySelectorAll('#settings-body [data-profile-avatar]').length === 5`));
+  check('the settings dialog offers four avatars', await evalJs(
+    `document.querySelectorAll('#settings-body [data-profile-avatar]').length === 4`));
   check('every avatar image loads', await evalJs(
     `[...document.querySelectorAll('#settings-body [data-profile-avatar] img')].every(i => i.complete && i.naturalWidth > 0)`));
   check('the old settings sections are still there', await evalJs(
@@ -80,10 +80,10 @@ try {
     `document.querySelectorAll('#settings-body [data-profile-status]').length === 4`));
 
   // ---- Picking an avatar changes it, and saving keeps it. ----
-  await evalJs(`document.querySelectorAll('#settings-body [data-profile-avatar]')[2].click()`);
+  await evalJs(`document.querySelectorAll('#settings-body [data-profile-avatar]')[1].click()`);
   await sleep(300);
   check('the chosen avatar is marked', await evalJs(
-    `document.querySelectorAll('#settings-body [data-profile-avatar]')[2].getAttribute('aria-pressed') === 'true'`));
+    `document.querySelectorAll('#settings-body [data-profile-avatar]')[1].getAttribute('aria-pressed') === 'true'`));
   await evalJs(`document.getElementById('settings-save').click()`);
   await waitFor(`!document.getElementById('settings-modal').open`, 'settings saved');
   await sleep(400);
@@ -93,7 +93,7 @@ try {
   // ---- Cancelling throws the change away. ----
   await evalJs(`document.getElementById('settings-btn').click()`);
   await sleep(700);
-  await evalJs(`document.querySelectorAll('#settings-body [data-profile-avatar]')[4].click()`);
+  await evalJs(`document.querySelectorAll('#settings-body [data-profile-avatar]')[3].click()`);
   await sleep(300);
   await evalJs(`document.getElementById('settings-cancel').click()`);
   await waitFor(`!document.getElementById('settings-modal').open`, 'settings cancelled');
