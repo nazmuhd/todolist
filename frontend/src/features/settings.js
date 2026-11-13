@@ -303,7 +303,7 @@ function renderSettings() {
 export function renderBackup() {
   const body = $('#backup-body');
   if (!body) return;
-  body.innerHTML = dataSection();
+  body.innerHTML = dataSection() + backupSection();
   lucide.createIcons();
 }
 
@@ -337,9 +337,9 @@ $('#backup-body')?.addEventListener('click', async (e) => {
   }
 });
 
-function openBackup() {
-  renderBackup();
+async function openBackup() {
   if (!$('#backup-modal').open) $('#backup-modal').showModal();
+  await refreshBackups();
 }
 function closeBackup() {
   if ($('#backup-modal').open) $('#backup-modal').close();
