@@ -68,13 +68,12 @@ export function renderSidebar() {
   const completedCount = state.tasks.filter(t => t.completed).length;
   const noDateCount = state.tasks.filter(t => !t.parentId && !t.completed && !t.due).length;
   const noPriorityCount = state.tasks.filter(t => !t.parentId && !t.completed && hasNoPriority(t)).length;
-  document.querySelector('[data-view="inbox"] .nav-count').textContent = inboxCount || '';
-  document.querySelector('[data-view="today"] .nav-count').textContent = todayCount || '';
-  document.querySelector('[data-view="completed"] .nav-count').textContent = completedCount || '';
-  document.querySelector('[data-view="no-date"] .nav-count').textContent = noDateCount || '';
-  document.querySelector('[data-view="no-priority"] .nav-count').textContent = noPriorityCount || '';
+  const setCount = (view, count) => {
+    const el = document.querySelector(`[data-view="${view}"] .nav-count`);
+    if (el) el.textContent = count || '';
+  };
 
-  // active nav
+  // active nav (existing items)
   document.querySelectorAll('.nav-item').forEach(el => {
     const isActive = el.dataset.view && el.dataset.view === state.ui.view;
     el.classList.toggle('bg-red-50', isActive);
@@ -104,9 +103,20 @@ export function renderSidebar() {
     requestRender();
   });
 
-  // saved filters (pinned first)
+  // saved filters (pinned first), including built-in quick filters
   const fl = document.getElementById('filters-list');
-  fl.innerHTML = [...savedFilters]
+  const builtinFilters = `
+    <a href="#" data-view="no-date" title="Tasks without a due date" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+      <i data-lucide="calendar-x" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+      <span class="sidebar-hide">No date</span>
+      <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+    </a>
+    <a href="#" data-view="no-priority" title="Tasks without a priority" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
+      <i data-lucide="flag-off" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+      <span class="sidebar-hide">No priority</span>
+      <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+    </a>`;
+  const savedFiltersHtml = [...savedFilters]
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
     .map(f => {
       const count = filterTaskCount(f.query);
@@ -125,6 +135,7 @@ export function renderSidebar() {
         </button>
       </div>`;
     }).join('');
+  fl.innerHTML = builtinFilters + savedFiltersHtml;
 
   // labels (pinned first)
   const ll = document.getElementById('labels-list');
@@ -168,6 +179,21 @@ export function renderSidebar() {
       services.closeMobileSidebar?.();
       services.openQuickAdd();
     };
+  });
+
+  // set counts after dynamic items (e.g. built-in filters) are rendered
+  setCount('inbox', inboxCount);
+  setCount('today', todayCount);
+  setCount('completed', completedCount);
+  setCount('no-date', noDateCount);
+  setCount('no-priority', noPriorityCount);
+
+  // refresh active state for dynamically rendered nav items
+  document.querySelectorAll('.nav-item').forEach(el => {
+    const isActive = el.dataset.view && el.dataset.view === state.ui.view;
+    el.classList.toggle('bg-red-50', isActive);
+    el.classList.toggle('text-td-red', isActive);
+    el.classList.toggle('font-medium', isActive);
   });
 
   bindSidebarSortables();
