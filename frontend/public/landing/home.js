@@ -1,3 +1,12 @@
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /* Interactive Hero App State */
 const heroData = {
   today: [
@@ -36,17 +45,17 @@ function renderHeroTasks() {
   listEl.innerHTML = tasks.map(t => `
     <div class="py-2.5 flex items-start gap-3 group ${t.done ? 'opacity-50' : ''}">
       <button
-        data-hero-toggle="${t.id}"
+        data-hero-toggle="${escapeHtml(t.id)}"
         aria-label="Complete task"
         class="task-check mt-0.5 w-[18px] h-[18px] rounded-full border-2 ${t.done ? 'bg-gray-400 border-gray-400 text-white' : t.ring} flex items-center justify-center flex-shrink-0"
       >
         ${t.done ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}
       </button>
       <div class="flex-1 min-w-0">
-        <div class="text-xs sm:text-[13px] font-medium text-td-text ${t.done ? 'line-through' : ''}">${t.text}</div>
+        <div class="text-xs sm:text-[13px] font-medium text-td-text ${t.done ? 'line-through' : ''}">${escapeHtml(t.text)}</div>
         <div class="mt-1 flex items-center gap-3 text-[11px] text-td-muted">
-          <span class="flex items-center gap-1 text-td-green"><i data-lucide="calendar" class="w-3 h-3"></i> ${t.due}</span>
-          <span class="ml-auto font-medium ${t.projectColor}">${t.project}</span>
+          <span class="flex items-center gap-1 text-td-green"><i data-lucide="calendar" class="w-3 h-3"></i> ${escapeHtml(t.due)}</span>
+          <span class="ml-auto font-medium ${t.projectColor}">${escapeHtml(t.project)}</span>
         </div>
       </div>
     </div>
