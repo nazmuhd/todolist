@@ -257,6 +257,7 @@ async function refreshBackups() {
   backupRows = await listBackups();
   backupsLoaded = true;
   if (settingsModal.open) renderSettings();
+  if ($('#backup-modal')?.open) renderBackup();
 }
 
 /**
@@ -336,10 +337,9 @@ $('#backup-body')?.addEventListener('click', async (e) => {
   }
 });
 
-function openBackup() {
-  renderBackup();
+async function openBackup() {
   if (!$('#backup-modal').open) $('#backup-modal').showModal();
-  refreshBackups();
+  await refreshBackups();
 }
 function closeBackup() {
   if ($('#backup-modal').open) $('#backup-modal').close();
