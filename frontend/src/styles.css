@@ -77,6 +77,8 @@ aside.sidebar-collapsed .nav-item i { flex-shrink: 0; }
 
 aside.sidebar-collapsed .sidebar-section-header,
 aside.sidebar-collapsed .sidebar-footer { display: none; }
+aside.sidebar-collapsed .sidebar-bottom { display: none; }
+aside.sidebar-collapsed #user-menu-btn { display: none; }
 
 /* Shown only in the collapsed rail (the narrow sidebar). */
 .sidebar-collapsed-only { display: none; }
