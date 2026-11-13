@@ -95,7 +95,7 @@ function renderModalAttachments() {
       if (!url || !modal.open) return;
       const holder = $(`[data-attachment-thumb="${a.id}"]`);
       if (!holder) return;
-      holder.innerHTML = `<img src="${url}" alt="${escapeHtml(a.name)}" class="w-6 h-6 object-cover rounded" />`;
+      holder.innerHTML = `<img src="${escapeHtml(url)}" alt="${escapeHtml(a.name)}" class="w-6 h-6 object-cover rounded" />`;
     });
   });
 }

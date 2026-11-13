@@ -78,6 +78,9 @@ export function createApp(options: { serveApp?: boolean } = {}) {
         "manifest-src": ["'self'"],
       },
     },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    crossOriginOpenerPolicy: { policy: 'same-origin' },
+    crossOriginResourcePolicy: { policy: 'same-origin' },
   }));
   app.use(cors({
     origin: config.corsOrigins,
