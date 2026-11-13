@@ -21,6 +21,7 @@ import { isProjectModalOpen, closeProjectModal, isLabelModalOpen, closeLabelModa
 import { isQuickAddOpen, closeQuickAdd, openQuickAdd } from '../features/quickadd.js';
 import { isContextMenuOpen, closeContextMenu } from '../features/context-menu.js';
 import { isRowMenuOpen, closeRowMenu } from './row-menu.js';
+import { savedFilters, persistSavedFilters } from '../features/filters.js';
 
 let renderSortMenu = () => {};
 let supportsBoard = () => false;
@@ -295,6 +296,9 @@ $('#view-layout').addEventListener('click', (e) => {
   if (typeof state.ui.view === 'string' && state.ui.view.startsWith('project:')) {
     const proj = state.projects.find(p => p.id === state.ui.view.slice(8));
     if (proj) proj.viewLayout = layout;
+  } else if (typeof state.ui.view === 'string' && state.ui.view.startsWith('filter:')) {
+    const filter = savedFilters.find(f => f.id === state.ui.view.slice(7));
+    if (filter) { filter.layout = layout; persistSavedFilters(); }
   }
   saveState();
   requestRender();
@@ -317,6 +321,10 @@ $('#sort-menu').addEventListener('click', (e) => {
   state.ui.sort = btn.dataset.sort;
   if (!state.ui.sortByView) state.ui.sortByView = {};
   state.ui.sortByView[state.ui.view] = state.ui.sort;
+  if (typeof state.ui.view === 'string' && state.ui.view.startsWith('filter:')) {
+    const filter = savedFilters.find(f => f.id === state.ui.view.slice(7));
+    if (filter) { filter.sort = state.ui.sort; persistSavedFilters(); }
+  }
   $('#sort-menu').classList.add('hidden');
   saveState();
   requestRender();

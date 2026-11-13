@@ -10,7 +10,7 @@ import { activeTasks, completedTasks } from '../core/tasks.js';
 import { requestRender } from '../core/render.js';
 import { parseDate, toISODate, todayISO, daysFromToday, formatDateShort, isTaskOverdue, dueSortValue } from '../core/dates.js';
 import { escapeHtml } from '../core/text.js';
-import { queryMatcher, savedFilters } from '../features/filters.js';
+import { queryMatcher, savedFilters, filterViewSections } from '../features/filters.js';
 import { showEmptyState } from '../features/empty-states.js';
 import { renderTaskRow, bindTaskEvents } from '../features/task-row.js';
 import { renderCalendar } from '../features/calendar.js';
@@ -23,9 +23,15 @@ import { setSectionArchived, deleteSection, duplicateSection, moveSection } from
 import { services } from '../core/services.js';
 import { showToast } from '../core/toasts.js';
 
+function isMultiSectionFilterView(view = state.ui.view) {
+  if (typeof view !== 'string' || !view.startsWith('filter:')) return false;
+  const saved = savedFilters.find(f => f.id === view.slice(7));
+  return saved ? filterViewSections(saved.query).length > 1 : false;
+}
+
 /** Board layout is available for task lists, not grouped/archive views. */
 export function supportsBoard(view = state.ui.view) {
-  return view !== 'upcoming' && view !== 'completed' && view !== 'calendar' && view !== 'karma' && view !== 'activity' && !(state.ui.search || '').trim();
+  return view !== 'upcoming' && view !== 'completed' && view !== 'calendar' && view !== 'karma' && view !== 'activity' && !(state.ui.search || '').trim() && !isMultiSectionFilterView(view);
 }
 
 /**
@@ -228,6 +234,32 @@ export function renderMain() {
     const proj = state.projects.find(p => p.id === state.ui.view.slice(8));
     if (proj && Array.isArray(proj.sections) && proj.sections.length) {
       renderProjectSectionsView(list);
+      return;
+    }
+  }
+
+  // Saved filters with comma-separated queries render as stacked sections.
+  if (state.ui.view.startsWith('filter:') && !searchActive) {
+    const saved = savedFilters.find(f => f.id === state.ui.view.slice(7));
+    const sections = saved ? filterViewSections(saved.query) : [];
+    if (sections.length > 1) {
+      const used = new Set();
+      const html = sections.map((sec, idx) => {
+        const tasks = sortTasks(activeTasks().filter(sec.match).filter(t => !t.completed && !used.has(t.id)));
+        tasks.forEach(t => used.add(t.id));
+        return `
+          <li class="day-group-header" data-filter-section="${idx}">
+            <span>${escapeHtml(sec.query || `Section ${idx + 1}`)}</span>
+            <span class="text-td-muted font-normal">${tasks.length}</span>
+          </li>
+          ${tasks.map(t => renderTaskRow(t, false)).join('')}`;
+      }).join('');
+      if (!used.size) {
+        showEmptyState();
+        return;
+      }
+      list.innerHTML = html;
+      bindTaskEvents(false);
       return;
     }
   }

@@ -27,9 +27,7 @@ export async function loadSavedFilters() {
     setSavedFilters([]);
     return;
   }
-  setSavedFilters(raw
-    .filter(f => f && typeof f.id === 'string' && typeof f.name === 'string' && typeof f.query === 'string')
-    .map(f => ({ id: f.id, name: f.name, query: f.query })));
+  setSavedFilters(raw);
 }
 
 export function persistSavedFilters() {
@@ -49,8 +47,15 @@ export function upsertSavedFilter(id, name, query) {
     existing.name = name;
     existing.query = query;
   } else {
-    savedFilters.push({ id, name, query });
+    savedFilters.push({ id, name, query, pinned: false, layout: null, sort: null });
   }
+  persistSavedFilters();
+}
+
+export function toggleFilterPinned(id) {
+  const filter = findSavedFilter(id);
+  if (!filter) return;
+  filter.pinned = !filter.pinned;
   persistSavedFilters();
 }
 
@@ -209,20 +214,38 @@ export function queryTermPredicate(word) {
     const p = Number(w[1]);
     return t => t.priority === p;
   }
-  if (w.startsWith('#')) {
-    const name = w.slice(1);
+  if (w.startsWith('##')) {
+    const name = w.slice(2).replace(/_/g, ' ').trim().toLowerCase();
+    if (!name) return () => false;
     return t => {
-      const proj = state.projects.find(p => p.name.toLowerCase() === name);
-      const wanted = proj ? proj.id : name;
-      return String(t.projectId || '').toLowerCase() === wanted.toLowerCase();
+      const proj = state.projects.find(p => p.name.toLowerCase() === name || String(p.id).toLowerCase() === name);
+      if (!proj) return false;
+      const ids = new Set([proj.id]);
+      const byParent = new Map();
+      state.projects.forEach(p => {
+        const key = p.parentId || '';
+        if (!byParent.has(key)) byParent.set(key, []);
+        byParent.get(key).push(p.id);
+      });
+      const walk = (pid) => (byParent.get(pid) || []).forEach(cid => { ids.add(cid); walk(cid); });
+      walk(proj.id);
+      return ids.has(t.projectId);
     };
   }
-  if (w.startsWith('@')) {
-    const name = w.slice(1);
+  if (w.startsWith('#')) {
+    const name = w.slice(1).replace(/_/g, ' ').trim().toLowerCase();
     return t => {
-      const lbl = state.labels.find(l => l.name.toLowerCase() === name);
+      const proj = state.projects.find(p => p.name.toLowerCase() === name || String(p.id).toLowerCase() === name);
+      const wanted = proj ? proj.id : name;
+      return String(t.projectId || '').toLowerCase() === String(wanted).toLowerCase();
+    };
+  }
+  if (w.startsWith('@') || w.startsWith('%')) {
+    const name = w.slice(1).trim().toLowerCase();
+    return t => {
+      const lbl = state.labels.find(l => l.name.toLowerCase() === name || String(l.id).toLowerCase() === name);
       const wanted = lbl ? lbl.id : name;
-      return (t.labels || []).some(lid => String(lid).toLowerCase() === wanted.toLowerCase());
+      return (t.labels || []).some(lid => String(lid).toLowerCase() === String(wanted).toLowerCase());
     };
   }
   if (w.startsWith('/')) {
@@ -351,4 +374,30 @@ export function queryMatcher(text) {
   if (queryCache.text === key) return queryCache.fn;
   queryCache = { text: key, fn: parseQuery(key) };
   return queryCache.fn;
+}
+
+/** Splits a filter query into comma-separated stacked sections (Todoist-style). */
+export function splitFilterQuerySections(text) {
+  const parts = [];
+  let buf = '';
+  let depth = 0;
+  let inQuote = false;
+  const src = String(text || '');
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '"' && src[i - 1] !== '\\') { inQuote = !inQuote; buf += ch; continue; }
+    if (!inQuote) {
+      if (ch === '(') depth++;
+      else if (ch === ')' && depth > 0) depth--;
+      else if (ch === ',' && depth === 0) { parts.push(buf.trim()); buf = ''; continue; }
+    }
+    buf += ch;
+  }
+  if (buf.trim() || parts.length) parts.push(buf.trim());
+  return parts.length ? parts.filter(Boolean) : [src.trim()].filter(Boolean);
+}
+
+export function filterViewSections(query) {
+  const sections = splitFilterQuerySections(query).map(q => ({ query: q, match: queryMatcher(q) }));
+  return sections.length ? sections : [{ query: String(query || ''), match: queryMatcher(query) }];
 }

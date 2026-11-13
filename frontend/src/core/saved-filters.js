@@ -7,10 +7,24 @@
  */
 export const savedFilters = [];
 
+export function normalizeSavedFilter(f) {
+  if (!f || typeof f !== 'object') return null;
+  const id = typeof f.id === 'string' ? f.id : '';
+  const name = typeof f.name === 'string' ? f.name : '';
+  const query = typeof f.query === 'string' ? f.query : '';
+  if (!id || !name || !query) return null;
+  const layout = ['list', 'board', 'table'].includes(f.layout) ? f.layout : null;
+  const sort = ['manual', 'date', 'priority', 'name', 'added'].includes(f.sort) ? f.sort : null;
+  return { id, name, query, pinned: !!f.pinned, layout, sort };
+}
+
 /** Replaces the list in place, so importers always see the current one. */
 export function setSavedFilters(list) {
   savedFilters.length = 0;
-  (Array.isArray(list) ? list : []).forEach(f => savedFilters.push(f));
+  (Array.isArray(list) ? list : []).forEach(f => {
+    const n = normalizeSavedFilter(f);
+    if (n) savedFilters.push(n);
+  });
 }
 
 export function savedFilterIds() {

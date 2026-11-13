@@ -64,12 +64,20 @@ export function applyHash() {
   if (view === state.ui.view && q === (state.ui.search || '')) return;
   state.ui.view = view;
   state.ui.search = q;
-  state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
   if (typeof view === 'string' && view.startsWith('project:')) {
     const proj = state.projects.find(p => p.id === view.slice(8));
+    state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
     if (proj?.viewLayout && ['list', 'board', 'table'].includes(proj.viewLayout)) {
       state.ui.layout = proj.viewLayout;
     }
+  } else if (typeof view === 'string' && view.startsWith('filter:')) {
+    const filter = savedFilters.find(f => f.id === view.slice(7));
+    state.ui.sort = filter?.sort || (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
+    if (filter?.layout && ['list', 'board', 'table'].includes(filter.layout)) {
+      state.ui.layout = filter.layout;
+    }
+  } else {
+    state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
   }
   const input = $('#search-input');
   if (input) input.value = q;
@@ -88,14 +96,24 @@ export function pulseViewIn() {
 export function navigateTo(view) {
   state.ui.view = view;
   state.ui.search = '';
-  state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
   if (typeof view === 'string' && view.startsWith('project:')) {
     const proj = state.projects.find(p => p.id === view.slice(8));
+    state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
     if (proj?.viewLayout && ['list', 'board', 'table'].includes(proj.viewLayout)) {
       state.ui.layout = proj.viewLayout;
     } else {
       state.ui.layout = state.ui.layout || 'list';
     }
+  } else if (typeof view === 'string' && view.startsWith('filter:')) {
+    const filter = savedFilters.find(f => f.id === view.slice(7));
+    state.ui.sort = filter?.sort || (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
+    if (filter?.layout && ['list', 'board', 'table'].includes(filter.layout)) {
+      state.ui.layout = filter.layout;
+    } else {
+      state.ui.layout = state.ui.layout || 'list';
+    }
+  } else {
+    state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
   }
   $('#search-input').value = '';
   saveState();

@@ -5,7 +5,7 @@ import { $ } from '../core/app.js';
 import { state, saveState } from '../core/state.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
-import { savedFilters, deleteFilter, openFilterEditor } from '../features/filters.js';
+import { savedFilters, deleteFilter, openFilterEditor, toggleFilterPinned } from '../features/filters.js';
 import { openProjectModal, openLabelModal, deleteProject, deleteLabel, setProjectArchived } from '../features/projects.js';
 import { openSaveProjectTemplateModal, applyTemplate, deleteTemplate, duplicateTemplate, openTemplateEditor } from '../features/templates.js';
 import { positionBelowTrigger } from './menus.js';
@@ -28,6 +28,9 @@ export function openRowMenu(trigger, type, id) {
 
   rowMenuTarget = { type, id };
   rowMenu.innerHTML = isFilter ? `
+    <button type="button" data-row-action="pin" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="star" class="w-3.5 h-3.5 text-td-muted"></i>${entry.pinned ? 'Unpin from top' : 'Pin to top'}
+    </button>
     <button type="button" data-row-action="edit" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
       <i data-lucide="pencil" class="w-3.5 h-3.5 text-td-muted"></i>Edit filter
     </button>
@@ -85,6 +88,12 @@ rowMenu.addEventListener('click', (e) => {
   const action = btn.dataset.rowAction;
 
   if (action === 'pin') {
+    if (type === 'filter') {
+      toggleFilterPinned(id);
+      closeRowMenu();
+      requestRender();
+      return;
+    }
     const entry = type === 'project'
       ? state.projects.find(p => p.id === id)
       : state.labels.find(l => l.id === id);
