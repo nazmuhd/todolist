@@ -143,7 +143,7 @@ try {
   // ---- Settings points at the shortcuts overlay. ----
   await evalJs(`document.getElementById('settings-btn').click()`);
   await sleep(800);
-  check('Settings has Export and Import', await evalJs(`!!document.querySelector('#settings-body [data-open-export]') && !!document.querySelector('#settings-body [data-open-import]')`));
+  check('Settings no longer carries Export and Import', await evalJs(`!document.querySelector('#settings-body [data-open-export]') && !document.querySelector('#settings-body [data-open-import]')`));
   await evalJs(`document.getElementById('settings-close').click()`);
   await sleep(300);
 

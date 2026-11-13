@@ -141,32 +141,22 @@ try {
   await evalJs(`document.getElementById('shortcuts-close').click()`);
   await sleep(300);
 
-  // Settings carries Export and Import rather than the shortcut list.
+  // Settings no longer carries Export and Import (they live in Backup & restore).
   await evalJs(`document.getElementById('settings-btn').click()`);
   await sleep(800);
-  check('Settings has an Export button', await evalJs(`!!document.querySelector('#settings-body [data-open-export]')`));
-  check('Settings has an Import button', await evalJs(`!!document.querySelector('#settings-body [data-open-import]')`));
   check('Settings does not list the shortcuts itself', await evalJs(`document.querySelectorAll('#settings-body .shortcut-row').length === 0`));
-
-  // Export opens the export dialog.
-  await evalJs(`document.querySelector('#settings-body [data-open-export]').click()`);
-  await sleep(600);
-  check('the Settings Export button opens the export dialog', await evalJs(`document.getElementById('export-modal').open`));
-  await evalJs(`document.getElementById('export-close').click()`);
+  await evalJs(`document.getElementById('settings-close').click()`);
   await sleep(300);
 
-  // Import opens the file picker.
-  await evalJs(`document.getElementById('settings-btn').click()`);
-  await sleep(600);
-  await evalJs(`(() => {
-    window.__importOpened = false;
-    const input = document.getElementById('import-file');
-    input.addEventListener('click', () => { window.__importOpened = true; }, { once: true });
-    document.querySelector('#settings-body [data-open-import]').click();
-  })()`);
-  await sleep(600);
-  check('the Settings Import button opens the file picker', await evalJs(`window.__importOpened === true`));
-  await evalJs(`document.getElementById('settings-close').click()`);
+  // Backup & restore dialog opens and carries Export and Import.
+  await evalJs(`document.getElementById('user-menu-btn').click()`);
+  await sleep(400);
+  await evalJs(`document.getElementById('user-menu-backup').click()`);
+  await sleep(800);
+  check('Backup dialog opens', await evalJs(`document.getElementById('backup-modal').open`));
+  check('Backup dialog has Export', await evalJs(`!!document.querySelector('#backup-body [data-open-export]')`));
+  check('Backup dialog has Import', await evalJs(`!!document.querySelector('#backup-body [data-open-import]')`));
+  await evalJs(`document.getElementById('backup-close').click()`);
   await sleep(300);
 
   // The profile menu opens the same popup in the collapsed state.

@@ -677,19 +677,13 @@
       <i data-lucide="circle-user" class="w-4 h-4 text-td-muted"></i>
       Profile settings
     </button>
+    <button type="button" id="user-menu-backup" class="user-menu-item" role="menuitem">
+      <i data-lucide="archive" class="w-4 h-4 text-td-muted"></i>
+      Backup & restore
+    </button>
     <button type="button" id="user-menu-shortcuts" class="user-menu-item" role="menuitem">
       <i data-lucide="keyboard" class="w-4 h-4 text-td-muted"></i>
       Keyboard shortcuts
-    </button>
-  </div>
-  <div class="border-t border-td-border p-1">
-    <button type="button" id="user-menu-export" class="user-menu-item" role="menuitem">
-      <i data-lucide="download" class="w-4 h-4 text-td-muted"></i>
-      Export data
-    </button>
-    <button type="button" id="user-menu-import" class="user-menu-item" role="menuitem">
-      <i data-lucide="upload" class="w-4 h-4 text-td-muted"></i>
-      Import data
     </button>
   </div>
 </div>
@@ -711,6 +705,22 @@
       <button type="button" id="settings-cancel" class="px-4 py-2 text-sm font-medium border border-td-border bg-white rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
       <button type="button" id="settings-save" class="px-4 py-2 text-sm font-medium bg-td-red hover:bg-td-redhover text-white rounded-lg shadow-sm transition-colors">Save changes</button>
     </div>
+  </div>
+</dialog>
+
+<!-- Backup & restore -->
+<dialog id="backup-modal" class="p-0 rounded-2xl shadow-2xl w-full max-w-lg border border-td-border">
+  <div class="settings-shell flex flex-col max-h-[85vh]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-td-border flex-shrink-0">
+      <div>
+        <h3 class="text-lg font-semibold">Backup & restore</h3>
+        <p class="text-xs text-td-muted mt-0.5">Export, import and the automatic snapshots the server keeps.</p>
+      </div>
+      <button type="button" id="backup-close" class="text-td-muted hover:text-td-text p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-td-red/40" title="Close" aria-label="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <div id="backup-body" class="px-5 py-4 overflow-y-auto scrollbar-thin"></div>
   </div>
 </dialog>
 

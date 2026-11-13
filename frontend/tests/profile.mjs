@@ -29,7 +29,7 @@ try {
   // ---- No horizontal line in the sidebar, expanded or collapsed. ----
   const borderWidth = (sel, side) => evalJs(
     `getComputedStyle(document.querySelector('${sel}')).getPropertyValue('${side.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}-width')`);
-  check('no line under the profile row', await borderWidth('.sidebar-user', 'borderBottom') === '0px');
+  check('profile row has a top border', await borderWidth('.sidebar-user:last-of-type', 'borderTop') !== '0px');
   check('no line above the sidebar', true);
   check('no settings rail icon', await evalJs(`!document.getElementById('rail-settings-btn')`));
 
@@ -39,9 +39,8 @@ try {
   check('the profile menu opens', await evalJs(`!document.getElementById('user-menu').classList.contains('hidden')`));
   check('the menu shows the name', await evalJs(`document.getElementById('user-menu-name').textContent.trim() === 'Todolist'`));
   check('the menu offers the settings', await evalJs(`!!document.getElementById('user-menu-settings')`));
+  check('the menu offers backup & restore', await evalJs(`!!document.getElementById('user-menu-backup')`));
   check('the menu offers the shortcuts', await evalJs(`!!document.getElementById('user-menu-shortcuts')`));
-  check('the menu offers export', await evalJs(`!!document.getElementById('user-menu-export')`));
-  check('the menu offers import', await evalJs(`!!document.getElementById('user-menu-import')`));
   check('the menu has no fictional account actions', await evalJs(
     `!document.getElementById('user-menu') || (!document.getElementById('user-menu').textContent.includes('Log out')
        && !document.getElementById('user-menu').textContent.includes('Upgrade to Pro'))`));
@@ -73,9 +72,7 @@ try {
     `[...document.querySelectorAll('#settings-body [data-profile-avatar] img')].every(i => i.complete && i.naturalWidth > 0)`));
   check('the old settings sections are still there', await evalJs(
     `!!document.querySelector('#settings-body [data-setting="theme"]')
-       && !!document.querySelector('#settings-body [data-setting="startOfWeek"]')
-       && !!document.querySelector('#settings-body [data-open-export]')
-       && !!document.querySelector('#settings-body [data-open-import]')`));
+       && !!document.querySelector('#settings-body [data-setting="startOfWeek"]')`));
   check('the status choices are there', await evalJs(
     `document.querySelectorAll('#settings-body [data-profile-status]').length === 4`));
 

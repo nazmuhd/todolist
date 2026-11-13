@@ -296,8 +296,60 @@ function renderSettings() {
             }).join('')}
           </div>
         </div>`).join('')}
-    </div>` + dataSection() + backupSection() + pushSection();
+    </div>` + pushSection();
 }
+
+export function renderBackup() {
+  const body = $('#backup-body');
+  if (!body) return;
+  body.innerHTML = dataSection() + backupSection();
+  lucide.createIcons();
+}
+
+$('#backup-body')?.addEventListener('click', async (e) => {
+  if (e.target.closest('[data-open-export]')) {
+    closeBackup();
+    document.getElementById('export-data-btn')?.click();
+    return;
+  }
+  if (e.target.closest('[data-open-import]')) {
+    closeBackup();
+    document.getElementById('import-data-btn')?.click();
+    return;
+  }
+  const restoreBtn = e.target.closest('[data-backup-restore]');
+  if (restoreBtn) {
+    const id = Number(restoreBtn.dataset.backupRestore);
+    if (!confirm('Restore this backup? Your current data will be replaced.')) return;
+    restoreBtn.disabled = true;
+    const ok = await restoreBackup(id);
+    if (ok) { showToast('Backup restored', 'success'); window.location.reload(); }
+    return;
+  }
+  if (e.target.closest('[data-backup-now]')) {
+    const btn = e.target.closest('[data-backup-now]');
+    btn.disabled = true;
+    const rows = await takeBackup();
+    if (rows) { backupRows = rows; backupsLoaded = true; showToast('Backup taken', 'success'); }
+    renderBackup();
+    return;
+  }
+});
+
+function openBackup() {
+  renderBackup();
+  if (!$('#backup-modal').open) $('#backup-modal').showModal();
+  refreshBackups();
+}
+function closeBackup() {
+  if ($('#backup-modal').open) $('#backup-modal').close();
+}
+export function isBackupOpen() {
+  return $('#backup-modal').open;
+}
+
+$('#backup-close').onclick = () => closeBackup();
+export { openBackup, closeBackup };
 
 $('#settings-body').addEventListener('click', async (e) => {
   // Profile avatar and status choices.
