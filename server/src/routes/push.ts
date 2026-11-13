@@ -1,9 +1,24 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { deletePushSubscription, listPushDevices, listPushSubscriptions, savePushSubscription } from '../db/repository.ts';
 import { publicVapidKey, pushIsConfigured, sendPushToUser } from '../services/push.ts';
 
 export const pushRouter = Router();
 const uid = (req: any) => req.user.id as number;
+
+const subscribeSchema = z.object({
+  endpoint: z.string().url().refine(v => /^https?:\/\//.test(v), 'invalid_endpoint'),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+  label: z.string().max(80).optional().nullable(),
+  userAgent: z.string().max(300).optional().nullable(),
+}).strict();
+
+const unsubscribeSchema = z.object({
+  endpoint: z.string().min(1),
+}).strict();
 
 pushRouter.get('/key', (_req, res) => {
   const key = publicVapidKey();
@@ -12,23 +27,25 @@ pushRouter.get('/key', (_req, res) => {
 });
 
 pushRouter.post('/subscribe', (req, res) => {
-  const body = req.body as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown }; label?: unknown; userAgent?: unknown } | undefined;
-  const endpoint = typeof body?.endpoint === 'string' ? body.endpoint : '';
-  const p256dh = typeof body?.keys?.p256dh === 'string' ? body.keys.p256dh : '';
-  const auth = typeof body?.keys?.auth === 'string' ? body.keys.auth : '';
-  const label = typeof body?.label === 'string' ? body.label.slice(0, 80) : null;
-  const userAgent = typeof body?.userAgent === 'string' ? body.userAgent.slice(0, 300) : null;
-  if (!endpoint || !/^https?:\/\//.test(endpoint) || !p256dh || !auth) { res.status(400).json({ error: 'invalid_subscription' }); return; }
-  savePushSubscription(uid(req), { endpoint, p256dh, auth, label, userAgent });
+  const parsed = subscribeSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'invalid_subscription' }); return; }
+  const { endpoint, keys, label, userAgent } = parsed.data;
+  savePushSubscription(uid(req), {
+    endpoint,
+    p256dh: keys.p256dh,
+    auth: keys.auth,
+    label: typeof label === 'string' ? label.slice(0, 80) : null,
+    userAgent: typeof userAgent === 'string' ? userAgent.slice(0, 300) : null,
+  });
   res.status(201).json({ ok: true });
 });
 
 pushRouter.get('/subscriptions', (req, res) => { res.json({ subscriptions: listPushDevices(uid(req)) }); });
 
 pushRouter.delete('/subscribe', (req, res) => {
-  const endpoint = typeof req.body?.endpoint === 'string' ? req.body.endpoint : '';
-  if (!endpoint) { res.status(400).json({ error: 'invalid_endpoint' }); return; }
-  if (!deletePushSubscription(uid(req), endpoint)) { res.status(404).json({ error: 'not_found' }); return; }
+  const parsed = unsubscribeSchema.safeParse(req.body);
+  if (!parsed.success || !parsed.data.endpoint) { res.status(400).json({ error: 'invalid_endpoint' }); return; }
+  if (!deletePushSubscription(uid(req), parsed.data.endpoint)) { res.status(404).json({ error: 'not_found' }); return; }
   res.status(204).end();
 });
 
