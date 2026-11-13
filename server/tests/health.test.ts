@@ -42,9 +42,18 @@ test('unknown API routes return a JSON 404', async () => {
   });
 });
 
-test('the server serves the app shell', async () => {
+test('the server serves the landing page at the root', async () => {
   await withServer(async (port) => {
     const res = await fetch(`http://127.0.0.1:${port}/`);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.match(html, /todolist \| A To-Do List/);
+  });
+});
+
+test('the server serves the app shell under /app/v1', async () => {
+  await withServer(async (port) => {
+    const res = await fetch(`http://127.0.0.1:${port}/app/v1/`);
     const html = await res.text();
     assert.equal(res.status, 200);
     assert.match(html, /id="app"/);
