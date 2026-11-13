@@ -168,15 +168,15 @@ export function renderSidebar() {
   // saved filters (pinned first), including built-in quick filters
   const fl = document.getElementById('filters-list');
   const builtinFilters = `
-    <a href="#" data-view="no-date" title="Tasks without a due date" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
-      <i data-lucide="calendar-x" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+    <a href="#" data-view="no-date" title="Tasks without a due date" class="nav-item flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-200/60 text-xs">
+      <i data-lucide="calendar-x" class="w-3.5 h-3.5 flex-shrink-0 text-td-muted"></i>
       <span class="sidebar-hide">No date</span>
-      <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+      <span class="nav-count sidebar-hide ml-auto text-[11px] text-td-muted"></span>
     </a>
-    <a href="#" data-view="no-priority" title="Tasks without a priority" class="nav-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-sm">
-      <i data-lucide="flag-off" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+    <a href="#" data-view="no-priority" title="Tasks without a priority" class="nav-item flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-200/60 text-xs">
+      <i data-lucide="flag-off" class="w-3.5 h-3.5 flex-shrink-0 text-td-muted"></i>
       <span class="sidebar-hide">No priority</span>
-      <span class="nav-count sidebar-hide ml-auto text-xs text-td-muted"></span>
+      <span class="nav-count sidebar-hide ml-auto text-[11px] text-td-muted"></span>
     </a>`;
   const savedFiltersHtml = [...savedFilters]
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
@@ -185,15 +185,15 @@ export function renderSidebar() {
       const active = state.ui.view === `filter:${f.id}`;
       return `
       <div class="group relative" data-entry-id="${escapeHtml(f.id)}">
-        <a href="#" data-view="filter:${escapeHtml(f.id)}" title="${escapeHtml(f.query)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-6 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
-          <i data-lucide="filter" class="w-4 h-4 flex-shrink-0 text-td-muted"></i>
+        <a href="#" data-view="filter:${escapeHtml(f.id)}" title="${escapeHtml(f.query)}" class="nav-item flex items-center gap-2 px-2 py-1 pr-6 rounded hover:bg-gray-200/60 text-xs ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
+          <i data-lucide="filter" class="w-3.5 h-3.5 flex-shrink-0 text-td-muted"></i>
           <span class="sidebar-hide truncate flex-1">${escapeHtml(f.name)}</span>
           ${f.pinned ? '<i data-lucide="star" class="sidebar-hide w-3 h-3 flex-shrink-0 text-amber-500" fill="currentColor" title="Pinned"></i>' : ''}
-          <span class="sidebar-hide text-xs text-td-muted">${count || ''}</span>
+          <span class="sidebar-hide text-[11px] text-td-muted">${count || ''}</span>
         </a>
         <button type="button" class="sidebar-hide row-menu-btn absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
           data-menu-type="filter" data-menu-id="${escapeHtml(f.id)}" title="Filter actions" aria-label="Filter actions">
-          <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+          <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
         </button>
       </div>`;
     }).join('');
@@ -207,14 +207,14 @@ export function renderSidebar() {
       const active = state.ui.view === `label:${l.id}`;
       return `
       <div class="group relative" data-entry-id="${escapeHtml(l.id)}">
-        <a href="#" data-view="label:${escapeHtml(l.id)}" title="@${escapeHtml(l.name)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-6 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
-          <i data-lucide="tag" class="w-4 h-4 flex-shrink-0" style="color:${escapeHtml(l.color)}"></i>
+        <a href="#" data-view="label:${escapeHtml(l.id)}" title="@${escapeHtml(l.name)}" class="nav-item flex items-center gap-2 px-2 py-1 pr-6 rounded hover:bg-gray-200/60 text-xs ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
+          <i data-lucide="tag" class="w-3.5 h-3.5 flex-shrink-0" style="color:${escapeHtml(l.color)}"></i>
           <span class="sidebar-hide truncate flex-1">@${escapeHtml(l.name)}</span>
           ${l.pinned ? '<i data-lucide="star" class="sidebar-hide w-3 h-3 flex-shrink-0 text-amber-500" fill="currentColor" title="Pinned"></i>' : ''}
         </a>
         <button type="button" class="sidebar-hide row-menu-btn absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
           data-menu-type="label" data-menu-id="${escapeHtml(l.id)}" title="Label actions" aria-label="Label actions">
-          <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+          <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
         </button>
       </div>`;
     }).join('');
