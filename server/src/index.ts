@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.ts';
@@ -138,6 +139,16 @@ export function createApp(options: { serveApp?: boolean } = {}) {
   });
 
   app.use('/health', healthRouter);
+
+  // General API rate limiting (abuse control). Tests run many requests quickly.
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: config.NODE_ENV === 'test' ? 10000 : 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Please try again later.' },
+  });
+  app.use('/api', apiLimiter);
 
   // All app data APIs require an authenticated session.
   const requireApiAuth = (req: any, res: any, next: any) => {
