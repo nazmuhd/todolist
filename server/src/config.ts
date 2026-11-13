@@ -30,7 +30,7 @@ const schema = z.object({
   BACKUP_KEEP: z.coerce.number().int().positive().default(24),
 }).superRefine((env, ctx) => {
   if (env.NODE_ENV === 'production' && !env.RESEND_API_KEY) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY is required in production' });
+    ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY is required in production' });
   }
 });
 

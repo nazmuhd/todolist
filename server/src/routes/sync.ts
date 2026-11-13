@@ -20,7 +20,7 @@ const entityChangeSchema = z.object({
 }).superRefine((val, ctx) => {
   if (val.deleted === true) return;
   if (val.data === undefined || val.data === null || typeof val.data !== 'object' || Array.isArray(val.data)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid_data', path: ['data'] });
+    ctx.addIssue({ code: 'custom', message: 'invalid_data', path: ['data'] });
   }
 });
 
