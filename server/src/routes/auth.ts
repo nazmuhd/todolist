@@ -13,6 +13,149 @@ import { config } from '../config.ts';
 
 const router = express.Router();
 
+function escapeHtml(value: string): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getResetPasswordHtml({
+  userName = 'there',
+  appName = 'Todolist',
+  resetLink,
+  appUrl,
+  logoUrl,
+}: {
+  userName?: string;
+  appName?: string;
+  resetLink: string;
+  appUrl: string;
+  logoUrl: string;
+}) {
+  const safeUserName = escapeHtml(userName);
+  const safeAppName = escapeHtml(appName);
+  const safeResetLink = escapeHtml(resetLink);
+  const safeAppUrl = escapeHtml(appUrl);
+  const safeLogoUrl = escapeHtml(logoUrl);
+
+  return `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Reset your password</title>
+  <style>
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: #f9f9f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #202020; }
+    .btn-primary:hover { background-color: #c53727 !important; }
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; max-width: 100% !important; }
+      .content-padding { padding: 32px 24px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f9f9f9;">
+  <div style="display: none; font-size: 1px; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
+    We received a request to reset your password. This link expires in 1 hour.
+    &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847;
+  </div>
+
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9f9f9;">
+    <tr>
+      <td align="center" style="padding: 40px 16px;">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="520" class="email-container" style="max-width: 520px; width: 100%; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <tr>
+            <td align="left" style="padding: 36px 40px 0 40px;" class="content-padding">
+              <a href="${safeAppUrl}" target="_blank" style="text-decoration: none; display: inline-block;">
+                <img src="${safeLogoUrl}" alt="${safeAppName} Logo" width="140" height="36" style="display: block; border-radius: 6px; font-family: sans-serif; font-size: 16px; font-weight: bold; color: #dc4c3e;">
+              </a>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" style="padding: 28px 40px 36px 40px;" class="content-padding">
+              <h1 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 700; line-height: 1.3; color: #202020; letter-spacing: -0.02em;">
+                Reset your password
+              </h1>
+
+              <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #444444;">
+                Hi ${safeUserName},<br><br>
+                We received a request to reset the password for your <strong style="font-weight: 600; color: #202020;">${safeAppName}</strong> account. Click the button below to choose a new password and get back to your tasks.
+              </p>
+
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 0 24px 0;">
+                <tr>
+                  <td align="center" bgcolor="#dc4c3e" style="border-radius: 8px;">
+                    <a href="${safeResetLink}" target="_blank" class="btn-primary" style="display: inline-block; padding: 14px 24px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 8px; background-color: #dc4c3e;">
+                      Reset password
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #666666;">
+                For your security, this link will expire in <strong style="font-weight: 600; color: #202020;">1 hour</strong>. If you didn’t request a password reset, you can safely ignore this email—your current password will remain unchanged.
+              </p>
+
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 20px 0;">
+                <tr>
+                  <td style="border-top: 1px solid #e5e7eb; font-size: 0; line-height: 0;">&nbsp;</td>
+                </tr>
+              </table>
+
+              <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #9ca3af; word-break: break-all;">
+                Having trouble with the button? Copy and paste this link into your browser:<br>
+                <a href="${safeResetLink}" target="_blank" style="color: #dc4c3e; text-decoration: underline;">${safeResetLink}</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="520" class="email-container" style="max-width: 520px; width: 100%;">
+          <tr>
+            <td align="center" style="padding: 24px 16px 0 16px;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                Sent by ${safeAppName} &bull; <a href="${safeAppUrl}" target="_blank" style="color: #9ca3af; text-decoration: underline;">Open App</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function getResetPasswordText({
+  userName = 'there',
+  appName = 'Todolist',
+  resetLink,
+  appUrl,
+}: {
+  userName?: string;
+  appName?: string;
+  resetLink: string;
+  appUrl: string;
+}) {
+  return [
+    `Hi ${userName},`,
+    '',
+    `We received a request to reset the password for your ${appName} account.`,
+    `Reset your password: ${resetLink}`,
+    '',
+    'For your security, this link will expire in 1 hour. If you didn’t request a password reset, you can safely ignore this email—your current password will remain unchanged.',
+    '',
+    `Open ${appName}: ${appUrl}`,
+  ].join('\n');
+}
+
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: config.authRateMax, message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' }, standardHeaders: true, legacyHeaders: false });
 
 let stmts: any;
@@ -132,8 +275,18 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     try { baseUrl = new URL(baseUrl).origin + new URL(baseUrl).pathname.replace(/\/$/, ''); } catch { baseUrl = String(baseUrl).replace(/\/$/, ''); }
     const resetLink = `${baseUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
     if (process.env.EMAIL_DRY_RUN === '1' && !config.isProduction) return res.json({ ...generic, dev_reset_link: resetLink });
+    const appUrl = baseUrl;
+    const logoUrl = `${baseUrl}/images/logo.png`;
+    const userName = user.first_name || user.name || 'there';
+    const appName = 'Todolist';
     const resend = new Resend(config.RESEND_API_KEY!);
-    const { error } = await resend.emails.send({ from: config.EMAIL_FROM || 'Security <onboarding@resend.dev>', to: user.email, subject: 'Reset Your Password', html: `<p>We received a request to reset your password.</p><p><a href="${resetLink}">Click here to reset your password</a></p><p>This link will expire in 1 hour.</p>` });
+    const { error } = await resend.emails.send({
+      from: config.EMAIL_FROM || 'Todolist <onboarding@resend.dev>',
+      to: user.email,
+      subject: 'Reset your Todolist password',
+      html: getResetPasswordHtml({ userName, appName, resetLink, appUrl, logoUrl }),
+      text: getResetPasswordText({ userName, appName, resetLink, appUrl }),
+    });
     if (error) { console.error(error); return res.status(502).json({ error: 'Unable to send reset email at this time.' }); }
     return res.json(generic);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error.' }); }
