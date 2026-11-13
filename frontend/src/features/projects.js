@@ -1,5 +1,5 @@
 /**
- * Project and label dialogs: name, colour, project sections and deletion.
+ * Project and label dialogs: name, colour, hierarchy, sections, archive and deletion.
  */
 import { $, $$, uid } from '../core/app.js';
 import { state, saveState } from '../core/state.js';
@@ -21,23 +21,84 @@ const COLOR_PALETTE = [
 let editingProjectId = null;
 let projectDraftColor = null;
 let projectDraftSections = [];
+let projectDraftParentId = null;
 let editingLabelId = null;
 let labelDraftColor = null;
 
 export function isProjectModalOpen() {
-  return projectModal.open;
+  return projectModal?.open;
 }
 
 export function closeProjectModal() {
-  if (projectModal.open) projectModal.close();
+  if (projectModal?.open) projectModal.close();
 }
 
 export function isLabelModalOpen() {
-  return labelModal.open;
+  return labelModal?.open;
 }
 
 export function closeLabelModal() {
-  if (labelModal.open) labelModal.close();
+  if (labelModal?.open) labelModal.close();
+}
+
+export function projectChildren(id) {
+  return state.projects.filter(p => p.parentId === id);
+}
+
+export function projectDescendantIds(id) {
+  const out = [];
+  const walk = (pid) => {
+    projectChildren(pid).forEach(child => {
+      out.push(child.id);
+      walk(child.id);
+    });
+  };
+  walk(id);
+  return out;
+}
+
+export function projectDepth(id) {
+  let depth = 0;
+  let cur = state.projects.find(p => p.id === id);
+  const seen = new Set();
+  while (cur && cur.parentId) {
+    if (seen.has(cur.id)) return Infinity;
+    seen.add(cur.id);
+    depth += 1;
+    cur = state.projects.find(p => p.id === cur.parentId);
+    if (depth > 10) return Infinity;
+  }
+  return depth;
+}
+
+function canNestUnder(projectId, candidateParentId) {
+  if (!candidateParentId) return true;
+  if (candidateParentId === projectId) return false;
+  const descendants = new Set(projectDescendantIds(projectId));
+  if (descendants.has(candidateParentId)) return false;
+  // projectId would become child of candidateParentId: depth(candidateParent)+1 + subtreeDepth(projectId) <= 3
+  const parentDepth = projectDepth(candidateParentId);
+  if (!Number.isFinite(parentDepth) || parentDepth >= 3) return false;
+  const subtreeDepth = (pid) => {
+    const kids = projectChildren(pid);
+    if (!kids.length) return 0;
+    return 1 + Math.max(...kids.map(k => subtreeDepth(k.id)));
+  };
+  return (parentDepth + 1 + subtreeDepth(projectId)) <= 3;
+}
+
+function renderProjectParentOptions() {
+  const select = $('#project-parent');
+  if (!select) return;
+  const currentId = editingProjectId;
+  const options = [{ id: '', name: 'No parent (top-level)' }];
+  const ordered = [...state.projects].sort((a, b) => a.name.localeCompare(b.name));
+  ordered.forEach(p => {
+    if (p.archived) return;
+    if (currentId && !canNestUnder(currentId, p.id)) return;
+    options.push({ id: p.id, name: p.name });
+  });
+  select.innerHTML = options.map(o => `<option value="${escapeHtml(o.id)}"${o.id === (projectDraftParentId || '') ? ' selected' : ''}>${escapeHtml(o.name)}</option>`).join('');
 }
 
 function renderProjectSections() {
@@ -52,28 +113,29 @@ function renderProjectSections() {
   lucide.createIcons();
 }
 
-$('#project-sections').addEventListener('click', (e) => {
+$('#project-sections')?.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-section-remove]');
   if (!btn) return;
   projectDraftSections = projectDraftSections.filter(s => s.id !== btn.dataset.sectionRemove);
   renderProjectSections();
 });
 
-$('#project-section-add').onclick = () => {
+$('#project-section-add')?.addEventListener('click', () => {
   const input = $('#project-section-name');
-  const name = input.value.trim();
+  const name = input?.value.trim();
   if (!name) return;
   projectDraftSections.push({ id: uid(), name });
   input.value = '';
   renderProjectSections();
   input.focus();
-};
+});
 
-$('#project-section-name').addEventListener('keydown', (e) => {
+$('#project-section-name')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); $('#project-section-add').click(); }
 });
 
 function renderColorSwatches(container, selected, onPick) {
+  if (!container) return;
   const colors = COLOR_PALETTE.includes(selected) ? COLOR_PALETTE : [selected, ...COLOR_PALETTE];
   container.innerHTML = colors.map(c => `
     <button type="button" class="color-swatch" data-color="${c}" title="${c}" aria-label="Colour ${c}" aria-pressed="${c === selected}"
@@ -97,7 +159,7 @@ function pickLabelColor(color) {
 }
 
 export function openProjectModal(id = null) {
-  services.closeRowMenu();
+  services.closeRowMenu?.();
   const proj = id ? state.projects.find(p => p.id === id) : null;
   if (id && !proj) return;
   editingProjectId = id;
@@ -106,14 +168,16 @@ export function openProjectModal(id = null) {
   $('#save-project').textContent = proj ? 'Save' : 'Add';
   projectDraftColor = proj ? proj.color : PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
   projectDraftSections = proj && Array.isArray(proj.sections) ? proj.sections.map(s => ({ ...s })) : [];
+  projectDraftParentId = proj ? (proj.parentId || null) : null;
   renderColorSwatches($('#project-colors'), projectDraftColor, pickProjectColor);
   renderProjectSections();
+  renderProjectParentOptions();
   projectModal.showModal();
-  if (!services.isMobileSidebar()) setTimeout(() => $('#project-name').focus(), 50);
+  if (!services.isMobileSidebar?.()) setTimeout(() => $('#project-name')?.focus(), 50);
 }
 
 export function openLabelModal(id = null) {
-  services.closeRowMenu();
+  services.closeRowMenu?.();
   const lbl = id ? state.labels.find(l => l.id === id) : null;
   if (id && !lbl) return;
   editingLabelId = id;
@@ -123,32 +187,44 @@ export function openLabelModal(id = null) {
   labelDraftColor = lbl ? lbl.color : LABEL_COLORS[state.labels.length % LABEL_COLORS.length];
   renderColorSwatches($('#label-colors'), labelDraftColor, pickLabelColor);
   labelModal.showModal();
-  if (!services.isMobileSidebar()) setTimeout(() => $('#label-name').focus(), 50);
+  if (!services.isMobileSidebar?.()) setTimeout(() => $('#label-name')?.focus(), 50);
 }
 
-$('#add-project-btn').onclick = () => openProjectModal(null);
-$('#save-project').onclick = () => {
+$('#add-project-btn')?.addEventListener('click', () => openProjectModal(null));
+$('#save-project')?.addEventListener('click', () => {
   const name = $('#project-name').value.trim();
   if (!name) { $('#project-name').focus(); return; }
+  const parentId = ($('#project-parent')?.value || '') || null;
 
   if (editingProjectId) {
     const proj = state.projects.find(p => p.id === editingProjectId);
     if (!proj) { projectModal.close(); return; }
+    if (!canNestUnder(proj.id, parentId)) return;
     proj.name = name;
     proj.color = projectDraftColor;
     proj.sections = projectDraftSections.map(s => ({ ...s }));
+    proj.parentId = parentId;
   } else {
-    state.projects.push({ id: 'proj_' + uid(), name, color: projectDraftColor, sections: projectDraftSections.map(s => ({ ...s })) });
+    state.projects.push({
+      id: 'proj_' + uid(),
+      name,
+      color: projectDraftColor,
+      sections: projectDraftSections.map(s => ({ ...s })),
+      parentId,
+      archived: false,
+      pinned: false,
+      viewLayout: null,
+    });
   }
   saveState();
   requestRender();
   projectModal.close();
-};
+});
 $$('.close-project-modal').forEach(b => b.onclick = () => projectModal.close());
-projectModal.addEventListener('close', () => { editingProjectId = null; });
+projectModal?.addEventListener('close', () => { editingProjectId = null; projectDraftParentId = null; });
 
-$('#add-label-btn').onclick = () => openLabelModal(null);
-$('#save-label').onclick = () => {
+$('#add-label-btn')?.addEventListener('click', () => openLabelModal(null));
+$('#save-label')?.addEventListener('click', () => {
   const name = $('#label-name').value.replace(/^@/, '').trim();
   if (!name) { $('#label-name').focus(); return; }
 
@@ -163,24 +239,57 @@ $('#save-label').onclick = () => {
   saveState();
   requestRender();
   labelModal.close();
-};
+});
 $$('.close-label-modal').forEach(b => b.onclick = () => labelModal.close());
-labelModal.addEventListener('close', () => { editingLabelId = null; });
+labelModal?.addEventListener('close', () => { editingLabelId = null; });
 
-// Enter submits either modal.
-$('#project-name').addEventListener('keydown', (e) => {
+$('#project-name')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); $('#save-project').click(); }
 });
-$('#label-name').addEventListener('keydown', (e) => {
+$('#label-name')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); $('#save-label').click(); }
 });
 
-export async function deleteProject(id) {
-  services.closeRowMenu();
+export function setProjectArchived(id, archived) {
   const proj = state.projects.find(p => p.id === id);
   if (!proj) return;
-  const affected = state.tasks.filter(t => t.projectId === id).length;
-  const extra = affected ? `\n\n${plural(affected, 'task')} will move to Inbox.` : '';
+  const ids = [id, ...projectDescendantIds(id)];
+  ids.forEach(pid => {
+    const p = state.projects.find(x => x.id === pid);
+    if (p) p.archived = !!archived;
+  });
+  if (archived && typeof state.ui.view === 'string' && state.ui.view.startsWith('project:')) {
+    const viewId = state.ui.view.slice(8);
+    if (ids.includes(viewId)) {
+      state.ui.view = 'inbox';
+      state.ui.search = '';
+      const searchInput = $('#search-input');
+      if (searchInput) searchInput.value = '';
+    }
+  }
+  saveState();
+  requestRender();
+}
+
+export async function deleteProject(id) {
+  services.closeRowMenu?.();
+  const proj = state.projects.find(p => p.id === id);
+  if (!proj) return;
+  const ids = [id, ...projectDescendantIds(id)];
+  const taskIds = new Set();
+  state.tasks.forEach(t => { if (ids.includes(t.projectId)) taskIds.add(t.id); });
+  // include subtasks of tasks in deleted projects
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const t of state.tasks) {
+      if (t.parentId && taskIds.has(t.parentId) && !taskIds.has(t.id)) { taskIds.add(t.id); changed = true; }
+    }
+  }
+  const extraParts = [];
+  if (ids.length > 1) extraParts.push(plural(ids.length - 1, 'sub-project'));
+  if (taskIds.size) extraParts.push(plural(taskIds.size, 'task'));
+  const extra = extraParts.length ? `\n\nThis will permanently delete ${extraParts.join(' and ')} inside it.` : '\n\nThis cannot be undone except via Undo.';
   const confirmed = services.confirmDialog
     ? await services.confirmDialog({
         title: 'Delete project',
@@ -192,12 +301,16 @@ export async function deleteProject(id) {
   if (!confirmed) return;
 
   const snapshot = snapshotData();
-  state.projects = state.projects.filter(p => p.id !== id);
-  state.tasks.forEach(t => { if (t.projectId === id) t.projectId = null; });
-  if (state.ui.view === `project:${id}`) {
-    state.ui.view = 'inbox';
-    state.ui.search = '';
-    $('#search-input').value = '';
+  state.tasks = state.tasks.filter(t => !taskIds.has(t.id));
+  state.projects = state.projects.filter(p => !ids.includes(p.id));
+  if (typeof state.ui.view === 'string' && state.ui.view.startsWith('project:')) {
+    const viewId = state.ui.view.slice(8);
+    if (ids.includes(viewId)) {
+      state.ui.view = 'inbox';
+      state.ui.search = '';
+      const searchInput = $('#search-input');
+      if (searchInput) searchInput.value = '';
+    }
   }
   saveState();
   requestRender();
@@ -205,7 +318,7 @@ export async function deleteProject(id) {
 }
 
 export async function deleteLabel(id) {
-  services.closeRowMenu();
+  services.closeRowMenu?.();
   const lbl = state.labels.find(l => l.id === id);
   if (!lbl) return;
   const affected = state.tasks.filter(t => (t.labels || []).includes(id)).length;
@@ -226,7 +339,8 @@ export async function deleteLabel(id) {
   if (state.ui.view === `label:${id}`) {
     state.ui.view = 'inbox';
     state.ui.search = '';
-    $('#search-input').value = '';
+    const searchInput = $('#search-input');
+    if (searchInput) searchInput.value = '';
   }
   saveState();
   requestRender();

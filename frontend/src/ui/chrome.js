@@ -292,6 +292,10 @@ $('#view-layout').addEventListener('click', (e) => {
   const layout = ['board', 'table'].includes(btn.dataset.layout) ? btn.dataset.layout : 'list';
   if (state.ui.layout === layout) return;
   state.ui.layout = layout;
+  if (typeof state.ui.view === 'string' && state.ui.view.startsWith('project:')) {
+    const proj = state.projects.find(p => p.id === state.ui.view.slice(8));
+    if (proj) proj.viewLayout = layout;
+  }
   saveState();
   requestRender();
   pulseViewIn();

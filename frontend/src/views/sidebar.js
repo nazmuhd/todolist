@@ -13,6 +13,54 @@ import { savedFilters, filterTaskCount } from '../features/filters.js';
 import { recordActivity } from '../core/activity.js';
 import { hasNoPriority } from '../core/priorities.js';
 
+function projectTreeRows(projects, archived = false) {
+  const active = projects.filter(p => !!p.archived === archived);
+  const byParent = new Map();
+  active.forEach(p => {
+    const key = p.parentId || '';
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(p);
+  });
+  for (const arr of byParent.values()) {
+    arr.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || a.name.localeCompare(b.name));
+  }
+  const rows = [];
+  const walk = (parentId, depth) => {
+    (byParent.get(parentId) || []).forEach(p => {
+      rows.push({ project: p, depth });
+      walk(p.id, depth + 1);
+    });
+  };
+  // Roots: prefer no parent; if orphaned in filtered set, still show.
+  walk('', 0);
+  const seen = new Set(rows.map(r => r.project.id));
+  active.filter(p => !seen.has(p.id)).sort((a,b)=>a.name.localeCompare(b.name)).forEach(p => rows.push({ project: p, depth: 0 }));
+  return rows;
+}
+
+function renderProjectRow(p, depth = 0) {
+  const count = state.tasks.filter(t => !t.parentId && !t.completed && t.projectId === p.id).length;
+  const active = state.ui.view === `project:${p.id}`;
+  const indent = Math.min(depth, 4) * 14;
+  return `
+  <div class="group relative" data-entry-id="${escapeHtml(p.id)}" data-project-depth="${depth}">
+    <a href="#" data-view="project:${escapeHtml(p.id)}" title="${escapeHtml(p.name)}" style="padding-left:${8 + indent}px" class="nav-item flex items-center gap-2 py-1.5 pr-12 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''} ${p.archived ? 'opacity-70' : ''}">
+      <i data-lucide="${p.archived ? 'archive' : 'hash'}" class="w-4 h-4 flex-shrink-0" style="color:${escapeHtml(p.color)}"></i>
+      <span class="sidebar-hide truncate flex-1">${escapeHtml(p.name)}</span>
+      ${p.pinned && !p.archived ? '<i data-lucide="star" class="sidebar-hide w-3 h-3 flex-shrink-0 text-amber-500" fill="currentColor" title="Pinned"></i>' : ''}
+      <span class="sidebar-hide text-xs text-td-muted">${count || ''}</span>
+    </a>
+    ${!p.archived ? `<button type="button" class="project-quick-add sidebar-hide absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
+      data-project-id="${escapeHtml(p.id)}" title="Add task to ${escapeHtml(p.name)}" aria-label="Add task to ${escapeHtml(p.name)}">
+      <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+    </button>` : ''}
+    <button type="button" class="sidebar-hide row-menu-btn absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
+      data-menu-type="project" data-menu-id="${escapeHtml(p.id)}" title="Project actions" aria-label="Project actions">
+      <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+    </button>
+  </div>`;
+}
+
 export function renderSidebar() {
   // counts
   const inboxCount = state.tasks.filter(t => !t.parentId && !t.projectId && !t.completed).length;
@@ -34,31 +82,27 @@ export function renderSidebar() {
     el.classList.toggle('font-medium', isActive);
   });
 
-  // projects (pinned first, stable among the rest)
+  // projects: active hierarchy + archived section
   const pl = document.getElementById('projects-list');
-  pl.innerHTML = [...state.projects]
-    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
-    .map(p => {
-      const count = state.tasks.filter(t => !t.parentId && !t.completed && t.projectId === p.id).length;
-      const active = state.ui.view === `project:${p.id}`;
-      return `
-      <div class="group relative" data-entry-id="${escapeHtml(p.id)}">
-        <a href="#" data-view="project:${escapeHtml(p.id)}" title="${escapeHtml(p.name)}" class="nav-item flex items-center gap-2 px-2 py-1.5 pr-12 rounded hover:bg-gray-200/60 text-sm ${active ? 'bg-red-50 text-td-red font-medium' : ''}">
-          <i data-lucide="hash" class="w-4 h-4 flex-shrink-0" style="color:${escapeHtml(p.color)}"></i>
-          <span class="sidebar-hide truncate flex-1">${escapeHtml(p.name)}</span>
-          ${p.pinned ? '<i data-lucide="star" class="sidebar-hide w-3 h-3 flex-shrink-0 text-amber-500" fill="currentColor" title="Pinned"></i>' : ''}
-          <span class="sidebar-hide text-xs text-td-muted">${count || ''}</span>
-        </a>
-        <button type="button" class="project-quick-add sidebar-hide absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
-          data-project-id="${escapeHtml(p.id)}" title="Add task to ${escapeHtml(p.name)}" aria-label="Add task to ${escapeHtml(p.name)}">
-          <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+  const activeRows = projectTreeRows(state.projects, false);
+  const archivedRows = projectTreeRows(state.projects, true);
+  const showArchived = !!state.ui.showArchivedProjects;
+  pl.innerHTML = activeRows.map(({ project, depth }) => renderProjectRow(project, depth)).join('')
+    + (archivedRows.length ? `
+      <div class="mt-2 pt-2 border-t border-td-border/60">
+        <button type="button" id="toggle-archived-projects" class="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200/60 text-xs text-td-muted">
+          <i data-lucide="${showArchived ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5"></i>
+          <span class="sidebar-hide flex-1 text-left">Archived projects</span>
+          <span class="sidebar-hide">${archivedRows.length}</span>
         </button>
-        <button type="button" class="sidebar-hide row-menu-btn absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-td-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto hover:text-td-text"
-          data-menu-type="project" data-menu-id="${escapeHtml(p.id)}" title="Project actions" aria-label="Project actions">
-          <i data-lucide="more-horizontal" class="w-4 h-4"></i>
-        </button>
-      </div>`;
-    }).join('');
+        ${showArchived ? `<div class="mt-1 space-y-0.5">${archivedRows.map(({ project, depth }) => renderProjectRow(project, depth)).join('')}</div>` : ''}
+      </div>` : '');
+  document.getElementById('toggle-archived-projects')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    state.ui.showArchivedProjects = !state.ui.showArchivedProjects;
+    saveState();
+    requestRender();
+  });
 
   // saved filters
   const fl = document.getElementById('filters-list');
@@ -118,7 +162,7 @@ export function renderSidebar() {
       e.preventDefault();
       e.stopPropagation();
       services.navigateTo(`project:${btn.dataset.projectId}`);
-      services.closeMobileSidebar();
+      services.closeMobileSidebar?.();
       services.openQuickAdd();
     };
   });
@@ -163,9 +207,9 @@ function bindSidebarDropTargets() {
   });
 }
 
-/** Lets projects and labels be dragged into a new order. */
+/** Lets labels be dragged into a new order. Project order follows hierarchy. */
 function bindSidebarSortables() {
-  [['#projects-list', 'projects'], ['#labels-list', 'labels']].forEach(([sel, kind]) => {
+  [['#labels-list', 'labels']].forEach(([sel, kind]) => {
     const el = document.querySelector(sel);
     if (!el) return;
     if (el._sortable) { el._sortable.destroy(); el._sortable = null; }
@@ -175,12 +219,11 @@ function bindSidebarSortables() {
       filter: 'button',
       onEnd: () => {
         const ids = [...el.querySelectorAll(':scope > div')].map(d => d.dataset.entryId).filter(Boolean);
-        const list = kind === 'projects' ? state.projects : state.labels;
+        const list = kind === 'labels' ? state.labels : [];
         const byId = new Map(list.map(x => [x.id, x]));
         const next = ids.map(i => byId.get(i)).filter(Boolean);
         list.forEach(x => { if (!ids.includes(x.id)) next.push(x); });
-        if (kind === 'projects') state.projects = next;
-        else state.labels = next;
+        state.labels = next;
         saveState();
         requestRender();
       },

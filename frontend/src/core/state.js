@@ -75,7 +75,7 @@ export function clearPendingUndo() {
 export let pendingUndo = null;
 export function setPendingUndo(value) { pendingUndo = value; }
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 
 export const MIGRATIONS = {
@@ -164,6 +164,16 @@ export const MIGRATIONS = {
     });
     return s;
   },
+  // v9 -> v10 (project hierarchy, archiving, per-project layout).
+  9: (s) => {
+    (Array.isArray(s.projects) ? s.projects : []).forEach((p) => {
+      if (!p || typeof p !== 'object') return;
+      if (p.parentId === undefined) p.parentId = null;
+      if (p.archived === undefined) p.archived = false;
+      if (p.viewLayout === undefined) p.viewLayout = null;
+    });
+    return s;
+  },
 };
 
 
@@ -171,8 +181,8 @@ export function defaultState() {
   return {
     version: SCHEMA_VERSION,
     projects: [
-      { id: 'proj_default', name: 'Work', color: '#246fe0' },
-      { id: 'proj_home', name: 'Personal', color: '#058527' },
+      { id: 'proj_default', name: 'Work', color: '#246fe0', parentId: null, archived: false, viewLayout: null },
+      { id: 'proj_home', name: 'Personal', color: '#058527', parentId: null, archived: false, viewLayout: null },
     ],
     labels: [
       { id: 'lbl_urgent', name: 'urgent', color: '#db4c3f' },
@@ -203,11 +213,40 @@ export function normalizeState(s) {
       name: asText(p.name).trim() || 'Untitled project',
       color: cleanColor(p.color, PROJECT_COLORS[i % PROJECT_COLORS.length]),
       pinned: !!p.pinned,
+      archived: !!p.archived,
+      parentId: asText(p.parentId) || null,
+      viewLayout: ['list', 'board', 'table', 'calendar'].includes(asText(p.viewLayout)) ? asText(p.viewLayout) : null,
       sections: (Array.isArray(p.sections) ? p.sections : [])
         .filter(x => x && typeof x === 'object' && asText(x.id))
         .map(x => ({ id: asText(x.id), name: asText(x.name).trim() || 'Untitled section' })),
     });
   });
+
+  // Validate project hierarchy: existing parent, no cycles, max depth 4.
+  const byId = new Map(projects.map(p => [p.id, p]));
+  const depthCache = new Map();
+  const depthOf = (id, seen = new Set()) => {
+    if (!id || !byId.has(id)) return 0;
+    if (depthCache.has(id)) return depthCache.get(id);
+    if (seen.has(id)) return Infinity; // cycle
+    seen.add(id);
+    const p = byId.get(id);
+    const parentId = p.parentId && byId.has(p.parentId) ? p.parentId : null;
+    const d = parentId ? depthOf(parentId, seen) + 1 : 0;
+    depthCache.set(id, d);
+    return d;
+  };
+  projects.forEach(p => {
+    if (p.parentId === p.id || !byId.has(p.parentId)) p.parentId = null;
+  });
+  projects.forEach(p => {
+    // Depth 0 = root; Todoist allows up to 4 levels deep total.
+    const d = depthOf(p.id);
+    if (!Number.isFinite(d) || d > 3) p.parentId = null;
+  });
+  // Recompute once after repairs.
+  depthCache.clear();
+  projects.forEach(p => { if (!Number.isFinite(depthOf(p.id))) p.parentId = null; });
 
   const labels = [];
   const labelIds = new Set();

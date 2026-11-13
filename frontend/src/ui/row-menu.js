@@ -6,7 +6,7 @@ import { state, saveState } from '../core/state.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { savedFilters, deleteFilter, openFilterEditor } from '../features/filters.js';
-import { openProjectModal, openLabelModal, deleteProject, deleteLabel } from '../features/projects.js';
+import { openProjectModal, openLabelModal, deleteProject, deleteLabel, setProjectArchived } from '../features/projects.js';
 import { openSaveProjectTemplateModal, applyTemplate, deleteTemplate, duplicateTemplate, openTemplateEditor } from '../features/templates.js';
 import { positionBelowTrigger } from './menus.js';
 
@@ -52,6 +52,9 @@ export function openRowMenu(trigger, type, id) {
     <button type="button" data-row-action="edit" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
       <i data-lucide="pencil" class="w-3.5 h-3.5 text-td-muted"></i>Edit ${isProject ? 'project' : 'label'}
     </button>
+    ${isProject ? `<button type="button" data-row-action="archive-project" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
+      <i data-lucide="archive" class="w-3.5 h-3.5 text-td-muted"></i>${entry.archived ? 'Unarchive project' : 'Archive project'}
+    </button>` : ''}
     ${isProject ? `<button type="button" data-row-action="template" class="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2">
       <i data-lucide="copy-plus" class="w-3.5 h-3.5 text-td-muted"></i>Save as template
     </button>` : ''}
@@ -96,6 +99,12 @@ rowMenu.addEventListener('click', (e) => {
     if (type === 'project') openProjectModal(id);
     else if (type === 'filter') openFilterEditor(id);
     else openLabelModal(id);
+    return;
+  }
+  if (action === 'archive-project') {
+    closeRowMenu();
+    const proj = state.projects.find(p => p.id === id);
+    if (proj) setProjectArchived(id, !proj.archived);
     return;
   }
   if (action === 'template') {

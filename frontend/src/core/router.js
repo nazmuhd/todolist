@@ -65,6 +65,12 @@ export function applyHash() {
   state.ui.view = view;
   state.ui.search = q;
   state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
+  if (typeof view === 'string' && view.startsWith('project:')) {
+    const proj = state.projects.find(p => p.id === view.slice(8));
+    if (proj?.viewLayout && ['list', 'board', 'table'].includes(proj.viewLayout)) {
+      state.ui.layout = proj.viewLayout;
+    }
+  }
   const input = $('#search-input');
   if (input) input.value = q;
   saveState();
@@ -83,6 +89,14 @@ export function navigateTo(view) {
   state.ui.view = view;
   state.ui.search = '';
   state.ui.sort = (state.ui.sortByView && state.ui.sortByView[view]) || 'manual';
+  if (typeof view === 'string' && view.startsWith('project:')) {
+    const proj = state.projects.find(p => p.id === view.slice(8));
+    if (proj?.viewLayout && ['list', 'board', 'table'].includes(proj.viewLayout)) {
+      state.ui.layout = proj.viewLayout;
+    } else {
+      state.ui.layout = state.ui.layout || 'list';
+    }
+  }
   $('#search-input').value = '';
   saveState();
   requestRender();

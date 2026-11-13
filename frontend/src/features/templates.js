@@ -234,7 +234,17 @@ export function applyTemplate(id) {
       if (s.name) sectionMap.set(asText(s.name), sectionId);
       return { id: sectionId, name: asText(s.name).trim() || 'Untitled section' };
     });
-    state.projects.push({ id: projectId, name: asText(template.name).trim() || 'Project', color: asText(template.color) || '#246fe0', sections });
+    const layout = ['list', 'board', 'table'].includes(asText(template.layout)) ? asText(template.layout) : 'list';
+    state.projects.push({
+      id: projectId,
+      name: asText(template.projectName || template.name).trim() || 'Project',
+      color: asText(template.projectColor || template.color) || '#246fe0',
+      sections,
+      pinned: false,
+      archived: false,
+      parentId: null,
+      viewLayout: layout === 'list' ? null : layout,
+    });
 
     const taskIdMap = new Map();
     const items = (Array.isArray(template.tasks) ? template.tasks : []).map((item, i) => ({ ...item, _i: i }));
