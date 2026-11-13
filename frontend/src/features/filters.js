@@ -13,25 +13,35 @@ import { uid } from '../core/app.js';
 import { requestRender } from '../core/render.js';
 import { services } from '../core/services.js';
 import { showToast } from '../core/toasts.js';
-import { savedFilters, setSavedFilters, findSavedFilter } from '../core/saved-filters.js';
+import { savedFilters, setSavedFilters, findSavedFilter, normalizeSavedFilter, persistSavedFilters } from '../core/saved-filters.js';
 
 /* ============================================================
    SAVED FILTERS
    Stored beside the app state so the task schema stays untouched.
    ============================================================ */
 
-/** Reads the saved filters from the store. */
+/**
+ * Migrates legacy doc-stored filters into `state.filters` (one-time) and keeps
+ * the shared saved-filters array in sync. Filters are now synced entities.
+ */
 export async function loadSavedFilters() {
-  const raw = await store.getDoc(store.keys.filters);
-  if (!Array.isArray(raw)) {
-    setSavedFilters([]);
-    return;
+  try {
+    const raw = await store.getDoc(store.keys.filters);
+    const legacy = Array.isArray(raw) ? raw.map(normalizeSavedFilter).filter(Boolean) : [];
+    if (legacy.length && (!Array.isArray(state.filters) || state.filters.length === 0)) {
+      state.filters = legacy;
+      setSavedFilters(state.filters);
+      state.filters = savedFilters;
+      saveState();
+      // Leave legacy doc in place harmlessly; entity sync is now source of truth.
+      return;
+    }
+  } catch (err) {
+    console.error('Could not read legacy saved filters:', err);
   }
-  setSavedFilters(raw);
-}
-
-export function persistSavedFilters() {
-  store.setDoc(store.keys.filters, savedFilters).catch(err => console.error('Could not save filters:', err));
+  // Ensure mirror matches current state (state may be loaded/replaced later).
+  setSavedFilters(state.filters);
+  state.filters = savedFilters;
 }
 
 /** How many open tasks a saved filter currently matches. */
@@ -44,27 +54,31 @@ export function filterTaskCount(query) {
 export function upsertSavedFilter(id, name, query) {
   const existing = findSavedFilter(id);
   if (existing) {
-    existing.name = name;
-    existing.query = query;
+    existing.name = name.trim();
+    existing.query = query.trim();
   } else {
-    savedFilters.push({ id, name, query, pinned: false, layout: null, sort: null });
+    savedFilters.push({ id, name: name.trim(), query: query.trim(), pinned: false, layout: null, sort: null });
   }
-  persistSavedFilters();
+  // shared array is state.filters; persist via state save.
+  state.filters = savedFilters;
+  saveState();
 }
 
 export function toggleFilterPinned(id) {
   const filter = findSavedFilter(id);
   if (!filter) return;
   filter.pinned = !filter.pinned;
-  persistSavedFilters();
+  state.filters = savedFilters;
+  saveState();
 }
 
 export function deleteSavedFilter(id) {
   setSavedFilters(savedFilters.filter(f => f.id !== id));
-  persistSavedFilters();
+  state.filters = savedFilters;
+  saveState();
 }
 
-export { savedFilters, findSavedFilter };
+export { savedFilters, findSavedFilter, persistSavedFilters };
 
 /* ============================================================
    SAVED FILTER UI
@@ -140,10 +154,9 @@ export function saveFilterFromModal() {
   }
   const editing = editingFilterId;
   const id = editing || `filter_${uid()}`;
-  upsertSavedFilter(id, name, query);
+  upsertSavedFilter(id, name, query); // saves state
   editingFilterId = null;
   closeFilterModal();
-  saveState();
   services.navigateTo(`filter:${id}`);
   showToast(editing ? 'Filter updated' : 'Filter saved', 'success');
 }

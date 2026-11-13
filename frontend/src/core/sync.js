@@ -19,14 +19,14 @@ import { state, setState, defaultState } from './state.js';
 import { requestRender } from './render.js';
 
 const META_KEY = 'todoist-clone-sync-meta';
-const ENTITIES = ['projects', 'labels', 'tasks', 'templates'];
+const ENTITIES = ['projects', 'labels', 'tasks', 'templates', 'filters'];
 const DEBOUNCE_MS = 400;
 const MAX_PUSH_ATTEMPTS = 3;
 const SYNC_PAGE_SIZE = 100;
 const MAX_PULL_PAGES = 1000;
 
 let cursor = 0;
-let revs = { projects: {}, labels: {}, tasks: {}, templates: {} };
+let revs = { projects: {}, labels: {}, tasks: {}, templates: {}, filters: {} };
 let snapshot = null;
 let enabled = false;
 let metaLoaded = false;
@@ -34,7 +34,7 @@ let running = null;
 let timer = null;
 
 function emptyRevs() {
-  return { projects: {}, labels: {}, tasks: {}, templates: {} };
+  return { projects: {}, labels: {}, tasks: {}, templates: {}, filters: {} };
 }
 
 function currentMaps() {
@@ -89,12 +89,13 @@ async function request(path, options) {
  */
 function applyFeed(changes, { replace = false } = {}) {
   const next = replace
-    ? { projects: [], labels: [], tasks: [], templates: [] }
+    ? { projects: [], labels: [], tasks: [], templates: [], filters: [] }
     : {
         projects: [...state.projects],
         labels: [...state.labels],
         tasks: [...state.tasks],
         templates: [...(state.templates || [])],
+        filters: [...(state.filters || [])],
       };
 
   let changed = replace;
@@ -134,6 +135,7 @@ function applyFeed(changes, { replace = false } = {}) {
     labels: next.labels,
     tasks: next.tasks,
     templates: next.templates,
+    filters: next.filters,
   });
   return { changed: true, applied };
 }
@@ -152,6 +154,7 @@ function buildSnapshot(pushed, applied) {
     labels: { ...(pushed?.labels || {}) },
     tasks: { ...(pushed?.tasks || {}) },
     templates: { ...(pushed?.templates || {}) },
+    filters: { ...(pushed?.filters || {}) },
   };
   for (const record of applied || []) {
     const bucket = snapshot[record.entity];
@@ -172,6 +175,7 @@ function buildSnapshot(pushed, applied) {
 function hasLocalWork() {
   if ((state.tasks || []).length > 0) return true;
   if ((state.templates || []).length > 0) return true;
+  if ((state.filters || []).length > 0) return true;
 
   const defaults = defaultState();
   const sameList = (list, seed) => {
@@ -192,7 +196,7 @@ function hasLocalWork() {
  * longer exist on the server.
  */
 function baselineFromPages(pages) {
-  const baseline = { projects: {}, labels: {}, tasks: {}, templates: {} };
+  const baseline = { projects: {}, labels: {}, tasks: {}, templates: {}, filters: {} };
   for (const page of pages) {
     for (const entity of ENTITIES) {
       for (const row of page.changes?.[entity] || []) {
@@ -219,7 +223,7 @@ function revsFromPages(pages) {
 
 function collectChanges(baseline, { allowDeletes = true } = {}) {
   const current = currentMaps();
-  const previous = baseline || snapshot || { projects: {}, labels: {}, tasks: {}, templates: {} };
+  const previous = baseline || snapshot || { projects: {}, labels: {}, tasks: {}, templates: {}, filters: {} };
   const changes = {};
   let count = 0;
 

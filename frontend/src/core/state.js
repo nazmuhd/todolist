@@ -9,8 +9,9 @@ import { taskReminders, normalizeRecurrenceEnd, normalizeReminder, cleanRecurren
 import { reminderAt } from './dates.js';
 import { cleanDueTime, cleanDuration, cleanReminderMinutes, cleanTimeZone, DATE_RE } from './dates.js';
 import { asText, cleanColor, clampPriority, PROJECT_COLORS, LABEL_COLORS, PRIORITY_LEVEL_COLORS } from './text.js';
-import { savedFilterIds } from './saved-filters.js';
+// saved filter ids are derived from normalized state (see normalizeState) to avoid a state<->saved-filters cycle.
 import { services } from './services.js';
+import { syncSavedFiltersState, bindSavedFiltersPersistence } from './saved-filters.js';
 
 // The undo layer registers a hook so a save can retire a stale snapshot
 // without state.js importing it (which would be a cycle). Actions that offer
@@ -75,7 +76,7 @@ export function clearPendingUndo() {
 export let pendingUndo = null;
 export function setPendingUndo(value) { pendingUndo = value; }
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 
 export const MIGRATIONS = {
@@ -174,6 +175,11 @@ export const MIGRATIONS = {
     });
     return s;
   },
+  // v10 -> v11 (saved filters as synced entities in state).
+  10: (s) => {
+    if (!Array.isArray(s.filters)) s.filters = [];
+    return s;
+  },
 };
 
 
@@ -189,6 +195,7 @@ export function defaultState() {
     ],
     tasks: [],
     templates: [],
+    filters: [],
     priorityLevels: [],
     ui: { view: 'inbox', activeId: null, search: '', layout: 'list', sort: 'manual', sortByView: {}, calendarScale: 'month' },
     updatedAt: 0,
@@ -270,6 +277,18 @@ export function normalizeState(s) {
     }));
   const priorityLevelIds = new Set(priorityLevels.map(l => l.id));
 
+  const filters = (Array.isArray(s.filters) ? s.filters : [])
+    .filter(f => f && typeof f === 'object' && asText(f.id) && asText(f.name).trim() && typeof f.query === 'string' && f.query.trim())
+    .map(f => ({
+      id: asText(f.id),
+      name: asText(f.name).trim(),
+      query: String(f.query).trim(),
+      pinned: !!f.pinned,
+      layout: ['list', 'board', 'table'].includes(asText(f.layout)) ? asText(f.layout) : null,
+      sort: ['manual', 'date', 'priority', 'name', 'added'].includes(asText(f.sort)) ? asText(f.sort) : null,
+    }));
+  const filterIdSet = new Set(filters.map(f => f.id));
+
   const tasks = [];
   const taskIds = new Set();
   (Array.isArray(s.tasks) ? s.tasks : []).forEach((t, i) => {
@@ -344,7 +363,7 @@ export function normalizeState(s) {
     view === 'activity' || view === 'completed' || view === 'no-date' || view === 'no-priority' ||
     (view.startsWith('project:') && projectIds.has(view.slice(8))) ||
     (view.startsWith('label:') && labelIds.has(view.slice(6))) ||
-    (view.startsWith('filter:') && savedFilterIds().includes(view.slice(7)));
+    (view.startsWith('filter:') && filterIdSet.has(view.slice(7)));
   if (!knownView) view = 'inbox';
 
   const asInt = (v) => (Number.isInteger(v) ? v : null);
@@ -428,6 +447,7 @@ export function normalizeState(s) {
     labels,
     tasks,
     templates,
+    filters,
     priorityLevels,
     ui: {
       view,
@@ -475,4 +495,7 @@ export let state = defaultState();
 
 export function setState(next) {
   state = next;
+  syncSavedFiltersState(state);
 }
+
+bindSavedFiltersPersistence(() => saveState());

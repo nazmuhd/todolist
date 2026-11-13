@@ -165,16 +165,17 @@ async function init() {
   // A notification action link is handled after the data is loaded.
   const pendingAction = actionFromHash();
 
-  // Filters must be known before the state is read: a saved filter can be
-  // the active view, and the state loader validates the view name.
-  await loadSavedFilters();
-
   const loaded = await loadState();
   setState(loaded.state);
+
+  // Migrate legacy doc-stored filters into synced state.filters (one-time).
+  await loadSavedFilters();
 
   await loadUndoHistory();
   await loadActivity();
   await loadSettings();
+  // Re-sync saved-filters mirror after load/migration (idempotent).
+  await loadSavedFilters();
   applyTheme();
   initConfirmDialog();
   await initChrome({ renderSortMenu, supportsBoard, renderMain });

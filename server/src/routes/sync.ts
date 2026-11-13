@@ -30,6 +30,7 @@ const changesBodySchema = z.object({
     labels: z.array(entityChangeSchema).max(5000).optional(),
     tasks: z.array(entityChangeSchema).max(5000).optional(),
     templates: z.array(entityChangeSchema).max(5000).optional(),
+    filters: z.array(entityChangeSchema).max(5000).optional(),
   }).strict(),
 }).strict();
 
