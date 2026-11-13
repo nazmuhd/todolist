@@ -113,16 +113,37 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expired ON sessions(expired);
 
 ## 5. Functional Requirements & API Specification
 
-| Method | Endpoint | Auth Required | Rate Limited | Purpose |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/auth/register` | No | Yes | Validates input, accepts `firstName`/`lastName` (and legacy `name` fallback), hashes password with `argon2id`, creates user, and initializes session. |
-| `POST` | `/auth/login` | No | Yes | Authenticates via `passport-local` (`argon2id` or `bcrypt` upgrade), regenerates session, and sets cookie. |
-| `POST` | `/auth/forgot-password` | No | Yes | Generates a 32-byte token, stores its SHA-256 hash, and dispatches a branded reset email via Resend (HTML + plain text). |
-| `POST` | `/auth/reset-password` | No | Yes | Validates token hash & expiration, updates password to `argon2id`, consumes the reset token, and invalidates active sessions. |
-| `GET` | `/auth/me` | Yes | No | Returns current authenticated user profile (`id`, `email`, `name`, `first_name`, `last_name`, `avatar_url`, `email_verified`, `created_at`). |
-| `PUT` | `/auth/profile` | Yes | No | Updates the authenticated user's profile name fields (`firstName`/`lastName`, with `name` fallback) and persists `first_name`, `last_name`, and combined `name` in the database. |
-| `POST` | `/auth/change-password` | Yes | Yes | Verifies current password, updates password hash to `argon2id`, invalidates all sessions (including current), logs out/destroys session, clears cookie, and requires re-login. |
-| `POST` | `/auth/logout` | Yes | No | Destroys session in SQLite and clears browser cookie. |
+### Auth/session endpoints
+
+| Method | Endpoint | Auth Required | Rate Limited | CSRF Required | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/auth/csrf` | No (session-backed) | No | No | Ensures a session exists and returns a synchronizer CSRF token for subsequent unsafe requests. |
+| `POST` | `/auth/register` | No | Yes (`/auth` limiter) | Yes | Validates input, accepts `firstName`/`lastName` (and legacy `name` fallback), hashes password with `argon2id`, creates user, and initializes session. |
+| `POST` | `/auth/login` | No | Yes (`/auth` limiter) | Yes | Authenticates via `passport-local` (`argon2id` or `bcrypt` upgrade), regenerates session, and sets cookie. |
+| `POST` | `/auth/forgot-password` | No | Yes (`/auth` limiter) | Yes | Generates a 32-byte token, stores its SHA-256 hash, and dispatches a branded reset email via Resend (HTML + plain text). |
+| `POST` | `/auth/reset-password` | No | Yes (`/auth` limiter) | Yes | Validates token hash & expiration, updates password to `argon2id`, consumes the reset token, and invalidates active sessions. |
+| `GET` | `/auth/me` | Yes | No (global `/api` limiter does not apply) | No | Returns current authenticated user profile (`id`, `email`, `name`, `first_name`, `last_name`, `avatar_url`, `email_verified`, `created_at`). |
+| `PUT` | `/auth/profile` | Yes | No | Yes | Updates the authenticated user's profile name fields (`firstName`/`lastName`, with `name` fallback) and persists `first_name`, `last_name`, and combined `name` in the database. |
+| `POST` | `/auth/change-password` | Yes | Yes (`/auth` limiter) | Yes | Verifies current password, updates password hash to `argon2id`, invalidates all sessions (including current), logs out/destroys session, clears cookie, and requires re-login. |
+| `POST` | `/auth/logout` | Yes | No | Yes | Destroys session in SQLite and clears browser cookie. |
+
+### CSRF, origin checks, and request protection
+- `GET /auth/csrf` creates/returns a session-backed synchronizer token (`X-CSRF-Token`) stored in the server session.
+- Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) require:
+  - An allowed `Origin`/`Referer` when present (checked against configured allowed origins / host rules), and
+  - A matching `X-CSRF-Token` header value equal to the session CSRF token.
+- CSRF enforcement runs after session/passport middleware so the session token is available for validation.
+- SPA and landing/reset flows fetch and attach CSRF tokens for unsafe auth/API requests.
+
+### Validation and abuse controls
+- Request bodies/params/queries for auth and API routes are validated with **Zod v4** schemas (with route-specific compatibility where tests/clients depend on existing behavior).
+- Password policy for new/changed passwords: **8–200 characters** and must include **at least one letter and one number**.
+- Rate limiting:
+  - Dedicated `/auth` limiter for authentication-sensitive endpoints.
+  - General `/api` limiter for API abuse control (in-memory store; suitable for single-instance deployments).
+
+### Per-user data isolation
+- Authenticated `/api/*` routes are scoped to the logged-in user (per-user sync/state/docs/blobs/push data isolation).
 
 ---
 
@@ -539,11 +560,31 @@ app.listen(PORT, () => {
 - **UI:** The frontend includes authenticated landing/auth pages and app-side profile settings. Password changes are handled in a separate **Security** modal (moved out of Profile settings) and call `POST /auth/change-password`.
 - **Password reset email:** Forgot-password sends a branded HTML + plain-text email via Resend. The template includes a centered inline CID logo (loaded from `frontend/public/images/logo.png` when available, with URL fallback), personalized greeting, CTA/reset link, expiry/security messaging, and fallback link text.
 - **Session invalidation:** Password reset invalidates existing sessions. Password change updates credentials, invalidates **all** user sessions (including current), logs out/destroys the current session, clears the auth cookie, and requires the user to log in again.
+- **CSRF/origin enforcement:** Unsafe requests require a valid session-backed `X-CSRF-Token` and pass origin/referer checks (when present). SPA/landing/reset flows fetch and send CSRF tokens.
+- **Security headers/CSP:** Helmet is enabled with CSP and additional response headers (including `Referrer-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`). CSP currently allows required external assets/scripts/styles for the existing frontend (Tailwind CDN, jsDelivr, Google Fonts) and `style-src 'unsafe-inline'`; tightening/removing these dependencies remains a follow-up hardening task.
+- **SQLite hardening:** Database initialization enables WAL, foreign keys, busy timeout, and `synchronous=NORMAL`; best-effort restrictive file/directory permissions are applied for non-memory databases.
+- **Error handling:** Client-facing 5xx responses are sanitized to avoid leaking internal error details; server-side logging retains diagnostics.
+- **Dependency posture:** Server dependencies have been updated to remediate prior audit findings (including Zod v4 migration for validation code paths). Continue periodic `pnpm audit` and dependency maintenance.
 
 ## 8. Security & Acceptance Criteria
 
 1. **Zero Native Compilation:** Running `pnpm install` and starting the server works on Node.js with built-in `node:sqlite` (no `better-sqlite3`/`node-gyp` dependency).
 2. **Session Fixation Mitigation:** Login/registration flows regenerate session identifiers before establishing authenticated sessions.
-3. **Cryptographic Reset Tokens:** Raw reset tokens are never stored in plaintext; only SHA-256 hashes are persisted with expiration checks and transactional cleanup on use.
-4. **Session Invalidation on Credential Recovery/Change:** Password reset and password change invalidate sessions; password change requires re-authentication (logout + redirect to login in the UI flow).
-5. **Phase 2 Readiness (Google OAuth):** Nullable `password_hash` and existing profile/verification fields keep the schema compatible with future OAuth account-linking additions.
+3. **CSRF + Origin Defense (Defense in Depth):** Unsafe requests are protected by origin/referer checks and a session-backed synchronizer CSRF token (`X-CSRF-Token`) issued via `GET /auth/csrf`.
+4. **Cryptographic Reset Tokens:** Raw reset tokens are never stored in plaintext; only SHA-256 hashes are persisted with expiration checks and transactional cleanup on use.
+5. **Session Invalidation on Credential Recovery/Change:** Password reset and password change invalidate sessions; password change requires re-authentication (logout + redirect to login in the UI flow).
+6. **Password Policy & Hashing:** New/changed passwords require 8–200 chars with at least one letter and one number; passwords are stored as Argon2id hashes (with bcrypt verification/upgrade path for legacy hashes).
+7. **Validation & Abuse Controls:** Auth/API inputs are schema-validated (Zod v4), auth endpoints are rate-limited, and a general `/api` rate limiter provides baseline abuse protection (in-memory; shared/distributed store recommended for multi-instance deployments).
+8. **CSP/Security Headers:** Helmet CSP and additional security headers are enabled. Current CSP still permits `'unsafe-inline'` styles and required external frontend assets/CDNs; further tightening is a planned hardening step.
+9. **Phase 2 Readiness (Google OAuth):** Nullable `password_hash` and existing profile/verification fields keep the schema compatible with future OAuth account-linking additions.
+
+## 9. Verification Status & Remaining Hardening Tasks
+
+- **Automated verification:** Server test suite passes (including auth/CSRF/sync coverage) and dependency audit is clean at the time of the latest remediation commits.
+- **Smoke verification (non-browser):** CSRF endpoint issuance and key response security headers (CSP, Referrer-Policy, COOP, CORP) were verified via local app smoke checks.
+- **Pending manual/browser verification:** Full SPA and landing/reset/auth flow verification under CSP+CSRF in a browser (console/network/CSP violation checks, login/register/forgot/reset/logout/profile/password change/sync) is still recommended.
+- **Remaining hardening work:**
+  - Comprehensive SPA XSS sink audit/refactor for remaining untrusted render paths.
+  - CSP tightening (reduce/remove `style-src 'unsafe-inline'` and external CDN reliance where practical).
+  - Shared rate-limit store/tuning for multi-instance deployments.
+  - Continued request validation centralization and auth/session edge-case review.
