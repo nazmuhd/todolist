@@ -190,19 +190,12 @@
       </div>
     </nav>
 
-    <!-- Data backup. Export and import are icons; their labels live in the
-         tooltip, and Settings offers both as well. -->
-    <div class="sidebar-footer px-2 py-2 flex items-center gap-1 text-xs flex-shrink-0">
-      <button id="export-data-btn" class="flex-1 flex items-center justify-center p-2 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Export a backup of all tasks" aria-label="Export">
-        <i data-lucide="download" class="w-3.5 h-3.5"></i>
-      </button>
-      <button id="import-data-btn" class="flex-1 flex items-center justify-center p-2 rounded text-td-muted hover:bg-gray-200/60 hover:text-td-text" title="Import a backup, or a Todoist export" aria-label="Import">
-        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
-      </button>
-      <span id="schema-badge" class="ml-1 pr-1 text-[10px] text-td-muted" title="Data schema version"></span>
-      <button id="settings-btn" class="text-td-muted hover:text-td-text p-1 ml-1" title="Settings" aria-label="Settings">
-        <i data-lucide="settings" class="w-3.5 h-3.5"></i>
-      </button>
+    <!-- Hidden hooks for export/import so the profile menu and dialogs still work. -->
+    <div class="hidden">
+      <button id="settings-btn" aria-hidden="true"></button>
+      <button id="export-data-btn" aria-hidden="true"></button>
+      <button id="import-data-btn" aria-hidden="true"></button>
+      <span id="schema-badge"></span>
     </div>
 
     <!-- The collapsed rail hides the footer, so the settings button moves
