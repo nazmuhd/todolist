@@ -7,6 +7,8 @@ import argon2 from 'argon2';
 import bcrypt from 'bcrypt';
 import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { Resend } from 'resend';
 import { getDb } from '../db/index.ts';
 import { config } from '../config.ts';
@@ -71,9 +73,12 @@ function getResetPasswordHtml({
       <td align="center" style="padding: 40px 16px;">
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="520" class="email-container" style="max-width: 520px; width: 100%; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
           <tr>
-            <td align="left" style="padding: 36px 40px 0 40px;" class="content-padding">
+            <td align="center" style="padding: 36px 40px 0 40px; text-align: center;" class="content-padding">
               <a href="${safeAppUrl}" target="_blank" style="text-decoration: none; display: inline-block;">
-                <img src="${safeLogoUrl}" alt="${safeAppName} Logo" width="140" height="36" style="display: block; border-radius: 6px; font-family: sans-serif; font-size: 16px; font-weight: bold; color: #dc4c3e;">
+                <span style="display: inline-block; vertical-align: middle;">
+                  <img src="${safeLogoUrl}" alt="${safeAppName} Logo" width="28" height="28" style="display: block; border-radius: 6px; font-family: sans-serif; font-size: 14px; font-weight: bold; color: #dc4c3e;">
+                </span>
+                <span style="display: inline-block; vertical-align: middle; margin-left: 10px; font-size: 18px; font-weight: 700; line-height: 1; color: #202020; letter-spacing: -0.02em;">${safeAppName}</span>
               </a>
             </td>
           </tr>
@@ -154,6 +159,26 @@ function getResetPasswordText({
     '',
     `Open ${appName}: ${appUrl}`,
   ].join('\n');
+}
+
+let cachedLogoPath: string | null | undefined;
+function getLogoPath(): string | null {
+  if (cachedLogoPath !== undefined) return cachedLogoPath;
+  const candidates = [
+    path.resolve(process.cwd(), 'frontend/public/images/logo.png'),
+    path.resolve(process.cwd(), '../frontend/public/images/logo.png'),
+    path.resolve(process.cwd(), '../../frontend/public/images/logo.png'),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) {
+        cachedLogoPath = p;
+        return p;
+      }
+    } catch {}
+  }
+  cachedLogoPath = null;
+  return null;
 }
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: config.authRateMax, message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' }, standardHeaders: true, legacyHeaders: false });
@@ -276,16 +301,22 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     const resetLink = `${baseUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
     if (process.env.EMAIL_DRY_RUN === '1' && !config.isProduction) return res.json({ ...generic, dev_reset_link: resetLink });
     const appUrl = baseUrl;
-    const logoUrl = `${baseUrl}/images/logo.png`;
     const userName = user.first_name || user.name || 'there';
     const appName = 'Todolist';
     const resend = new Resend(config.RESEND_API_KEY!);
+    const logoPath = getLogoPath();
+    const logoContentId = 'todolist-logo';
+    const logoUrl = logoPath ? `cid:${logoContentId}` : `${baseUrl}/images/logo.png`;
+    const attachments = logoPath
+      ? [{ content: fs.readFileSync(logoPath), filename: 'logo.png', contentId: logoContentId }]
+      : undefined;
     const { error } = await resend.emails.send({
       from: config.EMAIL_FROM || 'Todolist <onboarding@resend.dev>',
       to: user.email,
       subject: 'Reset your Todolist password',
       html: getResetPasswordHtml({ userName, appName, resetLink, appUrl, logoUrl }),
       text: getResetPasswordText({ userName, appName, resetLink, appUrl }),
+      ...(attachments ? { attachments } : {}),
     });
     if (error) { console.error(error); return res.status(502).json({ error: 'Unable to send reset email at this time.' }); }
     return res.json(generic);
